@@ -16,17 +16,14 @@ local function fmt_table( tbl )
   } )
 end
 
--- local function print_table( tbl ) print( fmt_table( tbl ) ) end
-
--- local make_keybuilder
-
-local function make_hash_mt( cxn, key, getall )
+local function make_hash_mt( cxn, key )
   return {
-    __index=getall,
-    __pairs=function( _ ) return pairs( getall ) end,
-    __ipairs=function( _ ) return ipairs( getall ) end,
-    __newindex=function( tbl, ht_key, ht_val )
-      rawset( tbl, ht_key, ht_val )
+    __pairs=function( _ ) return pairs( cxn:hgetall( key ) ) end,
+    __ipairs=function( _ ) return ipairs( cxn:hgetall( key ) ) end,
+    __index=function( _, ht_key )
+      return cxn:hget( key, ht_key )
+    end,
+    __newindex=function( _, ht_key, ht_val )
       if ht_val == nil then
         cxn:hdel( key, ht_key )
         return
@@ -44,8 +41,7 @@ local function get_key( cxn, key )
   end
   local t = assert( cxn:type( key ) )
   if t == 'hash' then
-    local hash_mt = make_hash_mt( cxn, key, cxn:hgetall( key ) )
-    return setmetatable( {}, hash_mt )
+    return setmetatable( {}, make_hash_mt( cxn, key ) )
   end
   if t == 'string' then return cxn:get( key ) end
   error( 'unrecognized key type ' .. t .. ' for key=' .. key )
@@ -76,34 +72,6 @@ local function del_key( cxn, key )
   error( 'unhandled lua value type ' .. t )
 end
 
--- local keybuilder_mt = {
---   __index=function( tbl, next )
---     local cxn = assert( rawget( tbl, 'cxn' ) )
---     local key = rawget( tbl, 'key' )
---     return make_keybuilder( cxn, key, next )
---   end,
---   __newindex=function( tbl, next, val )
---     local cxn = assert( rawget( tbl, 'cxn' ) )
---     local key = rawget( tbl, 'key' )
---     set_key( cxn, key .. ':' .. next, val )
---   end,
---   __tostring=function( tbl )
---     local key = rawget( tbl, 'key' )
---     return '<key builder: key=' .. key .. '>'
---   end,
--- }
---
--- function make_keybuilder( cxn, start, next )
---   assert( start )
---   assert( type( start ) == 'string' )
---   local o = {}
---   o.cxn = cxn
---   o.key = start
---   if next then o.key = o.key .. ':' .. next end
---   if cxn:exists( o.key ) then return get_key( cxn, o.key ) end
---   return setmetatable( o, keybuilder_mt )
--- end
-
 local db_mt = {
   __index=function( tbl, key ) return get_key( tbl.cxn, key ) end,
   __newindex=function( tbl, key, val )
@@ -118,20 +86,13 @@ local db_mt = {
   end,
 }
 
-local function create_db( cxn )
-  local o = { cxn=cxn }
-  return setmetatable( o, db_mt )
-end
-
 local function open_db( host, port )
-  ---@diagnostic disable-next-line: param-type-mismatch
   local cxn = assert( redis.connect( host, port ) )
   assert( cxn:ping() )
-  local db = create_db( cxn )
-  return db
+  return setmetatable( { cxn=cxn }, db_mt )
 end
 
-local db = open_db( HOST, PORT )
+local db = assert( open_db( HOST, PORT ) )
 
 local desc = { column_names={ 'value' }, row_names={}, data={} }
 
@@ -144,6 +105,8 @@ db['one:two:three'] = 555
 db['eight:nine'] = { foo='bar' }
 db['eight:nine'].baz = 777
 db['eight:nine'].bam = 'world'
+
+print( fmt_table( db.cxn:hmget( 'eight:nine', 'baz', 'bam' ) ) )
 
 assert( not db.zzz )
 assert( not db['one:zzz'] )
@@ -167,6 +130,7 @@ assert( not db['one:two:three']['four'] )
 db['eight:nine'].biff = nil
 add( 'db["eight:nine"]', fmt_table( db['eight:nine'] ) )
 add( 'db["eight:nine"].baz', db['eight:nine'].baz )
+add( 'type( db["eight:nine"].baz )', type( db['eight:nine'].baz ) )
 add( 'db["eight:nine"].bam', db['eight:nine'].bam )
 db['eight:nine'].biff = 'hello'
 add( 'db["eight:nine"]', fmt_table( db['eight:nine'] ) )
