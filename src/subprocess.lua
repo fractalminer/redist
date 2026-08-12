@@ -36,6 +36,8 @@ local STDOUT_FILENO = assert( posix.unistd.STDOUT_FILENO )
 local STDERR_FILENO = assert( posix.unistd.STDERR_FILENO )
 local SIGTERM = assert( posix.signal.SIGTERM )
 
+local CANCEL_PROCESS = {}
+
 -----------------------------------------------------------------
 -- Methods.
 -----------------------------------------------------------------
@@ -48,7 +50,7 @@ end
 
 local function cleanup( fn )
   return setmetatable( {}, {
-    __close=function( _, err ) fn( err ) end,
+    __close=function( self ) fn( self ) end,
   } )
 end
 
@@ -132,14 +134,18 @@ local function popen( path, args, opts )
       [stderr_r]={ events={ IN=true } },
     }
 
-    local closer<close> = cleanup( function( err )
-      if not err then return end
+    -- We need cleanup on either an error or an early return, but
+    -- not after natural termination.
+    local closer<close> = cleanup( function( o )
       -- Since we're in a __close method, try to prevent any fur-
       -- ther errors from being thrown by using pcall.
       for fd in pairs( fds ) do pcall( close, fd ) end
-      pcall( kill, pid, SIGTERM ) -- terminate child.
-      pcall( wait, pid ) -- reap child.
+      if o.child_is_owned then
+        pcall( kill, pid, SIGTERM ) -- terminate child.
+        pcall( wait, pid ) -- reap child.
+      end
     end )
+    closer.child_is_owned = true
 
     local function remove_fd( fd )
       assert( fds[fd] )
@@ -148,6 +154,12 @@ local function popen( path, args, opts )
     end
 
     local chunks = { [stdout_r]={}, [stderr_r]={} }
+
+    local function done_with_status( status, reason )
+      local stdout = concat( chunks[stdout_r] )
+      local stderr = concat( chunks[stderr_r] )
+      return status, stdout, stderr, reason
+    end
 
     local function save( fd, buf ) insert( chunks[fd], buf ) end
 
@@ -176,16 +188,12 @@ local function popen( path, args, opts )
     -- will tell us which file descriptor had the event and which
     -- event.
     while next( fds ) do
-      -- WARN: it may be tempting to try to allow the callback to
-      -- return a value to signal to stop polling, but that is
-      -- not a good idea since otherwise if we stop draining the
-      -- streams and then wait for the process to complete we may
-      -- deadlock because the process may block while trying to
-      -- write to the streams. One could potentially get around
-      -- that by then killing the child process, but that has
-      -- pitfalls as well if that child has itself created sub-
-      -- processes. So best not to touch that.
-      if opts.on_poll then opts.on_poll() end
+      -- If the callback requests cancellation, returning here is
+      -- safe: the scope guard will close the pipes, terminate
+      -- the direct child, and reap it.
+      if opts.on_poll and opts.on_poll() == CANCEL_PROCESS then
+        return done_with_status( 1, 'cancelled' )
+      end
       local n, poll_err = poll( fds, opts.poll_timeout_millis )
       assert( n ~= nil, format( 'failed to poll: %s', poll_err ) )
       -- If poll returned due to timeout then do not try to read
@@ -215,10 +223,9 @@ local function popen( path, args, opts )
                 tostring( status ), reason ) )
     assert( pid_ended == pid,
             'unexpected pid returned after waiting for child process' )
-    -- reason = 'exited', 'killed', or 'stopped'
-    local stdout = concat( chunks[stdout_r] )
-    local stderr = concat( chunks[stderr_r] )
-    return status, stdout, stderr
+    closer.child_is_owned = false -- cleanup no longer needed.
+    -- reason here could be: exited / killed / stopped
+    return done_with_status( status, reason )
   end
 end
 
@@ -231,25 +238,29 @@ local function test( prog, ... )
   local function on_poll()
     -- printfln( 'on_poll: %d', polls )
     polls = polls + 1
+    -- if polls > 10 then return CANCEL_PROCESS end
+    -- if polls > 10 then return error( 'fail' ) end
   end
   local opts = {
     use_path_env=true,
     poll_timeout_millis=200,
     on_poll=on_poll,
   }
-  local status, stdout, stderr = popen( prog, args, opts )
+  local status, stdout, stderr, reason =
+      popen( prog, args, opts )
   title( 'STDOUT' )
   io.write( stdout )
   title( 'STDERR' )
   io.write( stderr )
   title( 'STATS' )
   printfln( 'STATUS: %d', status )
-  printfln( 'POLLS: %d', polls )
+  printfln( 'REASON: %s', reason )
+  printfln( 'POLLS:  %d', polls )
   return status
 end
 
 -----------------------------------------------------------------
 -- Package.
 -----------------------------------------------------------------
--- return { popen=popen }
+-- return { popen=popen, CANCEL_PROCESS=CANCEL_PROCESS }
 os.exit( test( ... ) )
