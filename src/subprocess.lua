@@ -12,6 +12,7 @@ local fork = assert( posix.unistd.fork )
 local close = assert( posix.unistd.close )
 local dup2 = assert( posix.unistd.dup2 )
 local exec = assert( posix.unistd.exec )
+local execp = assert( posix.unistd.execp )
 local read = assert( posix.unistd.read )
 local write = assert( posix.unistd.write )
 local wait = assert( posix.sys.wait.wait )
@@ -19,7 +20,9 @@ local poll = assert( posix.poll.poll )
 
 local posix_exit = assert( posix.unistd._exit )
 
-local bar = assert( printer.bar )
+local title = assert( printer.title )
+local printfln = assert( printer.printfln )
+-- local format_table = assert( printer.format_kv_table )
 
 local concat = assert( table.concat )
 local insert = assert( table.insert )
@@ -46,15 +49,29 @@ end
 --
 -- Args:
 --   * path: exact path of executable.
---   * args: optional list of args.
+--   * args: optional list of program args.
+--   * opts:
+--       - poll_timeout_millis: while polling for output to the
+--         streams we will break after (at most) this much time
+--         to allow the callback to be called.
+--       - on_poll: called just before calling poll. As such, it
+--         will be called at most every poll_timeout_millis or on
+--         each input event, whichever comes first. If no poll
+--         timeout is specified then this method may only be
+--         called once (before the first poll).
 --
 -- Returns:
 --   * status code
 --   * stdout
 --   * stderr
 --
-local function popen( path, args )
+local function popen( path, args, opts )
   args = args or {}
+  opts = opts or {}
+
+  opts.use_path_env = opts.use_path_env or false
+  opts.poll_timeout_millis = opts.poll_timeout_millis or -1
+  opts.on_poll = opts.on_poll or nil
 
   local stdout_r, stdout_w = create_pipe()
   local stderr_r, stderr_w = create_pipe()
@@ -73,7 +90,7 @@ local function popen( path, args )
       -- stead of lua's write to avoid the buffering that might
       -- happen as a result of the C file mechanism (used by Lua)
       -- that is layered on top of the posix one.
-      write( STDERR_FILENO, reason )
+      write( STDERR_FILENO, reason .. '\n' )
       posix_exit( 1 )
     end
 
@@ -88,14 +105,15 @@ local function popen( path, args )
     close( stdout_w )
     close( stderr_w )
 
-    local _, exec_err = exec( path, args )
+    local runner = opts.use_path_env and execp or exec
+    local _, exec_err = runner( path, args )
     fail( format( 'failed to execute command %s: %s', path,
                   exec_err ) )
   else
     close( stdout_w )
     close( stderr_w )
 
-    local fds_remaining = {
+    local fds = {
       -- This is the input format required by the lua posix li-
       -- brary. The linux poll method will look at `events` to
       -- see which events we are interested in, then will return
@@ -107,9 +125,9 @@ local function popen( path, args )
     }
 
     local function remove_fd( fd )
-      assert( fds_remaining[fd] )
+      assert( fds[fd] )
       close( fd )
-      fds_remaining[fd] = nil
+      fds[fd] = nil
     end
 
     local chunks = { [stdout_r]={}, [stderr_r]={} }
@@ -140,11 +158,26 @@ local function popen( path, args )
     -- tors and it will return when there is an event, and it
     -- will tell us which file descriptor had the event and which
     -- event.
-    while next( fds_remaining ) do
-      local n, poll_err = poll( fds_remaining, -1 )
+    while next( fds ) do
+      -- WARN: it may be tempting to try to allow the callback to
+      -- return a value to signal to stop polling, but that is
+      -- not a good idea since otherwise if we stop draining the
+      -- streams and then wait for the process to complete we may
+      -- deadlock because the process may block while trying to
+      -- write to the streams. One could potentially get around
+      -- that by then killing the child process, but that has
+      -- pitfalls as well if that child has itself created sub-
+      -- processes. So best not to touch that.
+      if opts.on_poll then opts.on_poll() end
+      local n, poll_err = poll( fds, opts.poll_timeout_millis )
       assert( n ~= nil, format( 'failed to poll: %s', poll_err ) )
-      for fd in pairs( fds_remaining ) do
-        local revents = fds_remaining[fd].revents or {}
+      -- If poll returned due to timeout then do not try to read
+      -- anything as revents won't have been updated by luaposix
+      -- and thus may hold stale values that could cause us to
+      -- block trying to read data that isn't there.
+      if n == 0 then goto continue end
+      for fd in pairs( fds ) do
+        local revents = fds[fd].revents or {}
         if revents.HUP then
           -- Child is done, so it is safe to drain until EOF
           -- without risking blocking indefinitely.
@@ -155,6 +188,7 @@ local function popen( path, args )
           remove_fd( fd )
         end
       end
+      ::continue::
     end
 
     local pid_ended, reason, status = wait( pid )
@@ -173,19 +207,26 @@ end
 -----------------------------------------------------------------
 -- Test
 -----------------------------------------------------------------
-local function title( name )
-  bar()
-  print( name )
-  bar()
-end
-
 local function test( prog, ... )
-  local status, stdout, stderr = popen( prog, { ... } )
+  local args = { ... }
+  local polls = 0
+  local function on_poll()
+    printfln( 'on_poll: %d', polls )
+    polls = polls + 1
+  end
+  local opts = {
+    use_path_env=true,
+    poll_timeout_millis=200,
+    on_poll=on_poll,
+  }
+  local status, stdout, stderr = popen( prog, args, opts )
   title( 'STDOUT' )
   io.write( stdout )
   title( 'STDERR' )
   io.write( stderr )
-  title( format( 'STATUS: %d', status ) )
+  title( 'STATS' )
+  printfln( 'STATUS: %d', status )
+  printfln( 'POLLS: %d', polls )
   return status
 end
 
