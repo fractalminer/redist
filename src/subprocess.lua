@@ -15,6 +15,7 @@ local exec = assert( posix.unistd.exec )
 local execp = assert( posix.unistd.execp )
 local read = assert( posix.unistd.read )
 local write = assert( posix.unistd.write )
+local kill = assert( posix.signal.kill )
 local wait = assert( posix.sys.wait.wait )
 local poll = assert( posix.poll.poll )
 
@@ -33,6 +34,7 @@ local format = assert( string.format )
 -----------------------------------------------------------------
 local STDOUT_FILENO = assert( posix.unistd.STDOUT_FILENO )
 local STDERR_FILENO = assert( posix.unistd.STDERR_FILENO )
+local SIGTERM = assert( posix.signal.SIGTERM )
 
 -----------------------------------------------------------------
 -- Methods.
@@ -42,6 +44,12 @@ local function create_pipe()
   assert( r, 'failed to create pipe' )
   assert( w, 'failed to create pipe' )
   return r, w
+end
+
+local function cleanup( fn )
+  return setmetatable( {}, {
+    __close=function( _, err ) fn( err ) end,
+  } )
 end
 
 -- Run a file that is exactly at path `path` with the given
@@ -124,6 +132,15 @@ local function popen( path, args, opts )
       [stderr_r]={ events={ IN=true } },
     }
 
+    local closer<close> = cleanup( function( err )
+      if not err then return end
+      -- Since we're in a __close method, try to prevent any fur-
+      -- ther errors from being thrown by using pcall.
+      for fd in pairs( fds ) do pcall( close, fd ) end
+      pcall( kill, pid, SIGTERM ) -- terminate child.
+      pcall( wait, pid ) -- reap child.
+    end )
+
     local function remove_fd( fd )
       assert( fds[fd] )
       close( fd )
@@ -179,8 +196,9 @@ local function popen( path, args, opts )
       for fd in pairs( fds ) do
         local revents = fds[fd].revents or {}
         if revents.HUP then
-          -- Child is done, so it is safe to drain until EOF
-          -- without risking blocking indefinitely.
+          -- There are no remaining writers for this pipe, so it
+          -- is safe to drain until EOF without blocking indefi-
+          -- nitely, though the child may still be running.
           repeat until not read_chunk_or_close( fd )
         elseif revents.IN then
           read_chunk_or_close( fd )
@@ -211,7 +229,7 @@ local function test( prog, ... )
   local args = { ... }
   local polls = 0
   local function on_poll()
-    printfln( 'on_poll: %d', polls )
+    -- printfln( 'on_poll: %d', polls )
     polls = polls + 1
   end
   local opts = {
