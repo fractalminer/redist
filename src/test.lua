@@ -1,8 +1,6 @@
-local printer = require( 'moon.printer' )
-local redis = require( 'redis' )
+local redist = require( 'redist' )
 
-local HOST = 'bonobo'
-local PORT = 6380
+local printer = require( 'moon.printer' )
 
 local insert = table.insert
 
@@ -86,13 +84,13 @@ local db_mt = {
   end,
 }
 
-local function open_db( host, port )
-  local cxn = assert( redis.connect( host, port ) )
+local function open_db()
+  local cxn = assert( redist.connect() )
   assert( cxn:ping() )
   return setmetatable( { cxn=cxn }, db_mt )
 end
 
-local db = assert( open_db( HOST, PORT ) )
+local db = assert( open_db() )
 
 local desc = { column_names={ 'value' }, row_names={}, data={} }
 

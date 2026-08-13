@@ -2,7 +2,6 @@
 -- Imports.
 -----------------------------------------------------------------
 local posix = require( 'posix' )
-local printer = require( 'moon.printer' )
 
 -----------------------------------------------------------------
 -- Aliases.
@@ -21,8 +20,6 @@ local poll = assert( posix.poll.poll )
 
 local posix_exit = assert( posix.unistd._exit )
 
-local title = assert( printer.title )
-local printfln = assert( printer.printfln )
 -- local format_table = assert( printer.format_kv_table )
 
 local concat = assert( table.concat )
@@ -230,37 +227,6 @@ local function popen( path, args, opts )
 end
 
 -----------------------------------------------------------------
--- Test
------------------------------------------------------------------
-local function test( prog, ... )
-  local args = { ... }
-  local polls = 0
-  local function on_poll()
-    -- printfln( 'on_poll: %d', polls )
-    polls = polls + 1
-    -- if polls > 10 then return CANCEL_PROCESS end
-    -- if polls > 10 then return error( 'fail' ) end
-  end
-  local opts = {
-    use_path_env=true,
-    poll_timeout_millis=200,
-    on_poll=on_poll,
-  }
-  local status, stdout, stderr, reason =
-      popen( prog, args, opts )
-  title( 'STDOUT' )
-  io.write( stdout )
-  title( 'STDERR' )
-  io.write( stderr )
-  title( 'STATS' )
-  printfln( 'STATUS: %d', status )
-  printfln( 'REASON: %s', reason )
-  printfln( 'POLLS:  %d', polls )
-  return status
-end
-
------------------------------------------------------------------
 -- Package.
 -----------------------------------------------------------------
--- return { popen=popen, CANCEL_PROCESS=CANCEL_PROCESS }
-os.exit( test( ... ) )
+return { popen=popen, CANCEL_PROCESS=CANCEL_PROCESS }
