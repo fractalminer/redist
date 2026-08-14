@@ -1,27 +1,30 @@
 -----------------------------------------------------------------
--- General redis-lua utilities.
+-- Imports.
 -----------------------------------------------------------------
-local config = require( 'config' )
-local redis = require( 'redis' )
+local cityhash = require( 'cityhash' )
 
 -----------------------------------------------------------------
 -- Aliases.
 -----------------------------------------------------------------
-local HOST = assert( config.HOST )
-local PORT = assert( config.PORT )
+local format = string.format
+local byte = string.byte
 
 -----------------------------------------------------------------
 -- Methods.
 -----------------------------------------------------------------
-local function connect()
-  local cxn = assert( redis.connect( HOST, PORT ) )
-  assert( cxn:ping() )
-  return cxn
+local function hex( str )
+  return str:gsub( '.', function( c )
+    return format( '%02x', byte( c ) )
+  end )
+end
+
+local function hash( data )
+  local res, len = hex( cityhash.hash128( data, #data ) )
+  assert( len == 16 )
+  return res
 end
 
 -----------------------------------------------------------------
 -- Module.
 -----------------------------------------------------------------
-return {
-  connect=connect, --
-}
+return { hash=hash }
