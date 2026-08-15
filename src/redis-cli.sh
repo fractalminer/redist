@@ -3,4 +3,4 @@ set -e
 
 source cxn.sh
 
-redis-cli
+redis-cli "$@"

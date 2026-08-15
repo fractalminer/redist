@@ -19,6 +19,7 @@ local function hex( str )
 end
 
 local function hash( data )
+  assert( type( data ) == 'string', 'hash data is invalid' )
   local res, len = hex( cityhash.hash128( data, #data ) )
   assert( len == 16 )
   return res

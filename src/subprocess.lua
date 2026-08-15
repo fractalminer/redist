@@ -73,6 +73,7 @@ end
 --   * stderr
 --
 local function popen( path, args, opts )
+  assert( path, 'invalid path' )
   args = args or {}
   opts = opts or {}
 
