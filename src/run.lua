@@ -7,6 +7,9 @@ local CANCEL_PROCESS = assert( subprocess.CANCEL_PROCESS )
 local title = assert( printer.title )
 local printfln = assert( printer.printfln )
 
+-----------------------------------------------------------------
+-- Main.
+-----------------------------------------------------------------
 local function main( prog, ... )
   assert( prog )
   local args = { ... }
@@ -35,4 +38,7 @@ local function main( prog, ... )
   return status
 end
 
+-----------------------------------------------------------------
+-- Launch.
+-----------------------------------------------------------------
 os.exit( main( ... ) )

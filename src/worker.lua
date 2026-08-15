@@ -44,8 +44,8 @@ local EXPIRE_ADVERTISE = 5
 -----------------------------------------------------------------
 -- Globals.
 -----------------------------------------------------------------
--- logger.level = logger.levels.DEBUG
-logger.level = logger.levels.INFO
+logger.level = logger.levels.DEBUG
+-- logger.level = logger.levels.INFO
 
 string.split = split
 
@@ -163,11 +163,7 @@ local function compile( cxn, task_hash, compiler, flags, body )
       popen( compiler, args, opts )
   if reason == 'cancelled' then
     err( 'compilation cancelled: %s', reason )
-    return {
-      status=1,
-      stdout=stdout,
-      stderr=stderr,
-    }
+    return { status=1, stdout=stdout, stderr=stderr }
   end
   local output = (status == 0) and read_file( tmp_output ) or ''
   return {
@@ -225,12 +221,7 @@ local function perform_task( cxn, task_hash )
   } )
 end
 
------------------------------------------------------------------
--- Main.
------------------------------------------------------------------
-local function main()
-  local cxn = assert( redist.connect() )
-
+local function process_next_task( cxn )
   while true do
     STATE.status = 'idle'
     STATE.task = nil
@@ -239,15 +230,31 @@ local function main()
     local ok, res = pcall( next_task, cxn )
     if not ok and res and res:match( 'interrupted' ) then
       print( '\nexiting.' )
-      break
+      os.exit( 0 )
     end
     local task_hash = res
     if not task_hash then goto continue end
     dbg( 'found task hash: %s', task_hash )
     ok, res = pcall( perform_task, cxn, task_hash )
-    if not ok then err( '%s', res ) end
+    if ok then break end
+    err( '%s', res )
     ::continue::
   end
 end
 
-main()
+-----------------------------------------------------------------
+-- Main.
+-----------------------------------------------------------------
+local function main( ... )
+  local args = { ... }
+  local arg1 = args[1]
+  local watch = (arg1 == '--watch')
+
+  local cxn = assert( redist.connect() )
+  repeat process_next_task( cxn ) until not watch
+end
+
+-----------------------------------------------------------------
+-- Launch.
+-----------------------------------------------------------------
+os.exit( main( ... ) )
