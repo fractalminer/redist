@@ -8,7 +8,7 @@ ECHO ---------------------------------------------------------------------------
   HSET farm:compile:cpp:task:8d91371e038023a53629457d4fb99842:input compiler_version 21.1.8
   HSET farm:compile:cpp:task:8d91371e038023a53629457d4fb99842:input compiler_flags   "-O3 -Wall"
   HSET farm:compile:cpp:task:8d91371e038023a53629457d4fb99842:input input 47f3450b588f14654aa791b4abe4726f
-  HSET farm:compile:cpp:task:8d91371e038023a53629457d4fb99842:input description main.cpp
+  HSET farm:compile:cpp:task:8d91371e038023a53629457d4fb99842:input description "compile main.cpp"
 
 
   DEL  farm:compile:cpp:task:b12eb77a29570ea606efa2c6b3752af4:input
@@ -17,7 +17,7 @@ ECHO ---------------------------------------------------------------------------
   HSET farm:compile:cpp:task:b12eb77a29570ea606efa2c6b3752af4:input compiler_version 21.1.8
   HSET farm:compile:cpp:task:b12eb77a29570ea606efa2c6b3752af4:input compiler_flags   "-O3 -Wall"
   HSET farm:compile:cpp:task:b12eb77a29570ea606efa2c6b3752af4:input input e2bc8a4bfdf7afcc1b902a2d7d074395
-  HSET farm:compile:cpp:task:b12eb77a29570ea606efa2c6b3752af4:input description main.cpp
+  HSET farm:compile:cpp:task:b12eb77a29570ea606efa2c6b3752af4:input description "compile a.cpp"
 
 ECHO "Queue Task"
 ECHO ---------------------------------------------------------------------------------------------

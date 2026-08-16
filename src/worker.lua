@@ -221,7 +221,7 @@ local function perform_task( cxn, task_hash )
                                   task_info.compiler_version )
   assertf( compiler, 'cannot find compiler for task: %s',
            format_table( task_info ) )
-  info( 'compiling %s', task_info.description )
+  info( 'task description: %s', task_info.description )
   local compile_output = assert(
                              compile( cxn, task_hash, compiler,
                                       task_info.compiler_flags,
