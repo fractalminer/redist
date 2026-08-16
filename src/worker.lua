@@ -4,6 +4,7 @@
 local redist = require( 'redist' )
 local subprocess = require( 'subprocess' )
 local hash = require( 'hash' )
+local cparse = require( 'cparse' )
 
 local printer = require( 'moon.printer' )
 local logger = require( 'moon.logger' )
@@ -29,13 +30,14 @@ local trace = assert( logger.trace )
 local read_file = assert( file.read_file )
 local write_file = assert( file.write_file )
 local catch_control_c = assert( merr.catch_control_c )
+local cencode = assert( cparse.cencode )
+local cdecode = assert( cparse.cdecode )
 
 local dns = assert( socket.dns )
 
 local format = string.format
 local insert = table.insert
 local unpack = table.unpack
-local pack = table.pack
 local concat = table.concat
 
 -----------------------------------------------------------------
@@ -85,14 +87,14 @@ end
 
 local function set_hash( cxn, key, tbl, expiry )
   assert( type( tbl ) == 'table' )
-  local args = {}
+  local kvs = {}
   for k, v in pairs( tbl ) do
-    insert( args, k )
-    insert( args, v )
+    insert( kvs, k )
+    insert( kvs, v )
   end
   cxn:transaction( function( t )
     t:del( key )
-    t:hset( key, unpack( args ) )
+    t:hset( key, unpack( kvs ) )
     if expiry then t:expire( key, expiry ) end
   end )
 end
@@ -142,15 +144,20 @@ local function compile( cxn, task_hash, compiler, flags, body )
                             args.workarea, task_hash )
   local tmp_output = format( '%s/farm.task.compiler.%s.o',
                              args.workarea, task_hash )
-  local args = flags:split( '%s+' )
-  local function arg( what ) insert( args, what ) end
-  -- arg( '-fcolor-diagnostics' )
-  arg( '-fdiagnostics-color' )
-  arg( '-c' )
-  arg( tmp_input )
-  arg( '-o' )
-  arg( tmp_output )
-  dbg( 'running: %s %s', compiler, concat( args, ' ' ) )
+  local compile_info = cdecode(
+                           format( '%s %s', compiler, flags ) )
+  assert( compile_info.compiler )
+  assert( not compile_info.preprocess,
+          'workers should not be doing preprocessing' )
+  assert( not compile_info.input,
+          '-c must be stripped from compile command' )
+  assert( not compile_info.output,
+          '-o must be stripped from compile command' )
+  compile_info.compiler = nil -- will insert manually below.
+  compile_info.input = tmp_input
+  compile_info.output = tmp_output
+  local cmd_args = assert( cencode( compile_info ) )
+  dbg( 'running: %s %s', compiler, concat( cmd_args, ' ' ) )
   local polls = 0
   local poll_interval_millis = 100
   local function on_poll()
@@ -170,7 +177,7 @@ local function compile( cxn, task_hash, compiler, flags, body )
   }
   write_file( tmp_input, body )
   local status, stdout, stderr, reason =
-      popen( compiler, args, opts )
+      popen( compiler, cmd_args, opts )
   if reason == 'cancelled' then
     err( 'compilation cancelled: %s', reason )
     return { status=1, stdout=stdout, stderr=stderr }
@@ -306,13 +313,7 @@ local function main()
   logger.level = level
 
   local cxn = assert( redist.connect() )
-  if args.mode == 'one' then
-    process_next_task( cxn )
-  elseif args.mode == 'drain' then
-    while process_next_task( cxn ) do end
-  else
-    error( 'unhandled mode: ' .. args.mode )
-  end
+  while process_next_task( cxn ) and args.mode == 'drain' do end
 end
 
 -----------------------------------------------------------------
