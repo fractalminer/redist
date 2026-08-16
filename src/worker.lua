@@ -7,9 +7,9 @@ local hash = require( 'hash' )
 
 local printer = require( 'moon.printer' )
 local logger = require( 'moon.logger' )
-local time = require( 'moon.time' )
-local list = require( 'moon.list' )
 local file = require( 'moon.file' )
+local str = require( 'moon.str' )
+local merr = require( 'moon.err' )
 
 local posix = require( 'posix' )
 local socket = require( 'socket' )
@@ -23,16 +23,16 @@ local format_table = assert( printer.format_table )
 local info = assert( logger.info )
 local dbg = assert( logger.dbg )
 local err = assert( logger.err )
-local sleep = assert( time.sleep )
-local split = assert( list.split )
 local read_file = assert( file.read_file )
 local write_file = assert( file.write_file )
+local catch_control_c = assert( merr.catch_control_c )
 
 local dns = assert( socket.dns )
 
 local format = string.format
 local insert = table.insert
 local unpack = table.unpack
+local pack = table.pack
 local concat = table.concat
 
 -----------------------------------------------------------------
@@ -44,10 +44,10 @@ local EXPIRE_ADVERTISE = 5
 -----------------------------------------------------------------
 -- Globals.
 -----------------------------------------------------------------
-logger.level = logger.levels.DEBUG
--- logger.level = logger.levels.INFO
+-- logger.level = logger.levels.DEBUG
+logger.level = logger.levels.INFO
 
-string.split = split
+str.enable_string_injections()
 
 local PID = assert( posix.getpid().pid )
 
@@ -266,10 +266,8 @@ end
 -----------------------------------------------------------------
 -- Main.
 -----------------------------------------------------------------
-local function main( ... )
-  local args = { ... }
-  local arg1 = args[1]
-  local watch = (arg1 == '--watch')
+local function main( args )
+  local watch = (args[1] == '--watch')
 
   local cxn = assert( redist.connect() )
   repeat process_next_task( cxn ) until not watch
@@ -278,4 +276,10 @@ end
 -----------------------------------------------------------------
 -- Launch.
 -----------------------------------------------------------------
-os.exit( main( ... ) )
+local args = pack( ... )
+os.exit( catch_control_c( function() return main( args ) end,
+                          function()
+  print();
+  info( 'exiting due ctrl-c.' )
+  return 127
+end ) )
