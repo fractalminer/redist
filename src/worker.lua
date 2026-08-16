@@ -11,6 +11,8 @@ local file = require( 'moon.file' )
 local str = require( 'moon.str' )
 local merr = require( 'moon.err' )
 
+local argparse = require( 'argparse' )
+
 local posix = require( 'posix' )
 local socket = require( 'socket' )
 
@@ -23,6 +25,7 @@ local format_table = assert( printer.format_table )
 local info = assert( logger.info )
 local dbg = assert( logger.dbg )
 local err = assert( logger.err )
+local trace = assert( logger.trace )
 local read_file = assert( file.read_file )
 local write_file = assert( file.write_file )
 local catch_control_c = assert( merr.catch_control_c )
@@ -44,8 +47,8 @@ local EXPIRE_ADVERTISE = 5
 -----------------------------------------------------------------
 -- Globals.
 -----------------------------------------------------------------
--- logger.level = logger.levels.DEBUG
-logger.level = logger.levels.INFO
+-- Parsed CLI args will be put here.
+local args
 
 str.enable_string_injections()
 
@@ -68,10 +71,16 @@ local function assertf( condition, ... )
 end
 
 local function next_task( cxn )
-  local o = cxn:blpop( 'farm:compile:cpp:queue', POLL_TIMEOUT )
+  local o
+  local key = 'farm:compile:cpp:queue'
+  if not args.wait then
+    o = cxn:lpop( key )
+  else
+    o = cxn:blpop( key, POLL_TIMEOUT )
+    o = o and o[2]
+  end
   if not o then return end
-  assert( o[2], 'invalid task' )
-  return o[2]
+  return assert( o, 'invalid task' )
 end
 
 local function set_hash( cxn, key, tbl, expiry )
@@ -129,11 +138,10 @@ local function find_compiler( compiler_type, compiler_version )
 end
 
 local function compile( cxn, task_hash, compiler, flags, body )
-  local tmpdir = '/tmp'
   local tmp_input = format( '%s/farm.task.compiler.%s.cpp',
-                            tmpdir, task_hash )
+                            args.workarea, task_hash )
   local tmp_output = format( '%s/farm.task.compiler.%s.o',
-                             tmpdir, task_hash )
+                             args.workarea, task_hash )
   local args = flags:split( '%s+' )
   local function arg( what ) insert( args, what ) end
   -- arg( '-fcolor-diagnostics' )
@@ -242,8 +250,9 @@ local function process_next_task( cxn )
     STATE.status = 'idle'
     STATE.task = nil
     advertise( cxn )
-    dbg( 'waiting for task...' )
+    trace( 'checking for task...' )
     task_hash = next_task( cxn )
+    if not task_hash and not args.wait then return false end
   until task_hash
   dbg( 'found task hash: %s', task_hash )
   local ok, result = pcall( perform_task, cxn, task_hash )
@@ -261,25 +270,55 @@ local function process_next_task( cxn )
     }
     set_result( cxn, task_hash, task_result )
   end
+  return true
 end
 
 -----------------------------------------------------------------
 -- Main.
 -----------------------------------------------------------------
-local function main( args )
-  local watch = (args[1] == '--watch')
+local function main()
+  local parser = argparse( arg[0],
+                           'ReDist Distributed Build Worker' )
+
+  -- LuaFormatter off
+  parser:option( '--verbosity' )
+        :choices{ 'error', 'warning', 'info', 'debug', 'trace' }
+        :default( 'warning' )
+        :description( 'log level' )
+
+  parser:option( '--workarea' )
+        :default( '/tmp' )
+        :description( 'where temporary files are stored' )
+
+  parser:option( '-m --mode' )
+        :choices{ 'one', 'drain' }
+        :default( 'one' )
+        :description( 'how many tasks to process' )
+
+  parser:flag( '-w --wait' )
+        :default( false )
+        :description( 'whether to wait for new tasks' )
+  -- LuaFormatter on
+
+  args = parser:parse()
+
+  local level = assert( logger.levels[args.verbosity:upper()] )
+  logger.level = level
 
   local cxn = assert( redist.connect() )
-  repeat process_next_task( cxn ) until not watch
+  if args.mode == 'one' then
+    process_next_task( cxn )
+  elseif args.mode == 'drain' then
+    while process_next_task( cxn ) do end
+  else
+    error( 'unhandled mode: ' .. args.mode )
+  end
 end
 
 -----------------------------------------------------------------
 -- Launch.
 -----------------------------------------------------------------
-local args = pack( ... )
-os.exit( catch_control_c( function() return main( args ) end,
-                          function()
-  print();
-  info( 'exiting due ctrl-c.' )
+os.exit( catch_control_c( main, function()
+  print( '\nctrl-c: exiting.' )
   return 127
 end ) )

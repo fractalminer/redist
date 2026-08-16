@@ -27,6 +27,6 @@ ECHO ---------------------------------------------------------------------------
 ECHO "Add Inputs"
 ECHO ---------------------------------------------------------------------------------------------
   SET farm:blob:47f3450b588f14654aa791b4abe4726f "int main() { return 0; }"
-  SET farm:blob:e2bc8a4bfdf7afcc1b902a2d7d074395 "int main() { returnx 0; }"
+  SET farm:blob:e2bc8a4bfdf7afcc1b902a2d7d074395 "int main() { return 1; }"
 
 EXEC
