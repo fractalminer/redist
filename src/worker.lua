@@ -142,16 +142,18 @@ local function compile( cxn, task_hash, compiler, flags, body )
   arg( tmp_input )
   arg( '-o' )
   arg( tmp_output )
-  dbg( 'running: %s', concat( args, ' ' ) )
+  dbg( 'running: %s %s', compiler, concat( args, ' ' ) )
   local polls = 0
-  local poll_interval_millis = 200
+  local poll_interval_millis = 100
   local function on_poll()
     advertise( cxn )
     dbg( 'waiting for compilation: %.1fs',
          (polls * poll_interval_millis) / 1000 )
     polls = polls + 1
     -- if polls > 10 then return CANCEL_PROCESS end
-    if polls > 10 then return error( 'compilation timed out' ) end
+    if polls > 10 * 60 * 10 then -- 10 mins (given poll interval)
+      return error( 'compilation timed out' )
+    end
   end
   local opts = {
     use_path_env=true,
@@ -182,8 +184,16 @@ local function add_blob( cxn, body )
   return h
 end
 
+local function publish( cxn, task_hash, event )
+  assert( task_hash )
+  assert( event )
+  local pub_key = format( 'farm:compile:cpp:events' )
+  cxn:publish( pub_key, format( '%s:%s', task_hash, event ) )
+end
+
 local function perform_task( cxn, task_hash )
   info( 'performing task: %s', task_hash )
+  publish( cxn, task_hash, 'started' )
   STATE.status = 'compiling'
   STATE.task = task_hash
   local task_info = find_task( cxn, task_hash )
@@ -197,16 +207,20 @@ local function perform_task( cxn, task_hash )
   assertf( compiler, 'cannot find compiler for task: %s',
            format_table( task_info ) )
   info( 'compiling %s', task_info.description )
-  local compiled = assert( compile( cxn, task_hash, compiler,
-                                    task_info.compiler_flags,
-                                    body ) )
-  if compiled.status == 0 then
+  local compile_output = assert(
+                             compile( cxn, task_hash, compiler,
+                                      task_info.compiler_flags,
+                                      body ) )
+  if compile_output.status == 0 then
     info( 'compilation successful' )
   else
-    err( 'compile failed [status=%d]:', compiled.status )
-    print( compiled.stderr )
+    err( 'compile failed [status=%d]:', compile_output.status )
+    print( compile_output.stderr )
   end
-  -- local output_hash = hash.hash( compiled.output )
+  return compile_output
+end
+
+local function set_result( cxn, task_hash, result )
   local out_key = format( 'farm:compile:cpp:task:%s:output',
                           task_hash )
   local function to_blob( content )
@@ -214,31 +228,38 @@ local function perform_task( cxn, task_hash )
   end
   cxn:del( out_key )
   set_hash( cxn, out_key, {
-    status=compiled.status,
-    output=to_blob( compiled.output ),
-    stdout=to_blob( compiled.stdout ),
-    stderr=to_blob( compiled.stderr ),
+    status=assert( result.status ),
+    output=to_blob( result.output ),
+    stdout=to_blob( result.stdout ),
+    stderr=to_blob( result.stderr ),
   } )
+  publish( cxn, task_hash, 'finished' )
 end
 
 local function process_next_task( cxn )
-  while true do
+  local task_hash
+  repeat
     STATE.status = 'idle'
     STATE.task = nil
     advertise( cxn )
-    -- dbg( 'waiting for task...' )
-    local ok, res = pcall( next_task, cxn )
-    if not ok and res and res:match( 'interrupted' ) then
-      print( '\nexiting.' )
-      os.exit( 0 )
-    end
-    local task_hash = res
-    if not task_hash then goto continue end
-    dbg( 'found task hash: %s', task_hash )
-    ok, res = pcall( perform_task, cxn, task_hash )
-    if ok then break end
-    err( '%s', res )
-    ::continue::
+    dbg( 'waiting for task...' )
+    task_hash = next_task( cxn )
+  until task_hash
+  dbg( 'found task hash: %s', task_hash )
+  local ok, result = pcall( perform_task, cxn, task_hash )
+  if ok then
+    local compile_result = result
+    set_result( cxn, task_hash, compile_result )
+  else
+    local reason = tostring( result ) or 'unknown error'
+    err( '%s', reason )
+    local task_result = {
+      status=1,
+      output='',
+      stdout='',
+      stderr=reason,
+    }
+    set_result( cxn, task_hash, task_result )
   end
 end
 
