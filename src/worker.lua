@@ -2,6 +2,7 @@
 -- Imports.
 -----------------------------------------------------------------
 local compilers = require( 'compilers' )
+local config = require( 'config' )
 local cparse = require( 'cparse' )
 local hash = require( 'hash' )
 local redist = require( 'redist' )
@@ -22,17 +23,16 @@ local socket = require( 'socket' )
 -- Aliases.
 -----------------------------------------------------------------
 local popen = assert( subprocess.popen )
-
-local format_table = assert( printer.format_table )
-local info = assert( logger.info )
+local catch_control_c = assert( merr.catch_control_c )
+local cdecode = assert( cparse.cdecode )
+local cencode = assert( cparse.cencode )
 local dbg = assert( logger.dbg )
 local err = assert( logger.err )
-local trace = assert( logger.trace )
+local format_table = assert( printer.format_table )
+local info = assert( logger.info )
 local read_file = assert( file.read_file )
+local trace = assert( logger.trace )
 local write_file = assert( file.write_file )
-local catch_control_c = assert( merr.catch_control_c )
-local cencode = assert( cparse.cencode )
-local cdecode = assert( cparse.cdecode )
 
 local dns = assert( socket.dns )
 
@@ -44,9 +44,6 @@ local concat = table.concat
 -----------------------------------------------------------------
 -- Constants.
 -----------------------------------------------------------------
-local POLL_TIMEOUT = 1
-local EXPIRE_ADVERTISE = 5
-
 local HOME = assert( os.getenv( 'HOME' ),
                      'HOME environment variable not set' )
 
@@ -82,7 +79,7 @@ local function next_task( cxn )
   if not args.wait then
     o = cxn:lpop( key )
   else
-    o = cxn:blpop( key, POLL_TIMEOUT )
+    o = cxn:blpop( key, config.worker.POLL_TIMEOUT )
     o = o and o[2]
   end
   if not o then return end
@@ -110,7 +107,7 @@ local function advertise( cxn )
     pid=PID, --
     status=STATE.status, --
     task=STATE.task, --
-  }, EXPIRE_ADVERTISE )
+  }, config.worker.EXPIRE_ADVERTISE )
 end
 
 local function find_task( cxn, task_hash )

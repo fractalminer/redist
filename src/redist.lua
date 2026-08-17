@@ -7,8 +7,8 @@ local redis = require( 'redis' )
 -----------------------------------------------------------------
 -- Aliases.
 -----------------------------------------------------------------
-local HOST = assert( config.HOST )
-local PORT = assert( config.PORT )
+local HOST = assert( config.general.HOST )
+local PORT = assert( config.general.PORT )
 
 -----------------------------------------------------------------
 -- Methods.
