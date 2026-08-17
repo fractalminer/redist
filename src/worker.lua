@@ -5,14 +5,15 @@ local compilers = require( 'compilers' )
 local config = require( 'config' )
 local cparse = require( 'cparse' )
 local hash = require( 'hash' )
+local os_stat = require( 'os-stat' )
 local redist = require( 'redist' )
 local subprocess = require( 'subprocess' )
 
-local printer = require( 'moon.printer' )
-local logger = require( 'moon.logger' )
 local file = require( 'moon.file' )
-local str = require( 'moon.str' )
+local logger = require( 'moon.logger' )
 local merr = require( 'moon.err' )
+local printer = require( 'moon.printer' )
+local str = require( 'moon.str' )
 
 local argparse = require( 'argparse' )
 
@@ -30,6 +31,7 @@ local dbg = assert( logger.dbg )
 local err = assert( logger.err )
 local format_table = assert( printer.format_table )
 local info = assert( logger.info )
+local os_version = assert( os_stat.os_version )
 local read_file = assert( file.read_file )
 local trace = assert( logger.trace )
 local write_file = assert( file.write_file )
@@ -140,17 +142,17 @@ local function compile( cxn, task_hash, compiler, flags, body )
                             args.workarea, task_hash )
   local tmp_output = format( '%s/farm.task.compiler.%s.o',
                              args.workarea, task_hash )
-  local compile_info = cdecode(
-                           format( '%s %s', compiler, flags ) )
+  local full_str = format( '%s %s', compiler, flags )
+  local compile_info = assert( cdecode( full_str ) )
   assert( compile_info.compiler )
   assert( not compile_info.preprocess,
           'workers should not be doing preprocessing' )
-  assert( not compile_info.input,
+  assert( not compile_info.compile,
           '-c must be stripped from compile command' )
   assert( not compile_info.output,
           '-o must be stripped from compile command' )
   compile_info.compiler = nil -- will insert manually below.
-  compile_info.input = tmp_input
+  compile_info.compile = tmp_input
   compile_info.output = tmp_output
   local cmd_args = assert( cencode( compile_info ) )
   dbg( 'running: %s %s', compiler, concat( cmd_args, ' ' ) )
@@ -276,6 +278,10 @@ local function process_next_task( cxn )
   return true
 end
 
+local function ping( cxn )
+  assert( cxn:ping(), 'lost connection to redis server' )
+end
+
 -----------------------------------------------------------------
 -- Main.
 -----------------------------------------------------------------
@@ -308,14 +314,18 @@ local function main()
   local level = assert( logger.levels[args.verbosity:upper()] )
   logger.level = level
 
+  -- Let's do this here to fail fast if we can't determine it.
+  assert( os_version(), 'cannot determine os version tag' )
+
   local cxn = assert( redist.connect() )
+
   while process_next_task( cxn ) and args.mode == 'drain' do
-    assert( cxn:ping(), 'lost connection to redis server' )
+    ping( cxn )
   end
 end
 
 -----------------------------------------------------------------
--- Launch.
+-- Startup.
 -----------------------------------------------------------------
 os.exit( catch_control_c( main, function()
   print( '\nctrl-c: exiting.' )

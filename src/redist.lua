@@ -15,7 +15,7 @@ local PORT = assert( config.general.PORT )
 -----------------------------------------------------------------
 local function connect()
   local cxn = assert( redis.connect( HOST, PORT ) )
-  assert( cxn:ping() )
+  assert( cxn:ping(), 'unable to ping redis server' )
   return cxn
 end
 

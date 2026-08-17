@@ -10,6 +10,7 @@ local str = require( 'moon.str' )
 local trim = assert( str.trim )
 
 local insert = table.insert
+local format = string.format
 
 -----------------------------------------------------------------
 -- Globals.
@@ -27,37 +28,66 @@ local function cdecode( cmd )
   local decoded = {
     compiler=nil,
     flags={},
-    preprocess=false,
-    input=nil,
+    preprocess=nil,
+    compile=nil,
     output=nil,
+    object_files=nil,
   }
   while true do
     if not elems[i] then break end
     local l, r = elems[i], elems[i + 1]
+    local ok = true
+    local reason
     local function key_val( where )
-      assert( r,
-              'invalid command line: missing argument to ' .. l )
-      assert( not decoded[where],
-              'invalid command line: multiple ' .. l )
+      if not r then
+        return false,
+               'invalid command line: missing argument to ' .. l
+      end
+      if decoded[where] then
+        return false, 'invalid command line: multiple ' .. l
+      end
       decoded[where] = r
       i = i + 2
+      return true
     end
     if i == 1 then
-      assert( not l:match( '^-' ),
-              'missing compiler in compile command' )
-      decoded.compiler = l
+      if l:match( '^-' ) then
+        ok, reason = false, 'missing compiler in compile command'
+      else
+        decoded.compiler = l
+        ok = true
+      end
       i = i + 1
     elseif l == '-E' then
-      decoded.preprocess = true
-      i = i + 1
+      ok, reason = key_val( 'preprocess' )
     elseif l == '-c' then
-      key_val( 'input' )
+      ok, reason = key_val( 'compile' )
     elseif l == '-o' then
-      key_val( 'output' )
+      ok, reason = key_val( 'output' )
     else
-      insert( decoded.flags, l )
+      if l:sub( 1, 1 ) == '-' then
+        insert( decoded.flags, l )
+        ok = true
+      elseif l:sub( -2, -1 ) == '.o' then
+        decoded.object_files = decoded.object_files or {}
+        insert( decoded.object_files, l )
+        ok = true
+      else
+        ok = false
+        reason = format( 'unrecognized argument form: %s', l )
+      end
       i = i + 1
     end
+    if not ok then return ok, reason end
+  end
+  if decoded.compile and decoded.preprocess then
+    return false, 'cannot have both -c and -E'
+  end
+  if decoded.compile and decoded.object_files then
+    return false, 'cannot have both -c and object files'
+  end
+  if decoded.preprocess and decoded.object_files then
+    return false, 'cannot have both -E and object files'
   end
   return decoded
 end
@@ -67,10 +97,16 @@ local function cencode( o )
   local function add( what ) insert( elems, what ) end
   if o.compiler then add( o.compiler ) end
   for _, flag in ipairs( o.flags ) do add( flag ) end
-  if o.preprocess then add( '-E' ) end
-  if o.input then
+  if o.preprocess then
+    add( '-E' )
+    add( o.preprocess )
+  end
+  if o.object_files then
+    for _, ofile in ipairs( o.object_files ) do add( ofile ) end
+  end
+  if o.compile then
     add( '-c' )
-    add( o.input )
+    add( o.compile )
   end
   if o.output then
     add( '-o' )

@@ -30,7 +30,7 @@ str.enable_string_injections()
 -----------------------------------------------------------------
 -- Compiler: llvm/clang
 --
--- For e.g. a cmd of:
+-- For e.g. a binary of:
 --   /home/user/dev/tools/llvm-current/bin/clang++
 --
 -- resolves to:
@@ -42,13 +42,13 @@ str.enable_string_injections()
 --     compiler_version = '21.1.8',
 --   }
 --
-local function interpret_clang_tools( cmd, info )
-  if not cmd:match( 'tools' ) then return end
-  if not cmd:match( 'clang' ) then return end
-  if not cmd:match( 'llvm' ) then return end
-  local resolved = realpath( cmd )
+local function interpret_clang_tools( binary, info )
+  if not binary:match( 'tools' ) then return end
+  if not binary:match( 'clang' ) then return end
+  if not binary:match( 'llvm' ) then return end
+  local resolved = realpath( binary )
   if not resolved then
-    return false, format( 'failed to resolve %s', cmd )
+    return false, format( 'failed to resolve %s', binary )
   end
   local version = resolved:match( 'llvm[^/]*%-([0-9.]+)/' )
   if not version then
@@ -56,7 +56,7 @@ local function interpret_clang_tools( cmd, info )
                'failed to find version of compiler %s', resolved )
   end
   assert( type( version ) == 'string' )
-  local base = cmd:match( '++$' ) and 'clang++' or 'clang'
+  local base = binary:match( '++$' ) and 'clang++' or 'clang'
   info.compiler_type = format( '%s-tools', base )
   info.compiler_version = version
   return true
@@ -64,7 +64,7 @@ end
 
 -- Compiler: gnu
 --
--- For e.g. a cmd of:
+-- For e.g. a binary of:
 --   /home/user/dev/tools/gcc-current/bin/g++
 --
 -- resolves to:
@@ -76,12 +76,12 @@ end
 --     compiler_version = '15.2.0',
 --   }
 --
-local function interpret_gcc_tools( cmd, info )
-  if not cmd:match( 'tools' ) then return end
-  if not cmd:match( 'gcc-' ) then return end
-  local resolved = realpath( cmd )
+local function interpret_gcc_tools( binary, info )
+  if not binary:match( 'tools' ) then return end
+  if not binary:match( 'gcc-' ) then return end
+  local resolved = realpath( binary )
   if not resolved then
-    return false, format( 'failed to resolve %s', cmd )
+    return false, format( 'failed to resolve %s', binary )
   end
   local version = resolved:match( 'gcc%-([0-9.]+)/' )
   if not version then
@@ -89,7 +89,7 @@ local function interpret_gcc_tools( cmd, info )
                'failed to find version of compiler %s', resolved )
   end
   assert( type( version ) == 'string' )
-  local base = cmd:match( '++' ) and 'g++' or 'gcc'
+  local base = binary:match( '++' ) and 'g++' or 'gcc'
   info.compiler_type = format( '%s-tools', base )
   info.compiler_version = version
   return true
@@ -97,7 +97,7 @@ end
 
 -- Compiler: gnu/system
 --
--- For e.g. a cmd of:
+-- For e.g. a binary of:
 --   /usr/bin/g++
 --
 -- yields:
@@ -108,19 +108,19 @@ end
 --
 -- NOTE: the compiler version is the OS version.
 --
-local function interpret_gcc_system( cmd, info )
+local function interpret_gcc_system( binary, info )
   local os_ver = os_version()
   if not os_ver then
     -- Cannot interpret a system compiler without knowing the os
     -- version that we are on.
     return nil
   end
-  if cmd == '/usr/bin/gcc' or cmd == '/usr/bin/cc' then
+  if binary == '/usr/bin/gcc' or binary == '/usr/bin/cc' then
     info.compiler_type = 'gcc-system'
     info.compiler_version = os_ver
     return true
   end
-  if cmd == '/usr/bin/g++' or cmd == '/usr/bin/c++' then
+  if binary == '/usr/bin/g++' or binary == '/usr/bin/c++' then
     info.compiler_type = 'g++-system'
     info.compiler_version = os_ver
     return true
@@ -128,14 +128,14 @@ local function interpret_gcc_system( cmd, info )
   return nil
 end
 
-local function interpret( cmd )
-  assert( type( cmd ) == 'string' )
-  cmd = trim( cmd )
+local function interpret( binary )
+  assert( type( binary ) == 'string' )
+  binary = trim( binary )
   local info = { compiler_type=nil, compiler_version=nil }
-  if interpret_clang_tools( cmd, info ) then return info end
-  if interpret_gcc_tools( cmd, info ) then return info end
-  if interpret_gcc_system( cmd, info ) then return info end
-  return false, 'unrecognized compiler: ' .. cmd
+  if interpret_clang_tools( binary, info ) then return info end
+  if interpret_gcc_tools( binary, info ) then return info end
+  if interpret_gcc_system( binary, info ) then return info end
+  return false, 'unrecognized compiler: ' .. binary
 end
 
 local function locate( info )
