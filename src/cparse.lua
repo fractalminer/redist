@@ -10,7 +10,6 @@ local str = require( 'moon.str' )
 local trim = assert( str.trim )
 
 local insert = table.insert
-local concat = table.concat
 
 -----------------------------------------------------------------
 -- Globals.

@@ -1,10 +1,11 @@
 -----------------------------------------------------------------
 -- Imports.
 -----------------------------------------------------------------
+local compilers = require( 'compilers' )
+local cparse = require( 'cparse' )
+local hash = require( 'hash' )
 local redist = require( 'redist' )
 local subprocess = require( 'subprocess' )
-local hash = require( 'hash' )
-local cparse = require( 'cparse' )
 
 local printer = require( 'moon.printer' )
 local logger = require( 'moon.logger' )
@@ -45,6 +46,9 @@ local concat = table.concat
 -----------------------------------------------------------------
 local POLL_TIMEOUT = 1
 local EXPIRE_ADVERTISE = 5
+
+local HOME = assert( os.getenv( 'HOME' ),
+                     'HOME environment variable not set' )
 
 -----------------------------------------------------------------
 -- Globals.
@@ -125,16 +129,11 @@ local function find_input( cxn, input_hash )
 end
 
 local function find_compiler( compiler_type, compiler_version )
-  local compiler
-  if compiler_type == 'llvm' then
-    local home = '/home/dsicilia'
-    compiler = format( '%s/dev/tools/llvm-pgo-%s/bin/clang++',
-                       home, compiler_version )
-  elseif compiler_type == 'gcc' then
-    compiler = 'g++'
-  else
-    error( 'unrecognized compiler type: %s', compiler_type )
-  end
+  local compiler = assert( compilers.locate( {
+    user_home=HOME, --
+    compiler_type=compiler_type, --
+    compiler_version=compiler_version, --
+  } ) )
   dbg( 'constructed compiler %s', compiler )
   return compiler
 end
@@ -313,7 +312,9 @@ local function main()
   logger.level = level
 
   local cxn = assert( redist.connect() )
-  while process_next_task( cxn ) and args.mode == 'drain' do end
+  while process_next_task( cxn ) and args.mode == 'drain' do
+    assert( cxn:ping(), 'lost connection to redis server' )
+  end
 end
 
 -----------------------------------------------------------------

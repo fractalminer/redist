@@ -4,17 +4,24 @@ ECHO "Create Task"
 ECHO ---------------------------------------------------------------------------------------------
   DEL  farm:compile:cpp:task:8d91371e038023a53629457d4fb99842:input
   HSET farm:compile:cpp:task:8d91371e038023a53629457d4fb99842:input os pop_22_04
-  HSET farm:compile:cpp:task:8d91371e038023a53629457d4fb99842:input compiler_type    gcc
+  HSET farm:compile:cpp:task:8d91371e038023a53629457d4fb99842:input compiler_type    clang++-tools
   HSET farm:compile:cpp:task:8d91371e038023a53629457d4fb99842:input compiler_version 21.1.8
   HSET farm:compile:cpp:task:8d91371e038023a53629457d4fb99842:input compiler_flags   "-O3 -Wall"
   HSET farm:compile:cpp:task:8d91371e038023a53629457d4fb99842:input input 47f3450b588f14654aa791b4abe4726f
   HSET farm:compile:cpp:task:8d91371e038023a53629457d4fb99842:input description "compile main.cpp"
 
+  DEL  farm:compile:cpp:task:b12eb77a29570ea606efa2c6b3752af4:input
+  HSET farm:compile:cpp:task:b12eb77a29570ea606efa2c6b3752af4:input os pop_22_04
+  HSET farm:compile:cpp:task:b12eb77a29570ea606efa2c6b3752af4:input compiler_type    gcc-tools
+  HSET farm:compile:cpp:task:b12eb77a29570ea606efa2c6b3752af4:input compiler_version 15.2.0
+  HSET farm:compile:cpp:task:b12eb77a29570ea606efa2c6b3752af4:input compiler_flags   "-O3 -Wall"
+  HSET farm:compile:cpp:task:b12eb77a29570ea606efa2c6b3752af4:input input e2bc8a4bfdf7afcc1b902a2d7d074395
+  HSET farm:compile:cpp:task:b12eb77a29570ea606efa2c6b3752af4:input description "compile a.cpp"
 
   DEL  farm:compile:cpp:task:b12eb77a29570ea606efa2c6b3752af4:input
   HSET farm:compile:cpp:task:b12eb77a29570ea606efa2c6b3752af4:input os pop_22_04
-  HSET farm:compile:cpp:task:b12eb77a29570ea606efa2c6b3752af4:input compiler_type    gcc
-  HSET farm:compile:cpp:task:b12eb77a29570ea606efa2c6b3752af4:input compiler_version 21.1.8
+  HSET farm:compile:cpp:task:b12eb77a29570ea606efa2c6b3752af4:input compiler_type    gcc-system
+  HSET farm:compile:cpp:task:b12eb77a29570ea606efa2c6b3752af4:input compiler_version pop_22_04
   HSET farm:compile:cpp:task:b12eb77a29570ea606efa2c6b3752af4:input compiler_flags   "-O3 -Wall"
   HSET farm:compile:cpp:task:b12eb77a29570ea606efa2c6b3752af4:input input e2bc8a4bfdf7afcc1b902a2d7d074395
   HSET farm:compile:cpp:task:b12eb77a29570ea606efa2c6b3752af4:input description "compile a.cpp"
