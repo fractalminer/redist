@@ -3,10 +3,11 @@
 -- Imports.
 -----------------------------------------------------------------
 local compilers = require( 'compilers' )
-local config = require( 'config' )
+-- local config = require( 'config' )
 local os_stat = require( 'os-stat' )
 local cparse = require( 'cparse' )
 local redist = require( 'redist' )
+local subprocess = require( 'subprocess' )
 
 local logger = require( 'moon.logger' )
 
@@ -17,8 +18,11 @@ local argparse = require( 'argparse' )
 -----------------------------------------------------------------
 local os_version = assert( os_stat.os_version )
 local cdecode = assert( cparse.cdecode )
+local popen = assert( subprocess.popen )
 
-local concat = assert( table.concat )
+local warn = assert( logger.warn )
+
+-- local concat = assert( table.concat )
 local format = assert( string.format )
 
 -----------------------------------------------------------------
@@ -39,67 +43,90 @@ local function ping( cxn )
   assert( cxn:ping(), 'lost connection to redis server' )
 end
 
-local function parse_compile_cmd( command )
+local function analyze_command( command )
   assert( type( command ) == 'string' )
-  local compile_info, reason = cdecode( command )
-  if not compile_info then return false, reason end
-  if not compile_info.compiler then
-    return false, 'cannot extract compiler'
+  local parsed, err = cdecode( command )
+  if not parsed then return false, err end
+  local analyzed = {
+    parsed=parsed, --
+    unparsed=command, --
+    label=nil, --
+    interpreted=nil, --
+  }
+  if not parsed.compiler then
+    err = 'missing compiler binary'
+  elseif not parsed.output then
+    err = 'missing compile output (-o)'
+  elseif not parsed.compile and parsed.preprocess then
+    analyzed.label = 'preprocess'
+  elseif not parsed.compile and parsed.object_files then
+    analyzed.label = 'link'
+  elseif parsed.compile then
+    analyzed.label = 'compile'
   end
-  if compile_info.preprocess then
-    return false, 'cannot distribute preprocess commands'
-  end
-  if not compile_info.compile then
-    return false, 'missing compile input (-c)'
-  end
-  if not compile_info.output then
-    return false, 'missing compile output (-o)'
-  end
-  return compile_info
+  if err then return false, err end
+  analyzed.interpreted, err = compilers.interpret(
+                                  parsed.compiler )
+  if not analyzed.interpreted then return false, err end
+  return analyzed
 end
 
-local function always_run_local( command )
-  assert( type( command ) == 'string' )
-  local compile_info, reason = cdecode( command )
-  if not compile_info then return false, reason end
-  if not compile_info.compiler then
-    return false, 'cannot extract compiler'
+local function how_to_run( analyzed )
+  if analyzed.label == 'preprocess' then
+    -- Although this builder will run a preprocessor command as
+    -- part of preparing a compilation task, it cannot run a pre-
+    -- process command itself as the target command.
+    return false, 'cannot run preprocessor commands'
+  elseif analyzed.label == 'link' then
+    return 'local'
+  elseif analyzed.label == 'compile' then
+    return 'remote'
+  else
+    return false,
+           format( 'unrecognized label: %s', analyzed.label )
   end
-  if compile_info.preprocess then
-    return false, 'cannot distribute preprocess commands'
-  end
-  if not compile_info.compile then
-    return false, 'missing compile input (-c)'
-  end
-  if not compile_info.output then
-    return false, 'missing compile output (-o)'
-  end
-  return compile_info
 end
 
-local function can_distribute( command )
-  local parsed, reason = parse_compile_cmd( command )
-  if not parsed then return false, reason end
-  local identification, reason2 =
-      compilers.interpret( parsed.compiler )
-  if not identification then return false, reason2 end
+local function create_remote_task( analyzed )
+  local parsed = assert( analyzed.parsed )
+  local interpreted = assert( analyzed.interpreted )
   -- Create a task.
   return {
     compiler_flags=assert( parsed.flags ),
-    compiler_type=assert( identification.compiler_type ),
-    compiler_version=assert( identification.compiler_version ),
+    compiler_type=assert( interpreted.compiler_type ),
+    compiler_version=assert( interpreted.compiler_version ),
     description=assert( parsed.compile ),
     input=nil, -- filled in later after preprocessing.
     os=os_version(),
   }
 end
 
-local function run_local( command ) end
+local function run_local( command )
+  local elems = command:split( '%s+' )
+  local prog = assert( elems[1] )
+  table.remove( elems, 1 )
+  local params = elems
+  local opts = { use_path_env=true }
+  local status, stdout, stderr, reason =
+      popen( prog, params, opts )
+  if status ~= 0 and reason ~= 'exited' then
+    warn( 'command exited for reason: %s', reason )
+  end
+  assert( io.stdout ):write( stdout )
+  assert( io.stderr ):write( stderr )
+  os.exit( status )
+end
+
+local function run_remote( cxn, analyzed )
+  local task = assert( create_remote_task( analyzed ) )
+  -- TODO
+  run_local( analyzed.unparsed )
+end
 
 -----------------------------------------------------------------
 -- Main.
 -----------------------------------------------------------------
-local function main( ... )
+local function main()
   local parser = argparse( arg[0],
                            'ReDist Distributed Build Launcher' )
 
@@ -117,11 +144,6 @@ local function main( ... )
   parser:option( '--workarea' )
         :default( '/tmp' )
         :description( 'where temporary files are stored' )
-
-  parser:option( '-m --mode' )
-        :choices{ 'strict', 'permissive' }
-        :default( 'strict' )
-        :description( 'whether to allow running commands that cannot be distributed' )
   -- LuaFormatter on
 
   args = parser:parse()
@@ -135,14 +157,14 @@ local function main( ... )
   local cxn = assert( redist.connect() )
 
   local command = assert( args.command )
-  local dist_info, no_dist_reason = can_distribute( command )
-  if not dist_info then
-    if args.mode == 'strict' then
-      error( format(
-                 'error: cannot distribute.\nreason: %s\ncommand: %s',
-                 no_dist_reason, command ) )
-    end
-    return run_local( command )
+  local analyzed = assert( analyze_command( command ) )
+  local how = assert( how_to_run( analyzed ) )
+  if how == 'local' then
+    run_local( command )
+  elseif how == 'remote' then
+    run_remote( cxn, analyzed )
+  else
+    error( format( 'unrecognized run mode: %s', how ) )
   end
 
   return 0
@@ -151,4 +173,4 @@ end
 -----------------------------------------------------------------
 -- Startup.
 -----------------------------------------------------------------
-os.exit( main( ... ) )
+os.exit( main() )

@@ -33,62 +33,58 @@ local function cdecode( cmd )
     output=nil,
     object_files=nil,
   }
-  while true do
-    if not elems[i] then break end
+  local err
+  while not err and elems[i] do
     local l, r = elems[i], elems[i + 1]
-    local ok = true
-    local reason
     local function key_val( where )
       if not r then
-        return false,
-               'invalid command line: missing argument to ' .. l
+        err = format(
+                  'invalid command line: missing argument to %s',
+                  l )
+      elseif decoded[where] then
+        err = format( 'invalid command line: multiple %s', l )
+      else
+        decoded[where] = r
+        i = i + 1
       end
-      if decoded[where] then
-        return false, 'invalid command line: multiple ' .. l
-      end
-      decoded[where] = r
-      i = i + 2
-      return true
     end
     if i == 1 then
       if l:match( '^-' ) then
-        ok, reason = false, 'missing compiler in compile command'
+        err = 'missing compiler in compile command'
       else
         decoded.compiler = l
-        ok = true
       end
-      i = i + 1
     elseif l == '-E' then
-      ok, reason = key_val( 'preprocess' )
+      key_val( 'preprocess' )
     elseif l == '-c' then
-      ok, reason = key_val( 'compile' )
+      key_val( 'compile' )
     elseif l == '-o' then
-      ok, reason = key_val( 'output' )
+      key_val( 'output' )
     else
       if l:sub( 1, 1 ) == '-' then
         insert( decoded.flags, l )
-        ok = true
       elseif l:sub( -2, -1 ) == '.o' then
         decoded.object_files = decoded.object_files or {}
         insert( decoded.object_files, l )
-        ok = true
       else
-        ok = false
-        reason = format( 'unrecognized argument form: %s', l )
+        err = format( 'unrecognized argument form: %s', l )
       end
-      i = i + 1
     end
-    if not ok then return ok, reason end
+    i = i + 1
   end
+  if err then return false, err end
+
   if decoded.compile and decoded.preprocess then
-    return false, 'cannot have both -c and -E'
+    err = 'cannot have both -c and -E'
   end
   if decoded.compile and decoded.object_files then
-    return false, 'cannot have both -c and object files'
+    err = 'cannot have both -c and object files'
   end
   if decoded.preprocess and decoded.object_files then
-    return false, 'cannot have both -E and object files'
+    err = 'cannot have both -E and object files'
   end
+  if err then return false, err end
+
   return decoded
 end
 

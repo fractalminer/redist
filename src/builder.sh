@@ -7,7 +7,6 @@ workarea=/home/dsicilia/dev/redist/src/workarea
 
 lua "$HOME/dev/redist/src/builder.lua" \
   --command="$*"    \
-  --mode=strict     \
   --verbosity=trace \
   --workarea="$workarea"
 
