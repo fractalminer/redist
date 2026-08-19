@@ -3,7 +3,7 @@
 -----------------------------------------------------------------
 local compilers = require( 'compilers' )
 local config = require( 'config' )
-local cparse = require( 'cparse' )
+local decode = require( 'decode' )
 local hash = require( 'hash' )
 local os_stat = require( 'os-stat' )
 local redist = require( 'redist' )
@@ -25,8 +25,9 @@ local socket = require( 'socket' )
 -----------------------------------------------------------------
 local popen = assert( subprocess.popen )
 local catch_control_c = assert( merr.catch_control_c )
-local cdecode = assert( cparse.cdecode )
-local cencode = assert( cparse.cencode )
+local cdecode = assert( decode.cdecode )
+local cvalidate = assert( decode.cvalidate )
+local cencode = assert( decode.cencode )
 local dbg = assert( logger.dbg )
 local err = assert( logger.err )
 local format_table = assert( printer.format_table )
@@ -144,16 +145,17 @@ local function compile( cxn, task_hash, compiler, flags, body )
                              args.workarea, task_hash )
   local full_str = format( '%s %s', compiler, flags )
   local compile_info = assert( cdecode( full_str ) )
-  assert( compile_info.compiler )
-  assert( not compile_info.preprocess,
+  cvalidate( compile_info )
+  assert( compile_info.binary )
+  assert( not compile_info.special_flags.E,
           'workers should not be doing preprocessing' )
-  assert( not compile_info.compile,
+  assert( not compile_info.special_flags.c,
           '-c must be stripped from compile command' )
-  assert( not compile_info.output,
+  assert( not compile_info.special_flags.o,
           '-o must be stripped from compile command' )
-  compile_info.compiler = nil -- will insert manually below.
-  compile_info.compile = tmp_input
-  compile_info.output = tmp_output
+  compile_info.binary = nil -- will insert manually below.
+  compile_info.special_flags.c = tmp_input
+  compile_info.special_flags.o = tmp_output
   local cmd_args = assert( cencode( compile_info ) )
   dbg( 'running: %s %s', compiler, concat( cmd_args, ' ' ) )
   local polls = 0

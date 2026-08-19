@@ -1,0 +1,165 @@
+-- Compile Command Decoder.
+-----------------------------------------------------------------
+-- Imports.
+-----------------------------------------------------------------
+local str = require( 'moon.str' )
+
+-----------------------------------------------------------------
+-- Aliases.
+-----------------------------------------------------------------
+local trim = assert( str.trim )
+
+local insert = table.insert
+local format = string.format
+
+-----------------------------------------------------------------
+-- Globals.
+-----------------------------------------------------------------
+str.enable_string_injections()
+
+-----------------------------------------------------------------
+-- Implementation.
+-----------------------------------------------------------------
+local function errorf( ... ) error( format( ... ) ) end
+
+local function is_option( what )
+  assert( what )
+  assert( #what > 0 )
+  return what:sub( 1, 1 ) == '-'
+end
+
+local function cdecode( cmd )
+  assert( type( cmd ) == 'string' )
+  cmd = trim( cmd )
+  local elems = cmd:split( '%s+' )
+  local i = 1
+  local decoded = {
+    binary=nil, --
+    special_flags={
+      MD=nil, --
+      MMD=nil, --
+      MT=nil, --
+      MF=nil, --
+      E=nil, --
+      c=nil, --
+      o=nil, --
+      x=nil, --
+    },
+    flags={}, -- remaining flags.
+    input_object_files={}, --
+  }
+  while elems[i] do
+    local l, r = elems[i], elems[i + 1]
+    local function key_val( where )
+      if not r or is_option( r ) then
+        errorf( 'missing argument to %s', l )
+      end
+      if decoded[where] then
+        errorf( 'invalid command line: multiple %s', l )
+      end
+      decoded.special_flags[where] = r
+      i = i + 1
+    end
+    if i == 1 then
+      if is_option( l ) then
+        error( 'missing binary in compile command' )
+      end
+      decoded.binary = l
+    elseif l == '-MD' then
+      decoded.special_flags.MD = true
+    elseif l == '-MMD' then
+      decoded.special_flags.MMD = true
+    elseif l == '-MT' then
+      key_val( 'MT' )
+    elseif l == '-MF' then
+      key_val( 'MF' )
+    elseif l == '-E' then
+      key_val( 'E' )
+    elseif l == '-c' then
+      key_val( 'c' )
+    elseif l == '-o' then
+      key_val( 'o' )
+    elseif l == '-x' then
+      key_val( 'x' )
+    else
+      if is_option( l ) then
+        insert( decoded.flags, l )
+      elseif l:sub( -2, -1 ) == '.o' then
+        insert( decoded.input_object_files, l )
+      else
+        errorf( 'unrecognized argument form: %s', l )
+      end
+    end
+    i = i + 1
+  end
+  return decoded
+end
+
+local function cvalidate( decoded )
+  assert( decoded.binary, 'missing compiler binary' )
+  local sf = assert( decoded.special_flags )
+  local has_dep_flag = (sf.MD or sf.MMD or sf.MT or sf.MF)
+  local has_objects = (#decoded.input_object_files > 0)
+  if has_dep_flag and has_objects then
+    error( 'cannot have both deps flags and object file inputs' )
+  end
+  if sf.MD and sf.MMD then
+    error( 'cannot have both -MD and -MMD' )
+  end
+  if sf.E and has_dep_flag then
+    -- This may work on some compilers but doesn't work on all.
+    error( 'cannot have generate dep files while preprocessing' )
+  end
+  if sf.c and sf.E then error( 'cannot have both -c and -E' ) end
+  if sf.c and has_objects then
+    error( 'cannot have both -c and object files as input' )
+  end
+  if sf.E and has_objects then
+    error( 'cannot have both -E and object files as input' )
+  end
+end
+
+local function cencode( o )
+  local elems = {}
+  local function add( what ) insert( elems, what ) end
+  if o.compiler then add( o.compiler ) end
+  if o.special_flags.x then
+    add( '-x' )
+    add( o.special_flags.x )
+  end
+  if o.special_flags.MD then add( '-MD' ) end
+  if o.special_flags.MMD then add( '-MMD' ) end
+  if o.special_flags.MF then
+    add( '-MF' )
+    add( o.special_flags.MF )
+  end
+  if o.special_flags.MT then
+    add( '-MT' )
+    add( o.special_flags.MT )
+  end
+  if o.special_flags.E then
+    add( '-E' )
+    add( o.special_flags.E )
+  end
+  for _, flag in ipairs( o.flags ) do add( flag ) end
+  if o.special_flags.c then
+    add( '-c' )
+    add( o.special_flags.c )
+  end
+  if #o.input_object_files > 0 then
+    for _, ofile in ipairs( o.input_object_files ) do
+      add( ofile )
+    end
+  end
+  if o.special_flags.o then
+    add( '-o' )
+    add( o.special_flags.o )
+  end
+  -- Return as a list to give the caller more flexibility.
+  return elems
+end
+
+-----------------------------------------------------------------
+-- Module.
+-----------------------------------------------------------------
+return { cencode=cencode, cvalidate=cvalidate, cdecode=cdecode }

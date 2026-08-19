@@ -39,6 +39,8 @@ luac.out
 *.x86_64
 *.hex
 
+Session.vim
+
 /src/project
 /src/pperror
 /src/workarea

@@ -1,0 +1,58 @@
+Plan for ccache:
+-----------------------------------------------------------------
+  * We will set ccache to depend_mode=true which will cause it to
+    do a more efficient type of hashing that does not require
+    running the preprocessor and so should speed things up.
+  * We will inject the shim via CCACHE_PREFIX which will point to
+    a script in the redist repo. That way, nothing in the com-
+    piled repo needs to change or be added.
+  * The Makefile will detect the presence of a REMOTE= variable
+    and will set the CCACHE_PREFIX as well as invoke a script in
+    the redist repo to query the number of available workers and
+    will set the -j argument accordingly.
+  * ccache, on a cache miss, will give the original command to
+    the shim which will then automatically distribute it uncondi-
+    tionally, since CMake should not arrange for ccache to be
+    called on anything other than compile commands (i.e. not
+    linking).
+  * Then the builder will look at the command and ensure that it
+    can recognize it and fail if it can't or if it is a
+    non-distributable command (though that shouldn't happen).
+  * Assuming it is a compile command, the builder will need to
+    run the preprocessor and simultaneously emit the dep file,
+    which entails:
+      - Detecting the presence of the -M* flags:
+          * If -MT is there then it should be preserved, other-
+            wise it needs to be added with the final object file.
+          * -MF presence/absence/value should be preserved.
+          * -MMD needs to be added if it is not there.
+      - Detecting the presence of the -x ... flag. If it's here
+        then it ideally needs to replace it with the
+        post-preprocessed version before compiling, but hopefully
+        we won't have to deal with that.
+      - Adding the -E flag.
+      - Changing the output to xxx.cpp.ii
+      - The resulting command is then added to the local job
+        queue for the host to be picked up (preferentially) by
+        the workers running on this host (such local workers are
+        required to be running therefore).
+      - The builder will wait for the preprocess to be complete,
+        after which the .ii file will be stored in redis (and
+        therefore will not have to be re-uploaded when it is sub-
+        sequently given to the distributed compile step). If this
+        step fails then stdout/stderr/status are emitted and the
+        process stops.
+  * Once preprocessing finishes then the .ii file will already be
+    in redis. So now we construct the compile task and upload it,
+    and then wait for that task to be performed. The compile com-
+    mand should have the following changes:
+      * -M* flags removed.
+      * -x c++-cpp-output (or analogous post-preprocessor form of
+        the flag if it was already there). Though this is not
+        needed if the extension of the input file is .ii, which
+        it will be.
+      * Remove the -c and -o.
+      * Make sure there is no -E.
+      * The worker that takes it will append .ii to the input ex-
+        tension and will upload the output back to redis.
+  * Once the compile is done then we return.

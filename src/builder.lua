@@ -5,7 +5,7 @@
 local compilers = require( 'compilers' )
 -- local config = require( 'config' )
 local os_stat = require( 'os-stat' )
-local cparse = require( 'cparse' )
+local decode = require( 'decode' )
 local redist = require( 'redist' )
 local subprocess = require( 'subprocess' )
 
@@ -17,8 +17,10 @@ local argparse = require( 'argparse' )
 -- Aliases.
 -----------------------------------------------------------------
 local os_version = assert( os_stat.os_version )
-local cdecode = assert( cparse.cdecode )
+local cdecode = assert( decode.cdecode )
+local cvalidate = assert( decode.cvalidate )
 local popen = assert( subprocess.popen )
+local match_compiler = assert( compilers.match_compiler )
 
 local warn = assert( logger.warn )
 
@@ -45,46 +47,41 @@ end
 
 local function analyze_command( command )
   assert( type( command ) == 'string' )
-  local parsed, err = cdecode( command )
-  if not parsed then return false, err end
-  local analyzed = {
-    parsed=parsed, --
-    unparsed=command, --
-    label=nil, --
-    interpreted=nil, --
-  }
-  if not parsed.compiler then
-    err = 'missing compiler binary'
-  elseif not parsed.output then
-    err = 'missing compile output (-o)'
-  elseif not parsed.compile and parsed.preprocess then
-    analyzed.label = 'preprocess'
-  elseif not parsed.compile and parsed.object_files then
-    analyzed.label = 'link'
-  elseif parsed.compile then
-    analyzed.label = 'compile'
-  end
-  if err then return false, err end
-  analyzed.interpreted, err = compilers.interpret(
-                                  parsed.compiler )
-  if not analyzed.interpreted then return false, err end
-  return analyzed
-end
+  local decoded = assert( cdecode( command ) )
+  -- This does mechanical validation that just checks if the com-
+  -- mand is self-consistent and generally a valid command, even
+  -- if it is not something that we specifically support.
+  cvalidate( decoded )
+  local compiler_match =
+      assert( match_compiler( decoded.binary ) )
 
-local function how_to_run( analyzed )
-  if analyzed.label == 'preprocess' then
-    -- Although this builder will run a preprocessor command as
-    -- part of preparing a compilation task, it cannot run a pre-
-    -- process command itself as the target command.
-    return false, 'cannot run preprocessor commands'
-  elseif analyzed.label == 'link' then
-    return 'local'
-  elseif analyzed.label == 'compile' then
-    return 'remote'
-  else
-    return false,
-           format( 'unrecognized label: %s', analyzed.label )
+  if decoded.special_flags.E then
+    -- Although we do do a preprocess before we distribute, we
+    -- are not supposed to receive a preprocess command outright.
+    error( 'cannot distribute preprocess commands' )
   end
+
+  if not decoded.special_flags.c then
+    error( '-c not found in compile command' )
+  end
+
+  if not decoded.special_flags.o then
+    -- It is possible that some commands may work without an ex-
+    -- plicit -o flag (i.e. will use some default way of deducing
+    -- the output file) but that will not work for us because we
+    -- need to know where to put the result.
+    error( '-o not found in compile command' )
+  end
+
+  if #decoded.input_object_files > 0 then
+    error( 'cannot distribute linker commands' )
+  end
+
+  return {
+    raw=command,
+    decoded=decoded,
+    compiler_match=compiler_match,
+  }
 end
 
 local function create_remote_task( analyzed )
@@ -158,14 +155,8 @@ local function main()
 
   local command = assert( args.command )
   local analyzed = assert( analyze_command( command ) )
-  local how = assert( how_to_run( analyzed ) )
-  if how == 'local' then
-    run_local( command )
-  elseif how == 'remote' then
-    run_remote( cxn, analyzed )
-  else
-    error( format( 'unrecognized run mode: %s', how ) )
-  end
+  run_local( command )
+  -- run_remote( cxn, analyzed )
 
   return 0
 end

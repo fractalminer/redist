@@ -42,7 +42,7 @@ str.enable_string_injections()
 --     compiler_version = '21.1.8',
 --   }
 --
-local function interpret_clang_tools( binary, info )
+local function match_clang_tools( binary, info )
   if not binary:match( 'tools' ) then return end
   if not binary:match( 'clang' ) then return end
   if not binary:match( 'llvm' ) then return end
@@ -76,7 +76,7 @@ end
 --     compiler_version = '15.2.0',
 --   }
 --
-local function interpret_gcc_tools( binary, info )
+local function match_gcc_tools( binary, info )
   if not binary:match( 'tools' ) then return end
   if not binary:match( 'gcc-' ) then return end
   local resolved = realpath( binary )
@@ -108,7 +108,7 @@ end
 --
 -- NOTE: the compiler version is the OS version.
 --
-local function interpret_gcc_system( binary, info )
+local function match_gcc_system( binary, info )
   local os_ver = os_version()
   if not os_ver then
     -- Cannot interpret a system compiler without knowing the os
@@ -128,13 +128,13 @@ local function interpret_gcc_system( binary, info )
   return nil
 end
 
-local function interpret( binary )
+local function match_compiler( binary )
   assert( type( binary ) == 'string' )
   binary = trim( binary )
   local info = { compiler_type=nil, compiler_version=nil }
-  if interpret_clang_tools( binary, info ) then return info end
-  if interpret_gcc_tools( binary, info ) then return info end
-  if interpret_gcc_system( binary, info ) then return info end
+  if match_clang_tools( binary, info ) then return info end
+  if match_gcc_tools( binary, info ) then return info end
+  if match_gcc_system( binary, info ) then return info end
   return false, 'unrecognized compiler: ' .. binary
 end
 
@@ -181,4 +181,4 @@ end
 -----------------------------------------------------------------
 -- Module.
 -----------------------------------------------------------------
-return { interpret=interpret, locate=locate }
+return { match_compiler=match_compiler, locate=locate }
