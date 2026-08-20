@@ -8,7 +8,7 @@ local socket = require( 'socket' )
 -----------------------------------------------------------------
 -- Aliases.
 -----------------------------------------------------------------
-local dbg = assert( logger.dbg )
+local debug = assert( logger.debug )
 
 local dns = assert( socket.dns )
 
@@ -32,7 +32,7 @@ local function machine_id()
   assert( #id == 32 )
   MACHINE_ID = id
   -- This log is basically to notify on a cache miss.
-  dbg( 'reading machine ID: %s', id )
+  debug( 'reading machine ID: %s', id )
   return id
 end
 
@@ -44,7 +44,7 @@ local function hostname()
   assert( #name > 0, 'hostname empty' )
   HOSTNAME = name
   -- This log is basically to notify on a cache miss.
-  dbg( 'reading hostname: %s', name )
+  debug( 'reading hostname: %s', name )
   return name
 end
 

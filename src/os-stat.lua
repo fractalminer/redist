@@ -12,7 +12,7 @@ local posix = require( 'posix' )
 -- Aliases.
 -----------------------------------------------------------------
 local read_lines = assert( file.read_lines )
-local dbg = assert( logger.dbg )
+local debug = assert( logger.debug )
 
 local stat = assert( posix.sys.stat.stat )
 
@@ -35,16 +35,16 @@ local cached_os_version = nil
 -- Implementation.
 -----------------------------------------------------------------
 local function os_version_impl()
-  dbg( 'looking for OS version...' )
+  debug( 'looking for OS version...' )
   if stat( POP_OS_RELEASE ) then
-    dbg( 'looking for Pop!_OS version...' )
+    debug( 'looking for Pop!_OS version...' )
     local lines = read_lines( POP_OS_RELEASE )
     for _, line in ipairs( lines ) do
       local ver = line:match( '^VERSION_ID="([0-9.]+)"$' )
       if ver then
         ver = ver:gsub( '%.', '_' )
         ver = format( 'pop_%s', ver )
-        dbg( 'found version: %s', ver )
+        debug( 'found version: %s', ver )
         return ver
       end
     end

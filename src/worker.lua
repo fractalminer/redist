@@ -23,20 +23,21 @@ local posix = require( 'posix' )
 -----------------------------------------------------------------
 -- Aliases.
 -----------------------------------------------------------------
-local popen = assert( subprocess.popen )
 local catch_control_c = assert( merr.catch_control_c )
 local cdecode = assert( decode.cdecode )
-local cvalidate = assert( decode.cvalidate )
 local cencode = assert( decode.cencode )
-local dbg = assert( logger.dbg )
+local match_compiler = assert( compilers.match_compiler )
+local cvalidate = assert( decode.cvalidate )
+local debug = assert( logger.debug )
 local err = assert( logger.err )
 local format_table = assert( printer.format_table )
 local info = assert( logger.info )
+local machine_label = assert( network.machine_label )
 local os_version = assert( os_stat.os_version )
+local popen = assert( subprocess.popen )
 local read_file = assert( file.read_file )
 local trace = assert( logger.trace )
 local write_file = assert( file.write_file )
-local machine_label = assert( network.machine_label )
 
 local format = string.format
 local insert = table.insert
@@ -127,20 +128,20 @@ local function advertise( cxn )
 end
 
 local function find_remote_task( cxn, task_hash )
-  dbg( 'looking up remote task: %s', task_hash )
+  debug( 'looking up remote task: %s', task_hash )
   local key =
       format( 'farm:compile:cpp:task:%s:input', task_hash )
   return cxn:hgetall( key )
 end
 
 local function find_local_task( cxn, task_hash )
-  dbg( 'looking up local task: %s', task_hash )
+  debug( 'looking up local task: %s', task_hash )
   local key = format( 'farm:local:task:%s:input', task_hash )
   return cxn:hgetall( key )
 end
 
 local function find_input( cxn, input_hash )
-  dbg( 'finding blob: %s', input_hash )
+  debug( 'finding blob: %s', input_hash )
   local key = format( 'farm:blob:%s', input_hash )
   local blob = cxn:get( key )
   assert( type( blob ) == 'string', 'unexpected blob type' )
@@ -153,7 +154,7 @@ local function find_compiler( compiler_type, compiler_version )
     compiler_type=compiler_type, --
     compiler_version=compiler_version, --
   } ) )
-  dbg( 'constructed compiler %s', compiler )
+  debug( 'constructed compiler %s', compiler )
   return compiler
 end
 
@@ -176,13 +177,13 @@ local function compile( cxn, task_hash, compiler, flags, body )
   compile_info.special_flags.c = tmp_input
   compile_info.special_flags.o = tmp_output
   local cmd_args = assert( cencode( compile_info ) )
-  dbg( 'running: %s %s', compiler, concat( cmd_args, ' ' ) )
+  debug( 'running: %s %s', compiler, concat( cmd_args, ' ' ) )
   local polls = 0
   local poll_interval_millis = 100
   local function on_poll()
     advertise( cxn )
-    dbg( 'waiting for compilation: %.1fs',
-         (polls * poll_interval_millis) / 1000 )
+    debug( 'waiting for compilation: %.1fs',
+           (polls * poll_interval_millis) / 1000 )
     polls = polls + 1
     -- if polls > 10 then return CANCEL_PROCESS end
     if polls > 10 * 60 * 10 then -- 10 mins (given poll interval)
@@ -251,7 +252,7 @@ local function run_remote_task( cxn, task_hash )
   local input_hash = assert( task_info.input )
   local body = find_input( cxn, input_hash )
   assertf( body, 'cannot find body for input %s', input_hash )
-  dbg( 'body is %d bytes', #body )
+  debug( 'body is %d bytes', #body )
   local compiler = find_compiler( task_info.compiler_type,
                                   task_info.compiler_version )
   assertf( compiler, 'cannot find compiler for task: %s',
@@ -264,7 +265,7 @@ local function run_remote_task( cxn, task_hash )
   if compile_output.status == 0 then
     info( 'compilation successful' )
     if #compile_output.stdout > 0 then
-      dbg( 'stdout:\n%s', compile_output.stdout )
+      debug( 'stdout:\n%s', compile_output.stdout )
     end
   else
     err( 'compile failed [status=%d]:', compile_output.status )
@@ -283,6 +284,15 @@ local function run_local_task( cxn, task_hash )
   assertf( task_info.command, 'cannot find local task: %s',
            task_hash )
   local command_line = assert( task_info.command )
+  info( 'running command: %s', command_line )
+  -- Sanity check. We technically don't need to know what command
+  -- we're running here, but we should validate it just to be
+  -- safe.
+  local decoded = cdecode( command_line )
+  assert( decoded.special_flags.E,
+          'expected preprocessor command' )
+  cvalidate( decoded )
+  assert( match_compiler( decoded.binary ) )
   local cmd_args = command_line:split( '%s+' )
   local command = cmd_args[1]
   remove( cmd_args, 1 )
@@ -290,8 +300,8 @@ local function run_local_task( cxn, task_hash )
   local poll_interval_millis = 100
   local function on_poll()
     advertise( cxn )
-    dbg( 'waiting for command: %.1fs',
-         (polls * poll_interval_millis) / 1000 )
+    debug( 'waiting for command: %.1fs',
+           (polls * poll_interval_millis) / 1000 )
     polls = polls + 1
     -- if polls > 10 then return CANCEL_PROCESS end
     if polls > 10 * 60 * 10 then -- 10 mins (given poll interval)
@@ -307,7 +317,7 @@ local function run_local_task( cxn, task_hash )
                                                 cmd_args, opts )
   if status == 0 then
     info( 'command successful' )
-    if #stdout > 0 then dbg( 'stdout:\n%s', stdout ) end
+    if #stdout > 0 then trace( 'stdout:\n%s', stdout ) end
   else
     err( 'command failed [status=%d]:', status )
     err( 'exit reason:', tostring( reason ) )
@@ -350,7 +360,7 @@ local function process_task( cxn, task, perform, set_result )
   assert( perform )
   assert( set_result )
   local task_hash = assert( task.hash )
-  dbg( 'found task hash: %s', task_hash )
+  debug( 'found task hash: %s', task_hash )
   local ok, result = pcall( perform, cxn, task_hash )
   if ok then
     set_result( cxn, task_hash, result )
