@@ -36,6 +36,7 @@ local os_version = assert( os_stat.os_version )
 local read_file = assert( file.read_file )
 local trace = assert( logger.trace )
 local write_file = assert( file.write_file )
+local machine_label = assert( network.machine_label )
 
 local format = string.format
 local insert = table.insert
@@ -59,8 +60,6 @@ str.enable_string_injections()
 
 local PID = assert( posix.getpid().pid )
 
-local MACHINE_LABEL = assert( network.machine_label() )
-
 local STATE = {
   status='idle', --
   task=nil, --
@@ -78,7 +77,7 @@ end
 local function next_task( cxn )
   local remote_queue = 'farm:compile:cpp:queue'
   local local_queue = format( 'farm:local:queue:%s',
-                              MACHINE_LABEL )
+                              machine_label() )
   local function result( key, task )
     assert( key, 'task queue key is nil' )
     assert( task, 'task is nil' )
@@ -120,7 +119,7 @@ end
 
 local function advertise( cxn )
   if not args.advertise then return end
-  local key = format( 'farm:worker:%s:%s', MACHINE_LABEL, PID )
+  local key = format( 'farm:worker:%s:%s', machine_label(), PID )
   set_hash( cxn, key, {
     status=STATE.status, --
     task=STATE.task or 'none', --
@@ -269,8 +268,8 @@ local function run_remote_task( cxn, task_hash )
     end
   else
     err( 'compile failed [status=%d]:', compile_output.status )
-    io.stdout:write( compile_output.stdout )
-    io.stderr:write( compile_output.stderr )
+    assert( io.stdout ):write( compile_output.stdout )
+    assert( io.stderr ):write( compile_output.stderr )
   end
   return compile_output
 end
@@ -312,8 +311,8 @@ local function run_local_task( cxn, task_hash )
   else
     err( 'command failed [status=%d]:', status )
     err( 'exit reason:', tostring( reason ) )
-    io.stdout:write( stdout )
-    io.stderr:write( stderr )
+    assert( io.stdout ):write( stdout )
+    assert( io.stderr ):write( stderr )
   end
   return { status=status, stdout=stdout, stderr=stderr }
 end
