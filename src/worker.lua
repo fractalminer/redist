@@ -5,6 +5,7 @@ local compilers = require( 'compilers' )
 local config = require( 'config' )
 local decode = require( 'decode' )
 local hash = require( 'hash' )
+local network = require( 'network' )
 local os_stat = require( 'os-stat' )
 local redist = require( 'redist' )
 local subprocess = require( 'subprocess' )
@@ -18,7 +19,6 @@ local str = require( 'moon.str' )
 local argparse = require( 'argparse' )
 
 local posix = require( 'posix' )
-local socket = require( 'socket' )
 
 -----------------------------------------------------------------
 -- Aliases.
@@ -36,8 +36,6 @@ local os_version = assert( os_stat.os_version )
 local read_file = assert( file.read_file )
 local trace = assert( logger.trace )
 local write_file = assert( file.write_file )
-
-local dns = assert( socket.dns )
 
 local format = string.format
 local insert = table.insert
@@ -60,7 +58,7 @@ str.enable_string_injections()
 
 local PID = assert( posix.getpid().pid )
 
-local HOSTNAME = assert( dns.gethostname() )
+local MACHINE_LABEL = assert( network.machine_label() )
 
 local STATE = {
   status='idle', --
@@ -104,12 +102,10 @@ local function set_hash( cxn, key, tbl, expiry )
 end
 
 local function advertise( cxn )
-  local key = format( 'farm:worker:%s:%s', HOSTNAME, PID )
+  local key = format( 'farm:worker:%s:%s', MACHINE_LABEL, PID )
   set_hash( cxn, key, {
-    hostname=HOSTNAME, --
-    pid=PID, --
     status=STATE.status, --
-    task=STATE.task, --
+    task=STATE.task or 'none', --
   }, config.worker.EXPIRE_ADVERTISE )
 end
 

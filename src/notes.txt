@@ -1,3 +1,19 @@
+Plan for Pub/Sub:
+-----------------------------------------------------------------
+  * First create a dedicated connection and extract/store the
+    socket.
+  * Do NOT set a timeout on the socket, as that may not play
+    nicely with the redis-lua library (could cause some data loss
+    if the timeout happens just as a packet is coming in).
+  * Then subscribe.
+  * Then use the socket.select (with a timeout) to wait for mes-
+    sages. It will return then there is data to read.
+  * Then use the usual redis-lua api to read it.
+  * Then you can have a coroutine that is suspended and resumed
+    when new messages arrive (if that happens to be useful, which
+    it may not be).
+
+
 Plan for ccache:
 -----------------------------------------------------------------
   * We will set ccache to depend_mode=true which will cause it to
