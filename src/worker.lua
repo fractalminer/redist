@@ -76,15 +76,16 @@ end
 
 local function next_task( cxn )
   local o
-  local key = 'farm:compile:cpp:queue'
+  local remote_queue = 'farm:compile:cpp:queue'
+  local local_queue = format( 'farm:local:queue:%s',
+                              MACHINE_LABEL )
   if not args.wait then
-    o = cxn:lpop( key )
+    return cxn:lpop( local_queue ) or cxn:lpop( remote_queue )
   else
-    o = cxn:blpop( key, config.worker.POLL_TIMEOUT )
-    o = o and o[2]
+    o = cxn:blpop( local_queue, remote_queue,
+                   config.worker.POLL_TIMEOUT )
+    return o and o[2]
   end
-  if not o then return end
-  return assert( o, 'invalid task' )
 end
 
 local function set_hash( cxn, key, tbl, expiry )

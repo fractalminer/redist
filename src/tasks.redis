@@ -1,6 +1,6 @@
 MULTI
 
-ECHO "Create Task"
+ECHO "Create Remote Tasks"
 ECHO ---------------------------------------------------------------------------------------------
   DEL  farm:compile:cpp:task:8d91371e038023a53629457d4fb99842:input
   HSET farm:compile:cpp:task:8d91371e038023a53629457d4fb99842:input os pop_22_04
@@ -26,10 +26,18 @@ ECHO ---------------------------------------------------------------------------
   HSET farm:compile:cpp:task:b12eb77a29570ea606efa2c6b3752af4:input input e2bc8a4bfdf7afcc1b902a2d7d074395
   HSET farm:compile:cpp:task:b12eb77a29570ea606efa2c6b3752af4:input description "compile a.cpp"
 
+ECHO "Create Local Tasks"
+ECHO ---------------------------------------------------------------------------------------------
+  DEL  farm:local:task:bf59c93c8566e8904344c7275f2d6e08:input
+  HSET farm:local:task:bf59c93c8566e8904344c7275f2d6e08:input command "/usr/bin/echo hello"
+  HSET farm:local:task:bf59c93c8566e8904344c7275f2d6e08:input description "preprocess main.cpp"
+
 ECHO "Queue Task"
 ECHO ---------------------------------------------------------------------------------------------
   RPUSH farm:compile:cpp:queue 8d91371e038023a53629457d4fb99842
   RPUSH farm:compile:cpp:queue b12eb77a29570ea606efa2c6b3752af4
+  RPUSH farm:local:queue:bonobo-a3a2da568ef6838c1ed2ed9463e5507b bf59c93c8566e8904344c7275f2d6e08
+
 
 ECHO "Add Inputs"
 ECHO ---------------------------------------------------------------------------------------------

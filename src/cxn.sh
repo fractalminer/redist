@@ -1,3 +1,3 @@
 redis-cli() {
-  command redis-cli -h bonobo -p 6380 "$@"
+  command redis-cli -h bonobo -p 6379 "$@"
 }
