@@ -130,8 +130,8 @@ local function dump( cxn )
   local strings, lists, hashes = get_sorted_keys_by_type( cxn )
   bar()
   emit( strings )
-  emit( lists )
   emit( hashes )
+  emit( lists )
 end
 
 local function watching_dump( cxn )

@@ -5,7 +5,7 @@ local harden = assert( require( 'moon.freeze' ).harden )
 
 return harden{
   general={
-    HOST='bonobo', --
+    HOST='127.0.0.1', --
     PORT=6379, --
   },
 

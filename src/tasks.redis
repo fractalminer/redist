@@ -18,13 +18,13 @@ ECHO ---------------------------------------------------------------------------
   HSET farm:compile:cpp:task:b12eb77a29570ea606efa2c6b3752af4:input input e2bc8a4bfdf7afcc1b902a2d7d074395
   HSET farm:compile:cpp:task:b12eb77a29570ea606efa2c6b3752af4:input description "compile a.cpp"
 
-  DEL  farm:compile:cpp:task:b12eb77a29570ea606efa2c6b3752af4:input
-  HSET farm:compile:cpp:task:b12eb77a29570ea606efa2c6b3752af4:input os pop_22_04
-  HSET farm:compile:cpp:task:b12eb77a29570ea606efa2c6b3752af4:input compiler_type    gcc-system
-  HSET farm:compile:cpp:task:b12eb77a29570ea606efa2c6b3752af4:input compiler_version pop_22_04
-  HSET farm:compile:cpp:task:b12eb77a29570ea606efa2c6b3752af4:input compiler_flags   "-O3 -Wall"
-  HSET farm:compile:cpp:task:b12eb77a29570ea606efa2c6b3752af4:input input e2bc8a4bfdf7afcc1b902a2d7d074395
-  HSET farm:compile:cpp:task:b12eb77a29570ea606efa2c6b3752af4:input description "compile a.cpp"
+  DEL  farm:compile:cpp:task:b12eb77a29570ea606efa2c6b3752af5:input
+  HSET farm:compile:cpp:task:b12eb77a29570ea606efa2c6b3752af5:input os pop_22_04
+  HSET farm:compile:cpp:task:b12eb77a29570ea606efa2c6b3752af5:input compiler_type    gcc-system
+  HSET farm:compile:cpp:task:b12eb77a29570ea606efa2c6b3752af5:input compiler_version pop_22_04
+  HSET farm:compile:cpp:task:b12eb77a29570ea606efa2c6b3752af5:input compiler_flags   "-O3 -Wall"
+  HSET farm:compile:cpp:task:b12eb77a29570ea606efa2c6b3752af5:input input e2bc8a4bfdf7afcc1b902a2d7d074395
+  HSET farm:compile:cpp:task:b12eb77a29570ea606efa2c6b3752af5:input description "compile a.cpp"
 
 ECHO "Create Local Tasks"
 ECHO ---------------------------------------------------------------------------------------------
@@ -36,8 +36,7 @@ ECHO "Queue Task"
 ECHO ---------------------------------------------------------------------------------------------
   RPUSH farm:compile:cpp:queue 8d91371e038023a53629457d4fb99842
   RPUSH farm:compile:cpp:queue b12eb77a29570ea606efa2c6b3752af4
-  RPUSH farm:local:queue:bonobo-a3a2da568ef6838c1ed2ed9463e5507b bf59c93c8566e8904344c7275f2d6e08
-
+  RPUSH farm:compile:cpp:queue b12eb77a29570ea606efa2c6b3752af5
 
 ECHO "Add Inputs"
 ECHO ---------------------------------------------------------------------------------------------

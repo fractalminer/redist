@@ -41,6 +41,7 @@ local format = string.format
 local insert = table.insert
 local unpack = table.unpack
 local concat = table.concat
+local remove = table.remove
 
 -----------------------------------------------------------------
 -- Constants.
@@ -75,16 +76,31 @@ local function assertf( condition, ... )
 end
 
 local function next_task( cxn )
-  local o
   local remote_queue = 'farm:compile:cpp:queue'
   local local_queue = format( 'farm:local:queue:%s',
                               MACHINE_LABEL )
+  local function result( key, task )
+    assert( key, 'task queue key is nil' )
+    assert( task, 'task is nil' )
+    if key == local_queue then
+      return { type='local', hash=task }
+    end
+    if key == remote_queue then
+      return { type='remote', hash=task }
+    end
+    error( 'popped from unexpected key: ' .. key )
+  end
+  local o
   if not args.wait then
-    return cxn:lpop( local_queue ) or cxn:lpop( remote_queue )
+    o = cxn:lpop( local_queue )
+    if o then return result( local_queue, o ) end
+    o = cxn:lpop( remote_queue )
+    if o then return result( remote_queue, o ) end
   else
+    -- Local queue must come first.
     o = cxn:blpop( local_queue, remote_queue,
                    config.worker.POLL_TIMEOUT )
-    return o and o[2]
+    return o and result( o[1], o[2] )
   end
 end
 
@@ -103,6 +119,7 @@ local function set_hash( cxn, key, tbl, expiry )
 end
 
 local function advertise( cxn )
+  if not args.advertise then return end
   local key = format( 'farm:worker:%s:%s', MACHINE_LABEL, PID )
   set_hash( cxn, key, {
     status=STATE.status, --
@@ -110,10 +127,16 @@ local function advertise( cxn )
   }, config.worker.EXPIRE_ADVERTISE )
 end
 
-local function find_task( cxn, task_hash )
-  dbg( 'looking up task: %s', task_hash )
+local function find_remote_task( cxn, task_hash )
+  dbg( 'looking up remote task: %s', task_hash )
   local key =
       format( 'farm:compile:cpp:task:%s:input', task_hash )
+  return cxn:hgetall( key )
+end
+
+local function find_local_task( cxn, task_hash )
+  dbg( 'looking up local task: %s', task_hash )
+  local key = format( 'farm:local:task:%s:input', task_hash )
   return cxn:hgetall( key )
 end
 
@@ -196,20 +219,36 @@ local function add_blob( cxn, body )
   return h
 end
 
-local function publish( cxn, task_hash, event )
-  assert( task_hash )
+local function publish_event( cxn, key, event )
+  assert( key )
   assert( event )
-  local pub_key = format( 'farm:compile:cpp:events' )
-  cxn:publish( pub_key, format( '%s:%s', task_hash, event ) )
+  cxn:publish( key, event )
 end
 
-local function perform_task( cxn, task_hash )
-  info( 'performing task: %s', task_hash )
-  publish( cxn, task_hash, 'started' )
+local function publish_remote_task_event( cxn, task_hash, event )
+  assert( task_hash )
+  assert( event )
+  local key = format( 'farm:compile:cpp:events' )
+  event = format( '%s:%s', task_hash, event )
+  publish_event( cxn, key, event )
+end
+
+local function publish_local_task_event( cxn, task_hash, event )
+  assert( task_hash )
+  assert( event )
+  local key = format( 'farm:local:task:events' )
+  event = format( '%s:%s', task_hash, event )
+  publish_event( cxn, key, event )
+end
+
+local function run_remote_task( cxn, task_hash )
+  info( 'performing remote task: %s', task_hash )
+  publish_remote_task_event( cxn, task_hash, 'started' )
   STATE.status = 'compiling'
   STATE.task = task_hash
-  local task_info = find_task( cxn, task_hash )
-  assertf( task_info.input, 'cannot find task: %s', task_hash )
+  local task_info = find_remote_task( cxn, task_hash )
+  assertf( task_info.input, 'cannot find remote task: %s',
+           task_hash )
   local input_hash = assert( task_info.input )
   local body = find_input( cxn, input_hash )
   assertf( body, 'cannot find body for input %s', input_hash )
@@ -225,47 +264,105 @@ local function perform_task( cxn, task_hash )
                                       body ) )
   if compile_output.status == 0 then
     info( 'compilation successful' )
+    if #compile_output.stdout > 0 then
+      dbg( 'stdout:\n%s', compile_output.stdout )
+    end
   else
     err( 'compile failed [status=%d]:', compile_output.status )
-    print( compile_output.stderr )
+    io.stdout:write( compile_output.stdout )
+    io.stderr:write( compile_output.stderr )
   end
   return compile_output
 end
 
-local function set_result( cxn, task_hash, result )
+local function run_local_task( cxn, task_hash )
+  info( 'performing local task: %s', task_hash )
+  publish_local_task_event( cxn, task_hash, 'started' )
+  STATE.status = 'running-local'
+  STATE.task = task_hash
+  local task_info = find_local_task( cxn, task_hash )
+  assertf( task_info.command, 'cannot find local task: %s',
+           task_hash )
+  local command_line = assert( task_info.command )
+  local cmd_args = command_line:split( '%s+' )
+  local command = cmd_args[1]
+  remove( cmd_args, 1 )
+  local polls = 0
+  local poll_interval_millis = 100
+  local function on_poll()
+    advertise( cxn )
+    dbg( 'waiting for command: %.1fs',
+         (polls * poll_interval_millis) / 1000 )
+    polls = polls + 1
+    -- if polls > 10 then return CANCEL_PROCESS end
+    if polls > 10 * 60 * 10 then -- 10 mins (given poll interval)
+      return error( 'command timed out' )
+    end
+  end
+  local opts = {
+    use_path_env=true,
+    poll_timeout_millis=poll_interval_millis,
+    on_poll=on_poll,
+  }
+  local status, stdout, stderr, reason = popen( command,
+                                                cmd_args, opts )
+  if status == 0 then
+    info( 'command successful' )
+    if #stdout > 0 then dbg( 'stdout:\n%s', stdout ) end
+  else
+    err( 'command failed [status=%d]:', status )
+    err( 'exit reason:', tostring( reason ) )
+    io.stdout:write( stdout )
+    io.stderr:write( stderr )
+  end
+  return { status=status, stdout=stdout, stderr=stderr }
+end
+
+local function set_remote_result( cxn, task_hash, result )
   local out_key = format( 'farm:compile:cpp:task:%s:output',
                           task_hash )
   local function to_blob( content )
     return add_blob( cxn, content )
   end
-  cxn:del( out_key )
   set_hash( cxn, out_key, {
     status=assert( result.status ),
     output=to_blob( result.output ),
     stdout=to_blob( result.stdout ),
     stderr=to_blob( result.stderr ),
   } )
-  publish( cxn, task_hash, 'finished' )
+  publish_remote_task_event( cxn, task_hash, 'finished' )
 end
 
-local function process_next_task( cxn )
-  local task_hash
-  repeat
-    STATE.status = 'idle'
-    STATE.task = nil
-    advertise( cxn )
-    trace( 'checking for task...' )
-    task_hash = next_task( cxn )
-    if not task_hash and not args.wait then return false end
-  until task_hash
+local function set_local_result( cxn, task_hash, result )
+  local out_key =
+      format( 'farm:local:task:%s:output', task_hash )
+  local function to_blob( content )
+    return add_blob( cxn, content )
+  end
+  set_hash( cxn, out_key, {
+    status=assert( result.status ),
+    stdout=to_blob( result.stdout ),
+    stderr=to_blob( result.stderr ),
+  } )
+  publish_local_task_event( cxn, task_hash, 'finished' )
+end
+
+local function process_task( cxn, task, perform, set_result )
+  assert( perform )
+  assert( set_result )
+  local task_hash = assert( task.hash )
   dbg( 'found task hash: %s', task_hash )
-  local ok, result = pcall( perform_task, cxn, task_hash )
+  local ok, result = pcall( perform, cxn, task_hash )
   if ok then
-    local compile_result = result
-    set_result( cxn, task_hash, compile_result )
+    set_result( cxn, task_hash, result )
   else
     local reason = tostring( result ) or 'unknown error'
     err( '%s', reason )
+    -- In this case we threw an error while trying to execute the
+    -- task so we don't even have the stdout/stderr of the task
+    -- as it may not have even run at all. If it did run but just
+    -- returned an error code then the 'ok' branch should actu-
+    -- ally handle that.
     local task_result = {
       status=1,
       output='',
@@ -273,6 +370,27 @@ local function process_next_task( cxn )
       stderr=reason,
     }
     set_result( cxn, task_hash, task_result )
+  end
+end
+
+local function process_next_task( cxn )
+  local task
+  repeat
+    STATE.status = 'idle'
+    STATE.task = nil
+    advertise( cxn )
+    trace( 'checking for task...' )
+    task = next_task( cxn )
+    if not task and not args.wait then return false end
+  until task
+  assert( task.type )
+  if task.type == 'local' then
+    process_task( cxn, task, run_local_task, set_local_result )
+  elseif task.type == 'remote' then
+    process_task( cxn, task, run_remote_task, set_remote_result )
+  else
+    err( 'unrecognized task type: ' .. task.type )
+    return false
   end
   return true
 end
@@ -306,6 +424,12 @@ local function main()
   parser:flag( '-w --wait' )
         :default( false )
         :description( 'whether to wait for new tasks' )
+
+  parser:option( '--advertise' )
+        :choices{ 'false', 'true' }
+        :default( true )
+        :convert( function( o ) return o == 'true'  end )
+        :description( 'whether to continously advertise this worker' )
   -- LuaFormatter on
 
   args = parser:parse()
