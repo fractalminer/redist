@@ -1,27 +1,27 @@
 -----------------------------------------------------------------
--- General redis-lua utilities.
+-- Implementation.
 -----------------------------------------------------------------
-local config = require( 'config' )
-local redis = require( 'redis' )
+local hash = require( 'hash' )
 
 -----------------------------------------------------------------
 -- Aliases.
 -----------------------------------------------------------------
-local HOST = assert( config.general.HOST )
-local PORT = assert( config.general.PORT )
+local format = assert( string.format )
 
 -----------------------------------------------------------------
--- Methods.
+-- Implementation.
 -----------------------------------------------------------------
-local function connect()
-  local cxn = assert( redis.connect( HOST, PORT ) )
-  assert( cxn:ping(), 'unable to ping redis server' )
-  return cxn
+local function set_blob( cxn, body )
+  assert( body, 'invalid body' )
+  local h = hash.hash( body )
+  local key = format( 'farm:blob:%s', h )
+  if not cxn:exists( key ) then cxn:set( key, body ) end
+  return h
 end
 
 -----------------------------------------------------------------
 -- Module.
 -----------------------------------------------------------------
 return {
-  connect=connect, --
+  set_blob, --
 }

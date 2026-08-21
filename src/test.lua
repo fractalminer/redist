@@ -1,4 +1,4 @@
-local redist = require( 'redist' )
+local ru = require( 'redis-util' )
 
 local printer = require( 'moon.printer' )
 
@@ -85,7 +85,7 @@ local db_mt = {
 }
 
 local function open_db()
-  local cxn = assert( redist.connect() )
+  local cxn = assert( ru.connect() )
   assert( cxn:ping() )
   return setmetatable( { cxn=cxn }, db_mt )
 end

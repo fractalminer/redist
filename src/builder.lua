@@ -5,7 +5,8 @@
 local compilers = require( 'compilers' )
 local os_stat = require( 'os-stat' )
 local decode = require( 'decode' )
-local redist = require( 'redist' )
+local ru = require( 'redis-util' )
+local mlocal = require( 'local' )
 
 local colors = require( 'moon.colors' )
 local logger = require( 'moon.logger' )
@@ -16,6 +17,7 @@ local logger = require( 'moon.logger' )
 local os_version = assert( os_stat.os_version )
 local cround_trip = assert( decode.cround_trip )
 local match_compiler = assert( compilers.match_compiler )
+local create_local_task = assert( mlocal.create_local_task )
 
 -----------------------------------------------------------------
 -- Constants.
@@ -69,7 +71,16 @@ local function analyze_command( command )
   }
 end
 
-local function create_remote_task( analyzed )
+local function create_local_preprocess_task( cxn, analyzed )
+  local task = create_local_task( cxn, hash, {
+    command='', --
+    cwd='', --
+    description='', --
+  } )
+  error( 'not implemented' )
+end
+
+local function create_remote_compile_task( analyzed )
   local decoded = assert( analyzed.decoded )
   local interpreted = assert( analyzed.interpreted )
   -- Create a task.
@@ -84,7 +95,9 @@ local function create_remote_task( analyzed )
 end
 
 local function run_remote( cxn, analyzed )
-  local task = assert( create_remote_task( analyzed ) )
+  local preprocess_task = assert(
+                              create_local_preprocess_task( cxn,
+                                                            analyzed ) )
   -- TODO
 end
 
@@ -95,7 +108,7 @@ local function main()
   -- Let's do this here to fail fast if we can't determine it.
   assert( os_version(), 'cannot determine os version tag' )
 
-  local cxn = assert( redist.connect() )
+  local cxn = assert( ru.connect() )
 
   local command = assert( arg )
   local analyzed = assert( analyze_command( command ) )

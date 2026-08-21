@@ -4,10 +4,11 @@
 local compilers = require( 'compilers' )
 local config = require( 'config' )
 local decode = require( 'decode' )
-local hash = require( 'hash' )
+local farm = require( 'farm' )
+local mlocal = require( 'local' )
 local network = require( 'network' )
 local os_stat = require( 'os-stat' )
-local redist = require( 'redist' )
+local ru = require( 'redis-util' )
 local subprocess = require( 'subprocess' )
 
 local file = require( 'moon.file' )
@@ -29,18 +30,21 @@ local cencode = assert( decode.cencode )
 local match_compiler = assert( compilers.match_compiler )
 local debug = assert( logger.debug )
 local err = assert( logger.err )
+local find_local_task = assert( mlocal.find_local_task )
 local format_table = assert( printer.format_table )
 local info = assert( logger.info )
 local machine_label = assert( network.machine_label )
 local os_version = assert( os_stat.os_version )
 local popen = assert( subprocess.popen )
 local read_file = assert( file.read_file )
+local set_blob = assert( farm.set_blob )
+local set_hash = assert( ru.set_hash )
+local set_local_result = assert( mlocal.set_local_result )
 local trace = assert( logger.trace )
 local write_file = assert( file.write_file )
 
 local format = string.format
 local insert = table.insert
-local unpack = table.unpack
 local concat = table.concat
 local remove = table.remove
 
@@ -103,20 +107,6 @@ local function next_task( cxn )
   end
 end
 
-local function set_hash( cxn, key, tbl, expiry )
-  assert( type( tbl ) == 'table' )
-  local kvs = {}
-  for k, v in pairs( tbl ) do
-    insert( kvs, k )
-    insert( kvs, v )
-  end
-  cxn:transaction( function( t )
-    t:del( key )
-    t:hset( key, unpack( kvs ) )
-    if expiry then t:expire( key, expiry ) end
-  end )
-end
-
 local function advertise( cxn )
   if not args.advertise then return end
   local key = format( 'farm:worker:%s:%s', machine_label(), PID )
@@ -130,12 +120,6 @@ local function find_remote_task( cxn, task_hash )
   debug( 'looking up remote task: %s', task_hash )
   local key =
       format( 'farm:compile:cpp:task:%s:input', task_hash )
-  return cxn:hgetall( key )
-end
-
-local function find_local_task( cxn, task_hash )
-  debug( 'looking up local task: %s', task_hash )
-  local key = format( 'farm:local:task:%s:input', task_hash )
   return cxn:hgetall( key )
 end
 
@@ -212,14 +196,6 @@ local function compile( cxn, task_hash, compiler, flags, body )
     stdout=stdout,
     stderr=stderr,
   }
-end
-
-local function add_blob( cxn, body )
-  assert( body, 'invalid body' )
-  local h = hash.hash( body )
-  local key = format( 'farm:blob:%s', h )
-  if not cxn:exists( key ) then cxn:set( key, body ) end
-  return h
 end
 
 local function publish_event( cxn, key, event )
@@ -338,7 +314,7 @@ local function set_remote_result( cxn, task_hash, result )
   local out_key = format( 'farm:compile:cpp:task:%s:output',
                           task_hash )
   local function to_blob( content )
-    return add_blob( cxn, content )
+    return set_blob( cxn, content )
   end
   set_hash( cxn, out_key, {
     status=assert( result.status ),
@@ -347,20 +323,6 @@ local function set_remote_result( cxn, task_hash, result )
     stderr=to_blob( result.stderr ),
   } )
   publish_remote_task_event( cxn, task_hash, 'finished' )
-end
-
-local function set_local_result( cxn, task_hash, result )
-  local out_key =
-      format( 'farm:local:task:%s:output', task_hash )
-  local function to_blob( content )
-    return add_blob( cxn, content )
-  end
-  set_hash( cxn, out_key, {
-    status=assert( result.status ),
-    stdout=to_blob( result.stdout ),
-    stderr=to_blob( result.stderr ),
-  } )
-  publish_local_task_event( cxn, task_hash, 'finished' )
 end
 
 local function process_task( cxn, task, perform, set_result )
@@ -463,7 +425,7 @@ local function main()
   -- Let's do this here to fail fast if we can't determine it.
   assert( os_version(), 'cannot determine os version tag' )
 
-  local cxn = assert( redist.connect() )
+  local cxn = assert( ru.connect() )
 
   while process_next_task( cxn ) and args.mode == 'drain' do
     ping( cxn )

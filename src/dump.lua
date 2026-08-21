@@ -5,7 +5,7 @@
 -----------------------------------------------------------------
 -- Imports.
 -----------------------------------------------------------------
-local redist = require( 'redist' )
+local ru = require( 'redis-util' )
 
 local printer = require( 'moon.printer' )
 local color = require( 'moon.colors' )
@@ -176,7 +176,7 @@ local function main( ... )
   local arg1 = args[1]
   local watch = (arg1 == '--watch')
 
-  local cxn = assert( redist.connect() )
+  local cxn = assert( ru.connect() )
   if not watch then
     dump( cxn )
   else
