@@ -17,8 +17,7 @@ local argparse = require( 'argparse' )
 -- Aliases.
 -----------------------------------------------------------------
 local os_version = assert( os_stat.os_version )
-local cdecode = assert( decode.cdecode )
-local cvalidate = assert( decode.cvalidate )
+local cround_trip = assert( decode.cround_trip )
 local popen = assert( subprocess.popen )
 local match_compiler = assert( compilers.match_compiler )
 
@@ -48,11 +47,8 @@ end
 
 local function analyze_command( command )
   assert( type( command ) == 'string' )
-  local decoded = assert( cdecode( command ) )
-  -- This does mechanical validation that just checks if the com-
-  -- mand is self-consistent and generally a valid command, even
-  -- if it is not something that we specifically support.
-  cvalidate( decoded )
+  local decoded = assert( cround_trip( command:trim()
+                                           :split( '%s+' ) ) )
   local compiler_match =
       assert( match_compiler( decoded.binary ) )
 

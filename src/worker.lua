@@ -24,10 +24,9 @@ local posix = require( 'posix' )
 -- Aliases.
 -----------------------------------------------------------------
 local catch_control_c = assert( merr.catch_control_c )
-local cdecode = assert( decode.cdecode )
+local cround_trip = assert( decode.cround_trip )
 local cencode = assert( decode.cencode )
 local match_compiler = assert( compilers.match_compiler )
-local cvalidate = assert( decode.cvalidate )
 local debug = assert( logger.debug )
 local err = assert( logger.err )
 local format_table = assert( printer.format_table )
@@ -163,9 +162,11 @@ local function compile( cxn, task_hash, compiler, flags, body )
                             args.workarea, task_hash )
   local tmp_output = format( '%s/farm.task.compiler.%s.o',
                              args.workarea, task_hash )
-  local full_str = format( '%s %s', compiler, flags )
-  local compile_info = assert( cdecode( full_str ) )
-  cvalidate( compile_info )
+  local cmd_elems = { compiler }
+  for _, flag in ipairs( flags:trim():split( '%s+' ) ) do
+    insert( cmd_elems, flag )
+  end
+  local compile_info = assert( cround_trip( cmd_elems ) )
   assert( compile_info.binary )
   assert( not compile_info.special_flags.E,
           'workers should not be doing preprocessing' )
@@ -289,10 +290,10 @@ local function run_local_task( cxn, task_hash )
   -- Sanity check. We technically don't need to know what command
   -- we're running here, but we should validate it just to be
   -- safe.
-  local decoded = cdecode( command_line )
+  local decoded =
+      cround_trip( command_line:trim():split( '%s+' ) )
   assert( decoded.special_flags.E,
           'expected preprocessor command' )
-  cvalidate( decoded )
   assert( match_compiler( decoded.binary ) )
   local cmd_args = command_line:split( '%s+' )
   local command = cmd_args[1]
@@ -380,6 +381,9 @@ local function process_task( cxn, task, perform, set_result )
       stderr=reason,
     }
     set_result( cxn, task_hash, task_result )
+    if args.fail_on_error then
+      error( 'fail-on-error: exiting' )
+    end
   end
 end
 
@@ -434,6 +438,10 @@ local function main()
   parser:flag( '-w --wait' )
         :default( false )
         :description( 'whether to wait for new tasks' )
+
+  parser:flag( '--fail-on-error' )
+        :default( false )
+        :description( 'exit when a command does not run' )
 
   parser:option( '--advertise' )
         :choices{ 'false', 'true' }

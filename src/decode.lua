@@ -3,14 +3,18 @@
 -- Imports.
 -----------------------------------------------------------------
 local str = require( 'moon.str' )
+local tbl = require( 'moon.tbl' )
 
 -----------------------------------------------------------------
 -- Aliases.
 -----------------------------------------------------------------
-local trim = assert( str.trim )
+local deep_copy = assert( tbl.deep_copy )
 
+local concat = table.concat
 local insert = table.insert
 local format = string.format
+local remove = table.remove
+local sort = table.sort
 
 -----------------------------------------------------------------
 -- Globals.
@@ -28,10 +32,7 @@ local function is_option( what )
   return what:sub( 1, 1 ) == '-'
 end
 
-local function cdecode( cmd )
-  assert( type( cmd ) == 'string' )
-  cmd = trim( cmd )
-  local elems = cmd:split( '%s+' )
+local function cdecode( elems )
   local i = 1
   local decoded = {
     binary=nil, --
@@ -145,7 +146,7 @@ end
 local function cencode( o )
   local elems = {}
   local function add( what ) insert( elems, what ) end
-  if o.compiler then add( o.compiler ) end
+  if o.binary then add( o.binary ) end
   if o.special_flags.x then
     add( '-x' )
     add( o.special_flags.x )
@@ -181,7 +182,39 @@ local function cencode( o )
   return elems
 end
 
+local function cround_trip( command )
+  local function normalize( lst )
+    local copy = deep_copy( lst )
+    local prg = copy[1]
+    remove( copy, 1 )
+    sort( copy )
+    insert( copy, 1, prg )
+    return copy
+  end
+  assert( type( command ) == 'table' ) -- list
+  local decoded = cdecode( command )
+  cvalidate( decoded )
+  local encoded = cencode( decoded )
+  local before = concat( normalize( command ), ' ' )
+  local after = concat( normalize( encoded ), ' ' )
+  assert( after == before,
+          format( 'command failed round trip:\nA: %s\nB: %s',
+                  before, after ) )
+  return decoded
+end
+
 -----------------------------------------------------------------
 -- Module.
 -----------------------------------------------------------------
-return { cencode=cencode, cvalidate=cvalidate, cdecode=cdecode }
+return {
+  cencode=cencode,
+  cround_trip=cround_trip,
+  -- These are not really supposed to be called directly, at
+  -- least not at the time of writing. Better to just call
+  -- cround_trip which will decode and validate then test encoded
+  -- round trip, then return the decoded version. If all that
+  -- passes then you know the command has been properly parsed
+  -- with much more confidence than with just cdecode alone.
+  cvalidate=error,
+  cdecode=error,
+}
