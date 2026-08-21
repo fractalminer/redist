@@ -3,7 +3,8 @@ MULTI
 ECHO "Create Local Tasks"
 ECHO ---------------------------------------------------------------------------------------------
   DEL  farm:local:task:bf59c93c8566e8904344c7275f2d6e08:input
-  HSET farm:local:task:bf59c93c8566e8904344c7275f2d6e08:input command "/usr/bin/g++ -E cpp/main.cpp -o cpp/build/main.cpp.ii"
+  HSET farm:local:task:bf59c93c8566e8904344c7275f2d6e08:input command "/usr/bin/g++ -E main.cpp -o build/main.cpp.ii"
+  HSET farm:local:task:bf59c93c8566e8904344c7275f2d6e08:input cwd "/home/dsicilia/dev/redist/src/cpp"
   HSET farm:local:task:bf59c93c8566e8904344c7275f2d6e08:input description "preprocess main.cpp"
 
 ECHO "Queue Task"

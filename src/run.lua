@@ -24,6 +24,7 @@ local function main( prog, ... )
     use_path_env=true,
     poll_timeout_millis=200,
     on_poll=on_poll,
+    cwd=nil,
   }
   local status, stdout, stderr, reason =
       popen( prog, args, opts )

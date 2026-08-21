@@ -19,6 +19,7 @@ local wait = assert( posix.sys.wait.wait )
 local poll = assert( posix.poll.poll )
 
 local posix_exit = assert( posix.unistd._exit )
+local chdir = assert( posix.unistd.chdir )
 
 -- local format_table = assert( printer.format_kv_table )
 
@@ -80,6 +81,7 @@ local function popen( path, args, opts )
   opts.use_path_env = opts.use_path_env or false
   opts.poll_timeout_millis = opts.poll_timeout_millis or -1
   opts.on_poll = opts.on_poll or nil
+  opts.cwd = opts.cwd or nil
 
   local stdout_r, stdout_w = create_pipe()
   local stderr_r, stderr_w = create_pipe()
@@ -88,6 +90,8 @@ local function popen( path, args, opts )
   assert( pid, format( 'failed to fork process: %s', fork_err ) )
 
   if pid == 0 then
+    if opts.cwd then assert( chdir( opts.cwd ) ) end
+
     -- Child process.
     close( stdout_r )
     close( stderr_r )

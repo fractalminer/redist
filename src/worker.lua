@@ -196,6 +196,7 @@ local function compile( cxn, task_hash, compiler, flags, body )
     use_path_env=true,
     poll_timeout_millis=poll_interval_millis,
     on_poll=on_poll,
+    cwd=nil,
   }
   write_file( tmp_input, body )
   local status, stdout, stderr, reason =
@@ -287,6 +288,9 @@ local function run_local_task( cxn, task_hash )
            task_hash )
   local command_line = assert( task_info.command )
   info( 'running command: %s', command_line )
+  local cwd =
+      assert( task_info.cwd, 'missing cwd in local task' )
+  debug( 'cd %s', cwd )
   -- Sanity check. We technically don't need to know what command
   -- we're running here, but we should validate it just to be
   -- safe.
@@ -314,6 +318,7 @@ local function run_local_task( cxn, task_hash )
     use_path_env=true,
     poll_timeout_millis=poll_interval_millis,
     on_poll=on_poll,
+    cwd=cwd,
   }
   local status, stdout, stderr, reason = popen( command,
                                                 cmd_args, opts )
@@ -381,8 +386,8 @@ local function process_task( cxn, task, perform, set_result )
       stderr=reason,
     }
     set_result( cxn, task_hash, task_result )
-    if args.fail_on_error then
-      error( 'fail-on-error: exiting' )
+    if args.fail_on_meta_error then
+      error( 'fail-on-meta-error: exiting' )
     end
   end
 end
@@ -439,9 +444,9 @@ local function main()
         :default( false )
         :description( 'whether to wait for new tasks' )
 
-  parser:flag( '--fail-on-error' )
+  parser:flag( '--fail-on-meta-error' )
         :default( false )
-        :description( 'exit when a command does not run' )
+        :description( 'exit when an error happens that prevents a command from running at all' )
 
   parser:option( '--advertise' )
         :choices{ 'false', 'true' }

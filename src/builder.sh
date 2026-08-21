@@ -1,23 +1,14 @@
 #!/bin/bash
 set -eo pipefail
 
-export LUA_PATH="$HOME/dev/redist/src/?.lua;$LUA_PATH"
+redist="$HOME/dev/redist"
 
-workarea=/home/dsicilia/dev/redist/src/workarea
+export LUA_PATH="$redist/src/?.lua;$LUA_PATH"
 
 # NOTE: ccache does not like it when the prefix command writes
 # anything at all to stdout, so we need to redirect everything to
-# stderr.
-lua "$HOME/dev/redist/src/builder.lua" \
-  --command="$*"    \
-  --verbosity=error \
-  --workarea="$workarea" \
-  1>&2
-
-
-
-# ret=$?
+# stderr. This command tries its best to not write anything to
+# stdout, but sometimes it happens e.g. during debugging.
 #
-# if(( ret != 64 )); then exit "$ret"; fi
-#
-# "$@"
+# NOTE: be sure not to change the CWD before running this.
+lua "$redist/src/builder.lua" "$@" 1>&2
