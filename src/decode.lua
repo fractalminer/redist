@@ -47,6 +47,7 @@ local function cdecode( cmd )
     },
     flags={}, -- remaining flags.
     input_object_files={}, --
+    input_c_cpp_files={}, --
   }
   while elems[i] do
     local l, r = elems[i], elems[i + 1]
@@ -69,14 +70,14 @@ local function cdecode( cmd )
       decoded.special_flags.MD = true
     elseif l == '-MMD' then
       decoded.special_flags.MMD = true
+    elseif l == '-c' then
+      decoded.special_flags.c = true
+    elseif l == '-E' then
+      decoded.special_flags.E = true
     elseif l == '-MT' then
       key_val( 'MT' )
     elseif l == '-MF' then
       key_val( 'MF' )
-    elseif l == '-E' then
-      key_val( 'E' )
-    elseif l == '-c' then
-      key_val( 'c' )
     elseif l == '-o' then
       key_val( 'o' )
     elseif l == '-x' then
@@ -86,6 +87,18 @@ local function cdecode( cmd )
         insert( decoded.flags, l )
       elseif l:sub( -2, -1 ) == '.o' then
         insert( decoded.input_object_files, l )
+      elseif l:sub( -2, -1 ) == '.c' then
+        insert( decoded.input_c_cpp_files, l )
+      elseif l:sub( -2, -1 ) == '.C' then
+        insert( decoded.input_c_cpp_files, l )
+      elseif l:sub( -4, -1 ) == '.cpp' then
+        insert( decoded.input_c_cpp_files, l )
+      elseif l:sub( -4, -1 ) == '.CPP' then
+        insert( decoded.input_c_cpp_files, l )
+      elseif l:sub( -4, -1 ) == '.cxx' then
+        insert( decoded.input_c_cpp_files, l )
+      elseif l:sub( -4, -1 ) == '.CXX' then
+        insert( decoded.input_c_cpp_files, l )
       else
         errorf( 'unrecognized argument form: %s', l )
       end
@@ -100,6 +113,7 @@ local function cvalidate( decoded )
   local sf = assert( decoded.special_flags )
   local has_dep_flag = (sf.MD or sf.MMD or sf.MT or sf.MF)
   local has_objects = (#decoded.input_object_files > 0)
+  local has_cpps = (#decoded.input_c_cpp_files > 0)
   if has_dep_flag and has_objects then
     error( 'cannot have both deps flags and object file inputs' )
   end
@@ -117,6 +131,15 @@ local function cvalidate( decoded )
   if sf.E and has_objects then
     error( 'cannot have both -E and object files as input' )
   end
+  if sf.c and not has_cpps then
+    error( '-c requires having c/cpp inputs' )
+  end
+  if sf.E and not has_cpps then
+    error( '-E requires having c/cpp inputs' )
+  end
+  if #decoded.input_c_cpp_files > 1 then
+    error( 'cannot have multiple c/cpp files as input' )
+  end
 end
 
 local function cencode( o )
@@ -129,6 +152,8 @@ local function cencode( o )
   end
   if o.special_flags.MD then add( '-MD' ) end
   if o.special_flags.MMD then add( '-MMD' ) end
+  if o.special_flags.E then add( '-E' ) end
+  if o.special_flags.c then add( '-c' ) end
   if o.special_flags.MF then
     add( '-MF' )
     add( o.special_flags.MF )
@@ -137,14 +162,11 @@ local function cencode( o )
     add( '-MT' )
     add( o.special_flags.MT )
   end
-  if o.special_flags.E then
-    add( '-E' )
-    add( o.special_flags.E )
-  end
   for _, flag in ipairs( o.flags ) do add( flag ) end
-  if o.special_flags.c then
-    add( '-c' )
-    add( o.special_flags.c )
+  if #o.input_c_cpp_files > 0 then
+    for _, cfile in ipairs( o.input_c_cpp_files ) do
+      add( cfile )
+    end
   end
   if #o.input_object_files > 0 then
     for _, ofile in ipairs( o.input_object_files ) do

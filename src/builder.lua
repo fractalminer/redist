@@ -22,6 +22,7 @@ local cvalidate = assert( decode.cvalidate )
 local popen = assert( subprocess.popen )
 local match_compiler = assert( compilers.match_compiler )
 
+local info = assert( logger.info )
 local warn = assert( logger.warn )
 
 -- local concat = assert( table.concat )
@@ -77,6 +78,10 @@ local function analyze_command( command )
     error( 'cannot distribute linker commands' )
   end
 
+  if #decoded.input_c_cpp_files ~= 1 then
+    error( 'expected exactly one c/cpp file as input' )
+  end
+
   return {
     raw=command,
     decoded=decoded,
@@ -99,6 +104,7 @@ local function create_remote_task( analyzed )
 end
 
 local function run_local( command )
+  info( 'running command: %s', command )
   local elems = command:split( '%s+' )
   local prog = assert( elems[1] )
   table.remove( elems, 1 )

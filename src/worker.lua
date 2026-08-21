@@ -174,7 +174,8 @@ local function compile( cxn, task_hash, compiler, flags, body )
   assert( not compile_info.special_flags.o,
           '-o must be stripped from compile command' )
   compile_info.binary = nil -- will insert manually below.
-  compile_info.special_flags.c = tmp_input
+  compile_info.special_flags.c = true
+  compile_info.input_c_cpp_files = { tmp_input }
   compile_info.special_flags.o = tmp_output
   local cmd_args = assert( cencode( compile_info ) )
   debug( 'running: %s %s', compiler, concat( cmd_args, ' ' ) )
