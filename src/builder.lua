@@ -7,6 +7,7 @@ local os_stat = require( 'os-stat' )
 local decode = require( 'decode' )
 local redist = require( 'redist' )
 
+local colors = require( 'moon.colors' )
 local logger = require( 'moon.logger' )
 
 -----------------------------------------------------------------
@@ -24,9 +25,6 @@ local match_compiler = assert( compilers.match_compiler )
 -----------------------------------------------------------------
 -- Globals.
 -----------------------------------------------------------------
--- Parsed CLI args will be put here.
-local args
-
 logger.level = assert( logger.levels.WARNING )
 
 -----------------------------------------------------------------
@@ -47,11 +45,9 @@ local function analyze_command( command )
     -- are not supposed to receive a preprocess command outright.
     error( 'cannot distribute preprocess commands' )
   end
-
   if not decoded.special_flags.c then
     error( '-c not found in compile command' )
   end
-
   if not decoded.special_flags.o then
     -- It is possible that some commands may work without an ex-
     -- plicit -o flag (i.e. will use some default way of deducing
@@ -59,11 +55,9 @@ local function analyze_command( command )
     -- need to know where to put the result.
     error( '-o not found in compile command' )
   end
-
   if #decoded.input_object_files > 0 then
     error( 'cannot distribute linker commands' )
   end
-
   if #decoded.input_c_cpp_files ~= 1 then
     error( 'expected exactly one c/cpp file as input' )
   end
@@ -76,7 +70,7 @@ local function analyze_command( command )
 end
 
 local function create_remote_task( analyzed )
-  local parsed = assert( analyzed.parsed )
+  local decoded = assert( analyzed.decoded )
   local interpreted = assert( analyzed.interpreted )
   -- Create a task.
   return {
@@ -105,8 +99,7 @@ local function main()
 
   local command = assert( arg )
   local analyzed = assert( analyze_command( command ) )
-  run_local( command )
-  -- run_remote( cxn, analyzed )
+  run_remote( cxn, analyzed )
 
   return 0
 end
