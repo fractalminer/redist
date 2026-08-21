@@ -6,7 +6,7 @@ local compilers = require( 'compilers' )
 local os_stat = require( 'os-stat' )
 local decode = require( 'decode' )
 local ru = require( 'redis-util' )
-local mlocal = require( 'local' )
+local ltask = require( 'local-task' )
 
 local colors = require( 'moon.colors' )
 local logger = require( 'moon.logger' )
@@ -17,7 +17,6 @@ local logger = require( 'moon.logger' )
 local os_version = assert( os_stat.os_version )
 local cround_trip = assert( decode.cround_trip )
 local match_compiler = assert( compilers.match_compiler )
-local create_local_task = assert( mlocal.create_local_task )
 
 -----------------------------------------------------------------
 -- Constants.
@@ -72,7 +71,7 @@ local function analyze_command( command )
 end
 
 local function create_local_preprocess_task( cxn, analyzed )
-  local task = create_local_task( cxn, hash, {
+  local task = ltask.create_task( cxn, hash, {
     command='', --
     cwd='', --
     description='', --

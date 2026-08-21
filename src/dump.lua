@@ -139,7 +139,7 @@ local function watching_dump( cxn )
   -- cause once we subscribe on a connection we're not allowed to
   -- send any other commands (and for that same reason, we don't
   -- put the new connection in a variable).
-  local messages = assert( redist.connect() ):pubsub{
+  local messages = assert( ru.connect() ):pubsub{
     psubscribe='__keyspace@0__:farm:*',
   }
 

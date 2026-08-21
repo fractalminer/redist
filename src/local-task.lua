@@ -16,7 +16,7 @@ local format = assert( string.format )
 -----------------------------------------------------------------
 -- Implementation.
 -----------------------------------------------------------------
-local function create_local_task( cxn, hash, params )
+local function create_task( cxn, hash, params )
   assert( hash )
   assert( params )
   assert( params.command )
@@ -30,12 +30,12 @@ local function create_local_task( cxn, hash, params )
   }, config.worker.EXPIRE_LOCAL_TASK )
 end
 
-local function get_local_task( cxn, hash )
+local function find( cxn, hash )
   local key = format( 'farm:local:task:%s:input', hash )
   return cxn:hgetall( key )
 end
 
-local function set_local_result( cxn, hash, result )
+local function set_result( cxn, hash, result )
   local out_key = format( 'farm:local:task:%s:output', hash )
   local function to_blob( content )
     return set_blob( cxn, content )
@@ -45,14 +45,22 @@ local function set_local_result( cxn, hash, result )
     stdout=to_blob( result.stdout ),
     stderr=to_blob( result.stderr ),
   } )
-  publish_local_task_event( cxn, hash, 'finished' )
+end
+
+local function publish_event( cxn, task_hash, event )
+  assert( task_hash )
+  assert( event )
+  local key = format( 'farm:local:task:events' )
+  event = format( '%s:%s', task_hash, event )
+  cxn:publish( key, event )
 end
 
 -----------------------------------------------------------------
 -- Module.
 -----------------------------------------------------------------
 return {
-  create_local_task=create_local_task, --
-  get_local_task=get_local_task, --
-  set_local_result=set_local_result, --
+  create_task=create_task,
+  find=find,
+  set_result=set_result,
+  publish_event=publish_event,
 }

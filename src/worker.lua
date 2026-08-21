@@ -5,7 +5,7 @@ local compilers = require( 'compilers' )
 local config = require( 'config' )
 local decode = require( 'decode' )
 local farm = require( 'farm' )
-local mlocal = require( 'local' )
+local ltask = require( 'local-task' )
 local network = require( 'network' )
 local os_stat = require( 'os-stat' )
 local ru = require( 'redis-util' )
@@ -24,13 +24,13 @@ local posix = require( 'posix' )
 -----------------------------------------------------------------
 -- Aliases.
 -----------------------------------------------------------------
+local assertf = assert( merr.assertf )
 local catch_control_c = assert( merr.catch_control_c )
 local cround_trip = assert( decode.cround_trip )
 local cencode = assert( decode.cencode )
 local match_compiler = assert( compilers.match_compiler )
 local debug = assert( logger.debug )
 local err = assert( logger.err )
-local find_local_task = assert( mlocal.find_local_task )
 local format_table = assert( printer.format_table )
 local info = assert( logger.info )
 local machine_label = assert( network.machine_label )
@@ -39,7 +39,6 @@ local popen = assert( subprocess.popen )
 local read_file = assert( file.read_file )
 local set_blob = assert( farm.set_blob )
 local set_hash = assert( ru.set_hash )
-local set_local_result = assert( mlocal.set_local_result )
 local trace = assert( logger.trace )
 local write_file = assert( file.write_file )
 
@@ -72,12 +71,6 @@ local STATE = {
 -----------------------------------------------------------------
 -- Implementation.
 -----------------------------------------------------------------
-local function assertf( condition, ... )
-  if condition then return end
-  local msg = format( ... )
-  assert( condition, msg )
-end
-
 local function next_task( cxn )
   local remote_queue = 'farm:compile:cpp:queue'
   local local_queue = format( 'farm:local:queue:%s',
@@ -198,31 +191,16 @@ local function compile( cxn, task_hash, compiler, flags, body )
   }
 end
 
-local function publish_event( cxn, key, event )
-  assert( key )
-  assert( event )
-  cxn:publish( key, event )
-end
-
 local function publish_remote_task_event( cxn, task_hash, event )
   assert( task_hash )
   assert( event )
   local key = format( 'farm:compile:cpp:events' )
   event = format( '%s:%s', task_hash, event )
-  publish_event( cxn, key, event )
-end
-
-local function publish_local_task_event( cxn, task_hash, event )
-  assert( task_hash )
-  assert( event )
-  local key = format( 'farm:local:task:events' )
-  event = format( '%s:%s', task_hash, event )
-  publish_event( cxn, key, event )
+  cxn:publish( key, event )
 end
 
 local function run_remote_task( cxn, task_hash )
   info( 'performing remote task: %s', task_hash )
-  publish_remote_task_event( cxn, task_hash, 'started' )
   STATE.status = 'compiling'
   STATE.task = task_hash
   local task_info = find_remote_task( cxn, task_hash )
@@ -256,10 +234,9 @@ end
 
 local function run_local_task( cxn, task_hash )
   info( 'performing local task: %s', task_hash )
-  publish_local_task_event( cxn, task_hash, 'started' )
   STATE.status = 'running-local'
   STATE.task = task_hash
-  local task_info = find_local_task( cxn, task_hash )
+  local task_info = ltask.find( cxn, task_hash )
   assertf( task_info.command, 'cannot find local task: %s',
            task_hash )
   local command_line = assert( task_info.command )
@@ -304,8 +281,8 @@ local function run_local_task( cxn, task_hash )
   else
     err( 'command failed [status=%d]:', status )
     err( 'exit reason:', tostring( reason ) )
-    assert( io.stdout ):write( stdout )
-    assert( io.stderr ):write( stderr )
+    -- assert( io.stdout ):write( stdout )
+    -- assert( io.stderr ):write( stderr )
   end
   return { status=status, stdout=stdout, stderr=stderr }
 end
@@ -322,17 +299,24 @@ local function set_remote_result( cxn, task_hash, result )
     stdout=to_blob( result.stdout ),
     stderr=to_blob( result.stderr ),
   } )
-  publish_remote_task_event( cxn, task_hash, 'finished' )
 end
 
-local function process_task( cxn, task, perform, set_result )
+local function process_task(cxn, task, perform, set_result,
+                            publish )
   assert( perform )
   assert( set_result )
   local task_hash = assert( task.hash )
   debug( 'found task hash: %s', task_hash )
+  publish( cxn, task_hash, 'started' )
   local ok, result = pcall( perform, cxn, task_hash )
   if ok then
     set_result( cxn, task_hash, result )
+    if result.status == 0 then
+      publish( cxn, task_hash, 'finished-success' )
+    else
+      publish( cxn, task_hash,
+               format( 'finished-error-%d', result.status ) )
+    end
   else
     local reason = tostring( result ) or 'unknown error'
     err( '%s', reason )
@@ -348,6 +332,7 @@ local function process_task( cxn, task, perform, set_result )
       stderr=reason,
     }
     set_result( cxn, task_hash, task_result )
+    publish( cxn, task_hash, 'failed-to-run' )
     if args.fail_on_meta_error then
       error( 'fail-on-meta-error: exiting' )
     end
@@ -366,9 +351,11 @@ local function process_next_task( cxn )
   until task
   assert( task.type )
   if task.type == 'local' then
-    process_task( cxn, task, run_local_task, set_local_result )
+    process_task( cxn, task, run_local_task, ltask.set_result,
+                  ltask.publish_event )
   elseif task.type == 'remote' then
-    process_task( cxn, task, run_remote_task, set_remote_result )
+    process_task( cxn, task, run_remote_task, set_remote_result,
+                  publish_remote_task_event )
   else
     err( 'unrecognized task type: ' .. task.type )
     return false

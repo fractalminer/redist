@@ -11,6 +11,7 @@ local HOST = assert( config.general.HOST )
 local PORT = assert( config.general.PORT )
 
 local insert = assert( table.insert )
+local unpack = assert( table.unpack )
 
 -----------------------------------------------------------------
 -- Methods.
@@ -40,5 +41,5 @@ end
 -----------------------------------------------------------------
 return {
   connect=connect, --
-  set_hash, --
+  set_hash=set_hash, --
 }

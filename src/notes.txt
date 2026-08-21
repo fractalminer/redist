@@ -1,3 +1,24 @@
+Plan for Monitor:
+-----------------------------------------------------------------
+  * Create a stdin table wrapper around fd 0 and give that object
+    to socket.select to wait on input along with any redis sockets.
+      local stdin = {
+        function get_fd() {
+          return 0
+        },
+        function dirty() {
+          return false
+        },
+      }
+  * Will need to have the lua script set non-canonical mode on
+    the tty first:
+      stty -icanon -echo
+    then restore it before exiting:
+      stty ...  # <-- taken from `stty -g`
+  * Then in order to prevent against the tool exiting without
+    restoring the tty, the tool can be run under:
+      script -q /dev/null ...
+
 Plan for Pub/Sub:
 -----------------------------------------------------------------
   * First create a dedicated connection and extract/store the
