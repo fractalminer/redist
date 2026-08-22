@@ -138,6 +138,11 @@ end
 local function run( cxn, analyzed )
   local preprocess_task_hash = create_local_preprocess_task( cxn,
                                                              analyzed )
+  -- TODO:
+  --   1. Subscribe to local events.
+  --   2. Post task.
+  --   3. Wait for task.
+  --   4. Upload .ii file to blob.
   ltask.post_task( cxn, preprocess_task_hash )
   error( 'not implemented' )
 end

@@ -1,6 +1,8 @@
 #!/bin/bash
 set -eo pipefail
 
+# echo cmd: "$@" 1>&2
+
 redist="$HOME/dev/redist"
 
 export LUA_PATH="$redist/src/?.lua;$LUA_PATH"
