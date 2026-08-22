@@ -3,6 +3,7 @@
 -----------------------------------------------------------------
 local config = require( 'config' )
 local farm = require( 'farm' )
+local network = require( 'network' )
 local ru = require( 'redis-util' )
 
 -----------------------------------------------------------------
@@ -10,6 +11,7 @@ local ru = require( 'redis-util' )
 -----------------------------------------------------------------
 local set_hash = assert( ru.set_hash )
 local set_blob = assert( farm.set_blob )
+local machine_label = assert( network.machine_label )
 
 local format = assert( string.format )
 
@@ -28,6 +30,12 @@ local function create_task( cxn, hash, params )
     cwd=params.cwd,
     description=params.description,
   }, config.worker.EXPIRE_LOCAL_TASK )
+end
+
+local function post_task( cxn, hash )
+  assert( hash )
+  local key = format( 'farm:local:queue:%s', machine_label() )
+  cxn:lpush( key, hash )
 end
 
 local function find( cxn, hash )
@@ -60,6 +68,7 @@ end
 -----------------------------------------------------------------
 return {
   create_task=create_task,
+  post_task=post_task,
   find=find,
   set_result=set_result,
   publish_event=publish_event,

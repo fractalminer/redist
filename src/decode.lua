@@ -47,8 +47,9 @@ local function cdecode( elems )
       x=nil, --
     },
     flags={}, -- remaining flags.
+    includes={}, -- could be -I or -isystem.
     input_object_files={}, --
-    input_c_cpp_files={}, --
+    input_c_cpp_file=nil, --
   }
   while elems[i] do
     local l, r = elems[i], elems[i + 1]
@@ -61,6 +62,12 @@ local function cdecode( elems )
       end
       decoded.special_flags[where] = r
       i = i + 1
+    end
+    local function add_c_cpp()
+      if decoded.input_c_cpp_file then
+        error( 'cannot have multiple c/cpp input files' )
+      end
+      decoded.input_c_cpp_file = l
     end
     if i == 1 then
       if is_option( l ) then
@@ -83,23 +90,39 @@ local function cdecode( elems )
       key_val( 'o' )
     elseif l == '-x' then
       key_val( 'x' )
+    elseif l == '-I' then
+      if not r or is_option( r ) then
+        errorf( 'missing argument to %s', l )
+      end
+      insert( decoded.includes, l )
+      insert( decoded.includes, r )
+      i = i + 1
+    elseif l == '-isystem' then
+      if not r or is_option( r ) then
+        errorf( 'missing argument to %s', l )
+      end
+      insert( decoded.includes, l )
+      insert( decoded.includes, r )
+      i = i + 1
     else
       if is_option( l ) then
         insert( decoded.flags, l )
       elseif l:sub( -2, -1 ) == '.o' then
         insert( decoded.input_object_files, l )
       elseif l:sub( -2, -1 ) == '.c' then
-        insert( decoded.input_c_cpp_files, l )
+        add_c_cpp()
       elseif l:sub( -2, -1 ) == '.C' then
-        insert( decoded.input_c_cpp_files, l )
+        add_c_cpp()
       elseif l:sub( -4, -1 ) == '.cpp' then
-        insert( decoded.input_c_cpp_files, l )
+        add_c_cpp()
       elseif l:sub( -4, -1 ) == '.CPP' then
-        insert( decoded.input_c_cpp_files, l )
+        add_c_cpp()
       elseif l:sub( -4, -1 ) == '.cxx' then
-        insert( decoded.input_c_cpp_files, l )
+        add_c_cpp()
       elseif l:sub( -4, -1 ) == '.CXX' then
-        insert( decoded.input_c_cpp_files, l )
+        add_c_cpp()
+      elseif l:sub( 1, 2 ) == '-I' then
+        insert( decoded.includes, l )
       else
         errorf( 'unrecognized argument form: %s', l )
       end
@@ -114,16 +137,12 @@ local function cvalidate( decoded )
   local sf = assert( decoded.special_flags )
   local has_dep_flag = (sf.MD or sf.MMD or sf.MT or sf.MF)
   local has_objects = (#decoded.input_object_files > 0)
-  local has_cpps = (#decoded.input_c_cpp_files > 0)
+  local has_c_cpp = (decoded.input_c_cpp_file ~= nil)
   if has_dep_flag and has_objects then
     error( 'cannot have both deps flags and object file inputs' )
   end
   if sf.MD and sf.MMD then
     error( 'cannot have both -MD and -MMD' )
-  end
-  if sf.E and has_dep_flag then
-    -- This may work on some compilers but doesn't work on all.
-    error( 'cannot have generate dep files while preprocessing' )
   end
   if sf.c and sf.E then error( 'cannot have both -c and -E' ) end
   if sf.c and has_objects then
@@ -132,14 +151,11 @@ local function cvalidate( decoded )
   if sf.E and has_objects then
     error( 'cannot have both -E and object files as input' )
   end
-  if sf.c and not has_cpps then
+  if sf.c and not has_c_cpp then
     error( '-c requires having c/cpp inputs' )
   end
-  if sf.E and not has_cpps then
+  if sf.E and not has_c_cpp then
     error( '-E requires having c/cpp inputs' )
-  end
-  if #decoded.input_c_cpp_files > 1 then
-    error( 'cannot have multiple c/cpp files as input' )
   end
 end
 
@@ -164,11 +180,8 @@ local function cencode( o )
     add( o.special_flags.MT )
   end
   for _, flag in ipairs( o.flags ) do add( flag ) end
-  if #o.input_c_cpp_files > 0 then
-    for _, cfile in ipairs( o.input_c_cpp_files ) do
-      add( cfile )
-    end
-  end
+  for _, inc in ipairs( o.includes ) do add( inc ) end
+  if o.input_c_cpp_file then add( o.input_c_cpp_file ) end
   if #o.input_object_files > 0 then
     for _, ofile in ipairs( o.input_object_files ) do
       add( ofile )

@@ -3,20 +3,33 @@
 -- Imports.
 -----------------------------------------------------------------
 local compilers = require( 'compilers' )
-local os_stat = require( 'os-stat' )
 local decode = require( 'decode' )
-local ru = require( 'redis-util' )
+local hash = require( 'hash' )
 local ltask = require( 'local-task' )
+local network = require( 'network' )
+local os_stat = require( 'os-stat' )
+local ru = require( 'redis-util' )
 
-local colors = require( 'moon.colors' )
 local logger = require( 'moon.logger' )
+local tbl = require( 'moon.tbl' )
+
+local posix = require( 'posix' )
 
 -----------------------------------------------------------------
 -- Aliases.
 -----------------------------------------------------------------
-local os_version = assert( os_stat.os_version )
+local cencode = assert( decode.cencode )
 local cround_trip = assert( decode.cround_trip )
+local machine_id = assert( network.machine_id )
 local match_compiler = assert( compilers.match_compiler )
+local os_version = assert( os_stat.os_version )
+
+local deep_copy = assert( tbl.deep_copy )
+
+local getcwd = assert( posix.unistd.getcwd )
+
+local format = assert( string.format )
+local concat = assert( table.concat )
 
 -----------------------------------------------------------------
 -- Constants.
@@ -59,8 +72,8 @@ local function analyze_command( command )
   if #decoded.input_object_files > 0 then
     error( 'cannot distribute linker commands' )
   end
-  if #decoded.input_c_cpp_files ~= 1 then
-    error( 'expected exactly one c/cpp file as input' )
+  if not decoded.input_c_cpp_file then
+    error( 'expected a c/cpp file as input' )
   end
 
   return {
@@ -71,33 +84,50 @@ local function analyze_command( command )
 end
 
 local function create_local_preprocess_task( cxn, analyzed )
-  local task = ltask.create_task( cxn, hash, {
-    command='', --
-    cwd='', --
-    description='', --
+  local decoded = deep_copy( assert( analyzed.decoded ) )
+  assert( decoded.special_flags.c )
+  assert( decoded.special_flags.o )
+  assert( decoded.input_c_cpp_file )
+  assert( not decoded.special_flags.E )
+  decoded.special_flags.c = false
+  decoded.special_flags.E = true
+  decoded.special_flags.o = format( '%s.ii',
+                                    decoded.input_c_cpp_file )
+  decoded.includes = {}
+  local command = concat( cencode( decoded ), ' ' )
+  assert( io.stderr ):write( format( 'command: %s\n', command ) )
+  local cwd = getcwd()
+  -- FIXME: improve this
+  local profile = command .. cwd .. machine_id()
+  local task_hash = hash.hash( profile )
+  ltask.create_task( cxn, task_hash, {
+    command=command,
+    cwd=cwd,
+    description=format( 'preprocess %s', decoded.input_c_cpp_file ),
   } )
-  error( 'not implemented' )
+  return task_hash
 end
 
-local function create_remote_compile_task( analyzed )
-  local decoded = assert( analyzed.decoded )
-  local interpreted = assert( analyzed.interpreted )
-  -- Create a task.
-  return {
-    compiler_flags=assert( parsed.flags ),
-    compiler_type=assert( interpreted.compiler_type ),
-    compiler_version=assert( interpreted.compiler_version ),
-    description=assert( parsed.compile ),
-    input=nil, -- filled in later after preprocessing.
-    os=os_version(),
-  }
-end
+-- local function create_remote_compile_task( analyzed )
+--   local decoded = assert( analyzed.decoded )
+--   local interpreted = assert( analyzed.interpreted )
+--   -- Create a task.
+--   return {
+--     compiler_flags=assert( parsed.flags ),
+--     compiler_type=assert( interpreted.compiler_type ),
+--     compiler_version=assert( interpreted.compiler_version ),
+--     description=assert( parsed.compile ),
+--     input=nil, -- filled in later after preprocessing.
+--     os=os_version(),
+--   }
+-- end
 
 local function run_remote( cxn, analyzed )
-  local preprocess_task = assert(
-                              create_local_preprocess_task( cxn,
-                                                            analyzed ) )
-  -- TODO
+  local preprocess_task_hash = assert(
+                                   create_local_preprocess_task(
+                                       cxn, analyzed ) )
+  ltask.post_task( cxn, preprocess_task_hash )
+  error( 'not implemented' )
 end
 
 -----------------------------------------------------------------
