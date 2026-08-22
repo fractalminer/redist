@@ -25,6 +25,7 @@ local posix = require( 'posix' )
 local cencode = assert( decode.cencode )
 local cround_trip = assert( decode.cround_trip )
 local get_blob = assert( farm.get_blob )
+local blob_exists = assert( farm.blob_exists )
 local get_blob_to_file = assert( farm.get_blob_to_file )
 local log_command = assert( ccache.log_command )
 local machine_id = assert( network.machine_id )
@@ -205,7 +206,9 @@ local function run_compile( cxn, analyzed, ii_hash )
   assert( ii_hash )
   local task = create_remote_compile_task( analyzed, ii_hash )
   local task_output = rtask.output_of( cxn, task.hash )
-  if not task_output then
+  if not task_output or
+      not blob_exists( cxn, task_output.stderr ) or
+      not blob_exists( cxn, task_output.output ) then
     rtask.post_task( cxn, task.hash, {
       os=assert( task.os ),
       compiler_type=assert( task.compiler_type ),
@@ -224,8 +227,17 @@ local function run_compile( cxn, analyzed, ii_hash )
     if tonumber( status ) ~= 0 then
       error( 'compile command return non-zero status: ' .. status )
     end
+    assert( blob_exists( cxn, task_output.output ), format(
+                'blob does not exist for %s', task_output.output ) )
+  else
+    assert( task_output )
+    assert( blob_exists( cxn, task_output.output ) )
   end
   assert( task_output )
+  local status = assert( task_output.status )
+  if tonumber( status ) ~= 0 then
+    error( 'compile command return non-zero status: ' .. status )
+  end
   local output_hash = assert( task_output.output )
   local output_file = analyzed.decoded.special_flags.o
   assert( get_blob_to_file( cxn, output_hash, output_file ) )

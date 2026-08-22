@@ -54,6 +54,14 @@ local function output_of( cxn, hash )
   return output
 end
 
+local function delete_output( cxn, hash )
+  assert( cxn )
+  assert( hash )
+  local key = format( 'farm:compile:cpp:task:%s:output', hash )
+  if not cxn:exists( key ) then return end
+  assert( cxn:del( key ) )
+end
+
 local function find( cxn, hash )
   local key = format( 'farm:compile:cpp:task:%s:input', hash )
   return cxn:hgetall( key )
@@ -65,9 +73,13 @@ local function set_result( cxn, hash, result )
   local function to_blob( content )
     return set_blob( cxn, content )
   end
+  local output = nil
+  if result.output and #result.output > 0 then
+    output = to_blob( result.output )
+  end
   set_hash( cxn, out_key, {
     status=assert( result.status ),
-    output=to_blob( result.output ),
+    output=output,
     stdout=to_blob( result.stdout ),
     stderr=to_blob( result.stderr ),
     time_micros=assert( result.time_micros ),
@@ -125,5 +137,6 @@ return {
   set_result=set_result,
   publish_event=publish_event,
   output_of=output_of,
+  delete_output=delete_output,
   queue_and_wait=queue_and_wait,
 }

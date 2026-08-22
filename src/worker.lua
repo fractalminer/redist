@@ -116,13 +116,6 @@ local function advertise( cxn )
   }, config.worker.EXPIRE_ADVERTISE )
 end
 
-local function find_remote_task( cxn, task_hash )
-  debug( 'looking up remote task: %s', task_hash )
-  local key =
-      format( 'farm:compile:cpp:task:%s:input', task_hash )
-  return cxn:hgetall( key )
-end
-
 local function find_compiler( compiler_type, compiler_version )
   local compiler = assert( compilers.locate( {
     user_home=HOME, --
@@ -198,7 +191,7 @@ local function run_remote_task( cxn, task_hash )
   info( 'performing remote task: %s', task_hash )
   STATE.status = 'compiling'
   STATE.task = task_hash
-  local task_info = find_remote_task( cxn, task_hash )
+  local task_info = rtask.find( cxn, task_hash )
   assertf( task_info.input, 'cannot find remote task: %s',
            task_hash )
   local input_hash = assert( task_info.input )
