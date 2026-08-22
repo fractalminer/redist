@@ -37,6 +37,7 @@ local machine_label = assert( network.machine_label )
 local os_version = assert( os_stat.os_version )
 local popen = assert( subprocess.popen )
 local read_file = assert( file.read_file )
+local find_blob = assert( farm.find_blob )
 local set_blob = assert( farm.set_blob )
 local set_hash = assert( ru.set_hash )
 local trace = assert( logger.trace )
@@ -114,14 +115,6 @@ local function find_remote_task( cxn, task_hash )
   local key =
       format( 'farm:compile:cpp:task:%s:input', task_hash )
   return cxn:hgetall( key )
-end
-
-local function find_input( cxn, input_hash )
-  debug( 'finding blob: %s', input_hash )
-  local key = format( 'farm:blob:%s', input_hash )
-  local blob = cxn:get( key )
-  assert( type( blob ) == 'string', 'unexpected blob type' )
-  return blob
 end
 
 local function find_compiler( compiler_type, compiler_version )
@@ -207,7 +200,7 @@ local function run_remote_task( cxn, task_hash )
   assertf( task_info.input, 'cannot find remote task: %s',
            task_hash )
   local input_hash = assert( task_info.input )
-  local body = find_input( cxn, input_hash )
+  local body = find_blob( cxn, input_hash )
   assertf( body, 'cannot find body for input %s', input_hash )
   debug( 'body is %d bytes', #body )
   local compiler = find_compiler( task_info.compiler_type,
