@@ -7,17 +7,19 @@
 -----------------------------------------------------------------
 local ru = require( 'redis-util' )
 
-local printer = require( 'moon.printer' )
 local color = require( 'moon.colors' )
-local logger = require( 'moon.logger' )
 local console = require( 'moon.console' )
+local merr = require( 'moon.err' )
+local printer = require( 'moon.printer' )
+
+local socket = require( 'socket' )
 
 -----------------------------------------------------------------
 -- Aliases.
 -----------------------------------------------------------------
-local info = assert( logger.info )
-local clear_screen = assert( console.clear_screen )
 local bar = assert( printer.bar )
+local catch_control_c = assert( merr.catch_control_c )
+local clear_screen = assert( console.clear_screen )
 
 local GREEN = assert( color.ANSI_GREEN )
 local BLUE = assert( color.ANSI_BLUE )
@@ -26,6 +28,8 @@ local YELLOW = assert( color.ANSI_YELLOW )
 local MAGENTA = assert( color.ANSI_MAGENTA )
 -- local CYAN = assert( color.ANSI_CYAN )
 local NORMAL = assert( color.ANSI_NORMAL )
+
+local socket_select = assert( socket.select )
 
 local insert = table.insert
 local format = string.format
@@ -119,13 +123,6 @@ local function emit( what )
   end
 end
 
-local function key_from_channel( channel )
-  assert( channel, 'invalid channel' )
-  local key = channel:match( '__keyspace@0__:(.*)' )
-  assert( key, 'unexpected channel format' )
-  return key
-end
-
 local function dump( cxn )
   local strings, lists, hashes = get_sorted_keys_by_type( cxn )
   bar()
@@ -135,13 +132,17 @@ local function dump( cxn )
 end
 
 local function watching_dump( cxn )
-  -- We need to create a new connection for the subscription be-
-  -- cause once we subscribe on a connection we're not allowed to
-  -- send any other commands (and for that same reason, we don't
-  -- put the new connection in a variable).
-  local messages = assert( ru.connect() ):pubsub{
-    psubscribe='__keyspace@0__:farm:*',
-  }
+  local messages, sock
+  do
+    -- We need to create a new connection for the subscription
+    -- because once we subscribe on a connection we're not al-
+    -- lowed to send any other commands.
+    local pubsub_cxn = assert( ru.connect() )
+    sock = assert( pubsub_cxn.network.socket )
+    messages = pubsub_cxn:pubsub{
+      psubscribe='__keyspace@0__:farm:*',
+    }
+  end
 
   -- Note that the loop body will run immediately on the first
   -- iteration because we always get the first event immediately
@@ -158,22 +159,18 @@ local function watching_dump( cxn )
   --   channel         __keyspace@0__:farm:queue:compile:cpp*
   --   payload         rpush
   --
-  for message, abort in messages do
-    local key = key_from_channel( message.channel )
+  while true do
+    if socket_select( { sock }, {}, 1 )[sock] then messages() end
     clear_screen()
-    info( format( 'key: %s', key ) )
     dump( cxn )
-    if key == 'farm:watch:stop' then abort() end
   end
-
 end
 
 -----------------------------------------------------------------
 -- Main.
 -----------------------------------------------------------------
-local function main( ... )
-  local args = { ... }
-  local arg1 = args[1]
+local function main()
+  local arg1 = arg[1]
   local watch = (arg1 == '--watch')
 
   local cxn = assert( ru.connect() )
@@ -189,4 +186,7 @@ end
 -----------------------------------------------------------------
 -- Launch.
 -----------------------------------------------------------------
-os.exit( main( ... ) )
+os.exit( catch_control_c( main, function()
+  print( '\nctrl-c: exiting.' )
+  return 127
+end ) )
