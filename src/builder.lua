@@ -30,6 +30,7 @@ local getcwd = assert( posix.unistd.getcwd )
 
 local format = assert( string.format )
 local concat = assert( table.concat )
+local remove = assert( table.remove )
 
 -----------------------------------------------------------------
 -- Constants.
@@ -85,20 +86,32 @@ end
 
 local function create_local_preprocess_task( cxn, analyzed )
   local decoded = deep_copy( assert( analyzed.decoded ) )
+  -- require( 'moon.json' ).print( decoded )
   assert( decoded.special_flags.c )
   assert( decoded.special_flags.o )
   assert( decoded.input_c_cpp_file )
   assert( not decoded.special_flags.E )
   decoded.special_flags.c = false
   decoded.special_flags.E = true
-  decoded.special_flags.o = format( '%s.ii',
-                                    decoded.input_c_cpp_file )
-  decoded.includes = {}
+  local c = assert( decoded.input_c_cpp_file )
+
+  -- Put the .ii file next to where the .o would go.
+  -- TODO: factor this out and improve it.
+  c = c:split( '/' )
+  c = c[#c]
+  local o = assert( decoded.special_flags.o )
+  o = o:split( '/' )
+  remove( o )
+  o = concat( o, '/' )
+
+  decoded.special_flags.o = format( '%s/%s.ii', o, c )
   local command = concat( cencode( decoded ), ' ' )
   assert( io.stderr ):write( format( 'command: %s\n', command ) )
   local cwd = getcwd()
+
   -- FIXME: improve this
   local profile = command .. cwd .. machine_id()
+
   local task_hash = hash.hash( profile )
   ltask.create_task( cxn, task_hash, {
     command=command,
@@ -122,10 +135,9 @@ end
 --   }
 -- end
 
-local function run_remote( cxn, analyzed )
-  local preprocess_task_hash = assert(
-                                   create_local_preprocess_task(
-                                       cxn, analyzed ) )
+local function run( cxn, analyzed )
+  local preprocess_task_hash = create_local_preprocess_task( cxn,
+                                                             analyzed )
   ltask.post_task( cxn, preprocess_task_hash )
   error( 'not implemented' )
 end
@@ -141,7 +153,7 @@ local function main()
 
   local command = assert( arg )
   local analyzed = assert( analyze_command( command ) )
-  run_remote( cxn, analyzed )
+  run( cxn, analyzed )
 
   return 0
 end

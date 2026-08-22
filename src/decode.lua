@@ -106,7 +106,11 @@ local function cdecode( elems )
       i = i + 1
     else
       if is_option( l ) then
-        insert( decoded.flags, l )
+        if l:sub( 1, 2 ) == '-I' then
+          insert( decoded.includes, l )
+        else
+          insert( decoded.flags, l )
+        end
       elseif l:sub( -2, -1 ) == '.o' then
         insert( decoded.input_object_files, l )
       elseif l:sub( -2, -1 ) == '.c' then
@@ -121,8 +125,6 @@ local function cdecode( elems )
         add_c_cpp()
       elseif l:sub( -4, -1 ) == '.CXX' then
         add_c_cpp()
-      elseif l:sub( 1, 2 ) == '-I' then
-        insert( decoded.includes, l )
       else
         errorf( 'unrecognized argument form: %s', l )
       end
