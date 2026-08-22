@@ -1,11 +1,14 @@
 -----------------------------------------------------------------
 -- Imports.
 -----------------------------------------------------------------
+local ccache = require( 'ccache-helper' )
 local compilers = require( 'compilers' )
 local config = require( 'config' )
 local decode = require( 'decode' )
 local farm = require( 'farm' )
-local ltask = require( 'local-task' )
+-- TODO: consolidate these two modules.
+local ltask, rtask = require( 'local-task' ),
+                     require( 'remote-task' )
 local network = require( 'network' )
 local os_stat = require( 'os-stat' )
 local ru = require( 'redis-util' )
@@ -16,6 +19,7 @@ local logger = require( 'moon.logger' )
 local merr = require( 'moon.err' )
 local printer = require( 'moon.printer' )
 local str = require( 'moon.str' )
+local time = require( 'moon.time' )
 
 local argparse = require( 'argparse' )
 
@@ -26,18 +30,20 @@ local posix = require( 'posix' )
 -----------------------------------------------------------------
 local assertf = assert( merr.assertf )
 local catch_control_c = assert( merr.catch_control_c )
-local cround_trip = assert( decode.cround_trip )
 local cencode = assert( decode.cencode )
-local match_compiler = assert( compilers.match_compiler )
+local cround_trip = assert( decode.cround_trip )
 local debug = assert( logger.debug )
 local err = assert( logger.err )
 local format_table = assert( printer.format_table )
+local get_blob = assert( farm.get_blob )
 local info = assert( logger.info )
+local log_command = assert( ccache.log_command )
 local machine_label = assert( network.machine_label )
+local match_compiler = assert( compilers.match_compiler )
+local now_micros = assert( time.now_micros )
 local os_version = assert( os_stat.os_version )
 local popen = assert( subprocess.popen )
 local read_file = assert( file.read_file )
-local find_blob = assert( farm.find_blob )
 local set_blob = assert( farm.set_blob )
 local set_hash = assert( ru.set_hash )
 local trace = assert( logger.trace )
@@ -128,7 +134,7 @@ local function find_compiler( compiler_type, compiler_version )
 end
 
 local function compile( cxn, task_hash, compiler, flags, body )
-  local tmp_input = format( '%s/farm.task.compiler.%s.cpp',
+  local tmp_input = format( '%s/farm.task.compiler.%s.cpp.ii',
                             args.workarea, task_hash )
   local tmp_output = format( '%s/farm.task.compiler.%s.o',
                              args.workarea, task_hash )
@@ -140,13 +146,13 @@ local function compile( cxn, task_hash, compiler, flags, body )
   assert( compile_info.binary )
   assert( not compile_info.special_flags.E,
           'workers should not be doing preprocessing' )
-  assert( not compile_info.special_flags.c,
-          '-c must be stripped from compile command' )
-  assert( not compile_info.special_flags.o,
-          '-o must be stripped from compile command' )
+  assert( compile_info.special_flags.c,
+          '-c must be present in compile command' )
+  assert( compile_info.special_flags.o,
+          '-o must be present in compile command' )
   compile_info.binary = nil -- will insert manually below.
   compile_info.special_flags.c = true
-  compile_info.input_c_cpp_files = { tmp_input }
+  compile_info.input_c_cpp_file = tmp_input
   compile_info.special_flags.o = tmp_output
   local cmd_args = assert( cencode( compile_info ) )
   debug( 'running: %s %s', compiler, concat( cmd_args, ' ' ) )
@@ -169,8 +175,11 @@ local function compile( cxn, task_hash, compiler, flags, body )
     cwd=nil,
   }
   write_file( tmp_input, body )
+  local time_start = assert( now_micros() )
   local status, stdout, stderr, reason =
       popen( compiler, cmd_args, opts )
+  local time_end = assert( now_micros() )
+  local time_taken = time_end - time_start
   if reason == 'cancelled' then
     err( 'compilation cancelled: %s', reason )
     return { status=1, stdout=stdout, stderr=stderr }
@@ -181,15 +190,8 @@ local function compile( cxn, task_hash, compiler, flags, body )
     output=output,
     stdout=stdout,
     stderr=stderr,
+    time_micros=time_taken,
   }
-end
-
-local function publish_remote_task_event( cxn, task_hash, event )
-  assert( task_hash )
-  assert( event )
-  local key = format( 'farm:compile:cpp:events' )
-  event = format( '%s:%s', task_hash, event )
-  cxn:publish( key, event )
 end
 
 local function run_remote_task( cxn, task_hash )
@@ -200,7 +202,7 @@ local function run_remote_task( cxn, task_hash )
   assertf( task_info.input, 'cannot find remote task: %s',
            task_hash )
   local input_hash = assert( task_info.input )
-  local body = find_blob( cxn, input_hash )
+  local body = get_blob( cxn, input_hash )
   assertf( body, 'cannot find body for input %s', input_hash )
   debug( 'body is %d bytes', #body )
   local compiler = find_compiler( task_info.compiler_type,
@@ -233,7 +235,7 @@ local function run_local_task( cxn, task_hash )
   assertf( task_info.command, 'cannot find local task: %s',
            task_hash )
   local command_line = assert( task_info.command )
-  info( 'running command: %s', command_line )
+  log_command( info, 'running command: %s', command_line )
   local cwd =
       assert( task_info.cwd, 'missing cwd in local task' )
   debug( 'cd %s', cwd )
@@ -266,8 +268,11 @@ local function run_local_task( cxn, task_hash )
     on_poll=on_poll,
     cwd=cwd,
   }
+  local time_start = assert( now_micros() )
   local status, stdout, stderr, reason = popen( command,
                                                 cmd_args, opts )
+  local time_end = assert( now_micros() )
+  local time_taken = time_end - time_start
   if status == 0 then
     info( 'command successful' )
     if #stdout > 0 then trace( 'stdout:\n%s', stdout ) end
@@ -277,21 +282,12 @@ local function run_local_task( cxn, task_hash )
     -- assert( io.stdout ):write( stdout )
     -- assert( io.stderr ):write( stderr )
   end
-  return { status=status, stdout=stdout, stderr=stderr }
-end
-
-local function set_remote_result( cxn, task_hash, result )
-  local out_key = format( 'farm:compile:cpp:task:%s:output',
-                          task_hash )
-  local function to_blob( content )
-    return set_blob( cxn, content )
-  end
-  set_hash( cxn, out_key, {
-    status=assert( result.status ),
-    output=to_blob( result.output ),
-    stdout=to_blob( result.stdout ),
-    stderr=to_blob( result.stderr ),
-  } )
+  return {
+    status=status,
+    stdout=stdout,
+    stderr=stderr,
+    time_micros=time_taken,
+  }
 end
 
 local function process_task(cxn, task, perform, set_result,
@@ -305,10 +301,10 @@ local function process_task(cxn, task, perform, set_result,
   if ok then
     set_result( cxn, task_hash, result )
     if result.status == 0 then
-      publish( cxn, task_hash, 'finished-success' )
+      publish( cxn, task_hash, 'finished:success' )
     else
       publish( cxn, task_hash,
-               format( 'finished-error-%d', result.status ) )
+               format( 'finished:error:%d', result.status ) )
     end
   else
     local reason = tostring( result ) or 'unknown error'
@@ -323,9 +319,10 @@ local function process_task(cxn, task, perform, set_result,
       output='',
       stdout='',
       stderr=reason,
+      time_micros='',
     }
     set_result( cxn, task_hash, task_result )
-    publish( cxn, task_hash, 'failed-to-run' )
+    publish( cxn, task_hash, 'finished:failed-to-run' )
     if args.fail_on_meta_error then
       error( 'fail-on-meta-error: exiting' )
     end
@@ -347,8 +344,8 @@ local function process_next_task( cxn )
     process_task( cxn, task, run_local_task, ltask.set_result,
                   ltask.publish_event )
   elseif task.type == 'remote' then
-    process_task( cxn, task, run_remote_task, set_remote_result,
-                  publish_remote_task_event )
+    process_task( cxn, task, run_remote_task, rtask.set_result,
+                  rtask.publish_event )
   else
     err( 'unrecognized task type: ' .. task.type )
     return false
@@ -405,7 +402,7 @@ local function main()
   -- Let's do this here to fail fast if we can't determine it.
   assert( os_version(), 'cannot determine os version tag' )
 
-  local cxn = assert( ru.connect() )
+  local cxn<close> = assert( ru.connect() )
 
   while process_next_task( cxn ) and args.mode == 'drain' do
     ping( cxn )

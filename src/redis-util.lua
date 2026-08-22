@@ -4,11 +4,15 @@
 local config = require( 'config' )
 local redis = require( 'redis' )
 
+local logger = require( 'moon.logger' )
+
 -----------------------------------------------------------------
 -- Aliases.
 -----------------------------------------------------------------
 local HOST = assert( config.general.HOST )
 local PORT = assert( config.general.PORT )
+
+local debug = assert( logger.debug )
 
 local insert = assert( table.insert )
 local unpack = assert( table.unpack )
@@ -19,7 +23,13 @@ local unpack = assert( table.unpack )
 local function connect()
   local cxn = assert( redis.connect( HOST, PORT ) )
   assert( cxn:ping(), 'unable to ping redis server' )
-  return cxn
+  return setmetatable( {}, {
+    __index=cxn,
+    __close=function( self )
+      debug( 'closing redis connection' )
+      self:quit()
+    end,
+  } )
 end
 
 local function set_hash( cxn, key, tbl, expiry )

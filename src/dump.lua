@@ -132,17 +132,14 @@ local function dump( cxn )
 end
 
 local function watching_dump( cxn )
-  local messages, sock
-  do
-    -- We need to create a new connection for the subscription
-    -- because once we subscribe on a connection we're not al-
-    -- lowed to send any other commands.
-    local pubsub_cxn = assert( ru.connect() )
-    sock = assert( pubsub_cxn.network.socket )
-    messages = pubsub_cxn:pubsub{
-      psubscribe='__keyspace@0__:farm:*',
-    }
-  end
+  -- We need to create a new connection for the subscription be-
+  -- cause once we subscribe on a connection we're not allowed to
+  -- send any other commands.
+  local pubsub_cxn<close> = assert( ru.connect() )
+  local sock = assert( pubsub_cxn.network.socket )
+  local messages = pubsub_cxn:pubsub{
+    psubscribe='__keyspace@0__:farm:*',
+  }
 
   -- Note that the loop body will run immediately on the first
   -- iteration because we always get the first event immediately

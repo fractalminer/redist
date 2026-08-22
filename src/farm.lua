@@ -23,7 +23,14 @@ local function set_blob( cxn, body )
   return h
 end
 
-local function find_blob( cxn, blob_hash )
+local function set_blob_from_file( cxn, fname )
+  assert( fname, 'invalid filename: ' .. fname )
+  local f<close> = assert( io.open( fname, 'r' ) )
+  local body = f:read( 'a' )
+  return set_blob( cxn, body )
+end
+
+local function get_blob( cxn, blob_hash )
   debug( 'finding blob: %s', blob_hash )
   local key = format( 'farm:blob:%s', blob_hash )
   local blob = cxn:get( key )
@@ -31,10 +38,19 @@ local function find_blob( cxn, blob_hash )
   return blob
 end
 
+local function get_blob_to_file( cxn, blob_hash, ofile )
+  local blob = assert( get_blob( cxn, blob_hash ) )
+  local f<close> = assert( io.open( ofile, 'w' ) )
+  f:write( blob )
+  return true
+end
+
 -----------------------------------------------------------------
 -- Module.
 -----------------------------------------------------------------
 return {
-  find_blob=find_blob, --
+  get_blob=get_blob, --
   set_blob=set_blob, --
+  set_blob_from_file=set_blob_from_file, --
+  get_blob_to_file=get_blob_to_file, --
 }

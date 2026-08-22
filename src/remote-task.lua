@@ -3,7 +3,6 @@
 -----------------------------------------------------------------
 local config = require( 'config' )
 local farm = require( 'farm' )
-local network = require( 'network' )
 local ru = require( 'redis-util' )
 
 local logger = require( 'moon.logger' )
@@ -15,7 +14,6 @@ local socket = require( 'socket' )
 -----------------------------------------------------------------
 local set_hash = assert( ru.set_hash )
 local set_blob = assert( farm.set_blob )
-local machine_label = assert( network.machine_label )
 
 local info = assert( logger.info )
 
@@ -29,53 +27,47 @@ local format = assert( string.format )
 local function post_task( cxn, hash, params )
   assert( hash )
   assert( params )
-  assert( params.command )
-  assert( params.description )
-  if params.cwd then assert( #params.cwd > 0 ) end
-  local key = format( 'farm:local:task:%s:input', hash )
+  local key = format( 'farm:compile:cpp:task:%s:input', hash )
   set_hash( cxn, key, {
-    command=params.command,
-    cwd=params.cwd,
-    description=params.description,
-  }, config.builder.EXPIRE_LOCAL_TASK )
+    os=assert( params.os ),
+    compiler_type=assert( params.compiler_type ),
+    compiler_version=assert( params.compiler_version ),
+    compiler_flags=assert( params.compiler_flags ),
+    input=assert( params.input ),
+    description=assert( params.description ),
+  }, config.builder.EXPIRE_REMOTE_TASK )
 end
 
 local function queue_task( cxn, hash )
   assert( hash )
-  local key = format( 'farm:local:queue:%s', machine_label() )
+  local key = 'farm:compile:cpp:queue'
   cxn:lpush( key, hash )
 end
 
 local function output_of( cxn, hash )
   assert( cxn )
   assert( hash )
-  local key = format( 'farm:local:task:%s:output', hash )
+  local key = format( 'farm:compile:cpp:task:%s:output', hash )
   if not cxn:exists( key ) then return end
   local output = assert( cxn:hgetall( key ) )
   assert( type( output ) == 'table' )
   return output
 end
 
-local function delete_output( cxn, hash )
-  assert( cxn )
-  assert( hash )
-  local key = format( 'farm:local:task:%s:output', hash )
-  if not cxn:exists( key ) then return end
-  assert( cxn:del( key ) )
-end
-
 local function find( cxn, hash )
-  local key = format( 'farm:local:task:%s:input', hash )
+  local key = format( 'farm:compile:cpp:task:%s:input', hash )
   return cxn:hgetall( key )
 end
 
 local function set_result( cxn, hash, result )
-  local out_key = format( 'farm:local:task:%s:output', hash )
+  local out_key =
+      format( 'farm:compile:cpp:task:%s:output', hash )
   local function to_blob( content )
     return set_blob( cxn, content )
   end
   set_hash( cxn, out_key, {
     status=assert( result.status ),
+    output=to_blob( result.output ),
     stdout=to_blob( result.stdout ),
     stderr=to_blob( result.stderr ),
     time_micros=assert( result.time_micros ),
@@ -85,7 +77,7 @@ end
 local function publish_event( cxn, task_hash, event )
   assert( task_hash )
   assert( event )
-  local key = format( 'farm:local:task:events' )
+  local key = format( 'farm:compile:cpp:events' )
   event = format( '%s:%s', task_hash, event )
   cxn:publish( key, event )
 end
@@ -97,7 +89,7 @@ local function queue_and_wait( cxn, task_hash, fn )
   local pubsub_cxn<close> = assert( ru.connect() )
   local sock = assert( pubsub_cxn.network.socket )
   local messages = pubsub_cxn:pubsub{
-    subscribe='farm:local:task:events',
+    subscribe='farm:compile:cpp:events',
   }
 
   local output = output_of( cxn, task_hash )
@@ -107,7 +99,7 @@ local function queue_and_wait( cxn, task_hash, fn )
 
   local target = format( '%s:finished', task_hash )
   while not output do
-    info( 'waiting for local task...' )
+    info( 'waiting for remote task...' )
     fn()
     assert( cxn:ping(), 'lost connection (primary)' )
     if socket_select( { sock }, {}, 1 )[sock] then
@@ -133,6 +125,5 @@ return {
   set_result=set_result,
   publish_event=publish_event,
   output_of=output_of,
-  delete_output=delete_output,
   queue_and_wait=queue_and_wait,
 }

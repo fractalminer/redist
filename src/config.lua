@@ -12,10 +12,10 @@ return harden{
   worker={
     POLL_TIMEOUT=10, --
     EXPIRE_ADVERTISE=60, --
-    EXPIRE_LOCAL_TASK=3600, --
   },
 
   builder={
-    -- TODO
+    EXPIRE_LOCAL_TASK=60, --
+    EXPIRE_REMOTE_TASK=3600, --
   },
 }
