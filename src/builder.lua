@@ -45,7 +45,7 @@ local remove = assert( table.remove )
 -----------------------------------------------------------------
 -- Globals.
 -----------------------------------------------------------------
-logger.level = assert( logger.levels.DEBUG )
+logger.level = assert( logger.levels.WARNING )
 
 -----------------------------------------------------------------
 -- Implementation.
