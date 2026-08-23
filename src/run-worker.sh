@@ -1,8 +1,10 @@
 #!/bin/bash
 set -eo pipefail
 
+cd ~/dev/redist/src
+
 lua worker.lua \
-  --workarea=/home/dsicilia/dev/redist/src/workarea \
+  --workarea=workarea \
   --verbosity=debug \
   --fail-on-meta-error \
   --advertise=false \
