@@ -43,7 +43,9 @@ end
 local function queue_task( cxn, hash )
   assert( hash )
   local key = format( 'farm:local:queue:%s', machine_label() )
-  cxn:lpush( key, hash )
+  -- Push on the right, then the worker pops from the left to
+  -- create a FIFO (queue).
+  cxn:rpush( key, hash )
 end
 
 local function output_of( cxn, hash )
