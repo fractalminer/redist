@@ -143,9 +143,8 @@ end
 
 local function compile(cxn, task_hash, compiler, compiler_type,
                        flags, body )
-  local pp_does_includes_only = compilers.pp_does_includes_only(
-                                    compiler_type )
-  local ext = pp_does_includes_only and '.ii' or ''
+  local pp_style = compilers.pp_style( compiler_type )
+  local ext = assert( pp_style.ext )
   local tmp_input = format( '%s/farm.task.compiler.%s.cpp%s',
                             args.workarea, task_hash, ext )
   local tmp_output = format( '%s/farm.task.compiler.%s.o',

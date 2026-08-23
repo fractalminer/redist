@@ -178,8 +178,16 @@ local function locate( info )
   return false, 'cannot locate compiler'
 end
 
-local function pp_does_includes_only( compiler_type )
-  return compiler_type:match( 'clang' )
+local function pp_style( compiler_type )
+  local style = { includes_only=false, flag=nil, ext='.ii' }
+  if compiler_type:match( 'clang' ) then
+    style = {
+      includes_only=true,
+      flag='-frewrite-includes', --
+      ext='', --
+    }
+  end
+  return style
 end
 
 -----------------------------------------------------------------
@@ -188,5 +196,5 @@ end
 return {
   match_compiler=match_compiler,
   locate=locate,
-  pp_does_includes_only=pp_does_includes_only,
+  pp_style=pp_style,
 }

@@ -95,10 +95,10 @@ local function create_local_preprocess_task( analyzed )
   assert( not decoded.special_flags.E )
   decoded.special_flags.c = false
   decoded.special_flags.E = true
-  local includes_only = compilers.pp_does_includes_only(
-                            analyzed.compiler_match.compiler_type )
-  if includes_only then
-    insert( decoded.flags, '-frewrite-includes' )
+  local pp_style = compilers.pp_style(
+                       analyzed.compiler_match.compiler_type )
+  if pp_style.includes_only then
+    insert( decoded.flags, assert( pp_style.flag ) )
   end
   local c = assert( decoded.input_c_cpp_file )
 
@@ -111,7 +111,7 @@ local function create_local_preprocess_task( analyzed )
   remove( o )
   o = concat( o, '/' )
 
-  local ext = includes_only and '.ii' or ''
+  local ext = assert( pp_style.ext )
   local output_file = format( '%s/%s%s', o, c, ext )
   decoded.special_flags.o = output_file
   local command = concat( cencode( decoded ), ' ' )

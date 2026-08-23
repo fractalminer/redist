@@ -3,6 +3,8 @@ Problems:
   * The binaries seem to crash when built on multiple hosts.
   * Warnings pop up on the preprocessed code that don't other-
     wise.
+  * Worker utilization is not great, there is a bottleneck some-
+    where.
 
 TODO:
 -----------------------------------------------------------------
