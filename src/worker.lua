@@ -85,9 +85,15 @@ local function next_task( cxn )
     assert( key, 'task queue key is nil' )
     assert( task, 'task is nil' )
     if key == local_queue then
+      cxn:rpush( 'farm:log:queues', format(
+                     'node %s popped local task %s',
+                     machine_label(), task ) )
       return { type='local', hash=task }
     end
     if key == remote_queue then
+      cxn:rpush( 'farm:log:queues', format(
+                     'node %s popped remote task %s',
+                     machine_label(), task ) )
       return { type='remote', hash=task }
     end
     error( 'popped from unexpected key: ' .. key )
@@ -327,7 +333,7 @@ local function process_next_task( cxn )
     STATE.status = 'idle'
     STATE.task = nil
     advertise( cxn )
-    trace( 'checking for task...' )
+    debug( 'checking for task...' )
     task = next_task( cxn )
     if not task and not args.wait then return false end
   until task

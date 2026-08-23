@@ -46,6 +46,9 @@ local function queue_task( cxn, hash )
   -- Push on the right, then the worker pops from the left to
   -- create a FIFO (queue).
   cxn:rpush( key, hash )
+  cxn:rpush( 'farm:log:queues', format(
+                 'node %s pushed local task %s', machine_label(),
+                 hash ) )
 end
 
 local function output_of( cxn, hash )

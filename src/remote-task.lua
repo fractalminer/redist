@@ -3,6 +3,7 @@
 -----------------------------------------------------------------
 local config = require( 'config' )
 local farm = require( 'farm' )
+local network = require( 'network' )
 local ru = require( 'redis-util' )
 
 local logger = require( 'moon.logger' )
@@ -14,6 +15,7 @@ local socket = require( 'socket' )
 -----------------------------------------------------------------
 local set_hash = assert( ru.set_hash )
 local set_blob = assert( farm.set_blob )
+local machine_label = assert( network.machine_label )
 
 local info = assert( logger.info )
 
@@ -44,6 +46,9 @@ local function queue_task( cxn, hash )
   -- Push on the right, then the worker pops from the left to
   -- create a FIFO (queue).
   cxn:rpush( key, hash )
+  cxn:rpush( 'farm:log:queues', format(
+                 'node %s pushed remote task %s',
+                 machine_label(), hash ) )
 end
 
 local function output_of( cxn, hash )
