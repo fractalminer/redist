@@ -5,12 +5,12 @@ local harden = assert( require( 'moon.freeze' ).harden )
 
 return harden{
   general={
-    HOST='thelio', --
+    HOST='192.168.1.214', --
     PORT=6379, --
   },
 
   worker={
-    POLL_TIMEOUT=10, --
+    POLL_TIMEOUT=1, --
     EXPIRE_ADVERTISE=60, --
   },
 
