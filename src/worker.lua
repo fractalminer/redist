@@ -78,6 +78,7 @@ local STATE = {
 -- Implementation.
 -----------------------------------------------------------------
 local function next_task( cxn )
+  local timeout = config.worker.POLL_TIMEOUT
   local remote_queue = 'farm:compile:cpp:queue'
   local local_queue = format( 'farm:local:queue:%s',
                               machine_label() )
@@ -100,14 +101,23 @@ local function next_task( cxn )
   end
   local o
   if not args.wait then
-    o = cxn:lpop( local_queue )
-    if o then return result( local_queue, o ) end
-    o = cxn:lpop( remote_queue )
-    if o then return result( remote_queue, o ) end
+    if args.listen == 'local' or args.listen == 'both' then
+      o = cxn:lpop( local_queue )
+      if o then return result( local_queue, o ) end
+    end
+    if args.listen == 'remote' or args.listen == 'both' then
+      o = cxn:lpop( remote_queue )
+      if o then return result( remote_queue, o ) end
+    end
   else
-    -- Local queue must come first.
-    o = cxn:blpop( local_queue, remote_queue,
-                   config.worker.POLL_TIMEOUT )
+    if args.listen == 'local' then
+      o = cxn:blpop( local_queue, timeout )
+    elseif args.listen == 'remote' then
+      o = cxn:blpop( remote_queue, timeout )
+    else
+      -- Local queue must come first.
+      o = cxn:blpop( local_queue, remote_queue, timeout )
+    end
     return o and result( o[1], o[2] )
   end
 end
@@ -333,7 +343,7 @@ local function process_next_task( cxn )
     STATE.status = 'idle'
     STATE.task = nil
     advertise( cxn )
-    debug( 'checking for task...' )
+    trace( 'checking for task...' )
     task = next_task( cxn )
     if not task and not args.wait then return false end
   until task
@@ -376,6 +386,11 @@ local function main()
         :choices{ 'one', 'drain' }
         :default( 'one' )
         :description( 'how many tasks to process' )
+
+  parser:option( '--listen' )
+        :choices{ 'local', 'remote', 'both' }
+        :default( 'both' )
+        :description( 'whether to listen for local or remote tasks' )
 
   parser:flag( '-w --wait' )
         :default( false )

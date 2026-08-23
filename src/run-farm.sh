@@ -3,7 +3,7 @@ set -e
 
 [[ -n "$1" ]]
 
-~/dev/utilities/consoles/open.sh farm-$1
+tmux setw synchronize-panes yes
+tmux rename-window "FARM-$(hostname)"
 
-tmux setw synchronize-panes on
-tmux rename-window "FARM"
+~/dev/utilities/consoles/open.sh farm-$1

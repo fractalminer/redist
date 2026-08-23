@@ -8,6 +8,6 @@ lua worker.lua \
   --verbosity=debug \
   --fail-on-meta-error \
   --advertise=false \
-  --listen=both \
+  --listen=local \
   --mode=drain \
   --wait
