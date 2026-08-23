@@ -171,36 +171,30 @@ local function create_remote_compile_task( analyzed, ii_hash )
   }
 end
 
--- TODO: dedupe this with the remote/compile version.
 local function run_preprocess( cxn, analyzed )
   local task = create_local_preprocess_task( analyzed )
   ltask.delete_output( cxn, task.hash )
-  local task_output = ltask.output_of( cxn, task.hash )
-  if not task_output then
-    ltask.post_task( cxn, task.hash, {
-      command=assert( task.command ),
-      cwd=assert( task.cwd ),
-      description=assert( task.description ),
-    } )
-    info( 'queueing for task %s...', task.hash )
-    task_output = ltask.queue_and_wait( cxn, task.hash )
-    -- Whatever happens we need to forward the stderr of the pre-
-    -- processor so that it can appear in the console.
-    local task_stderr_hash = assert( task_output.stderr )
-    assert( io.stderr ):write( get_blob( cxn, task_stderr_hash ) )
-    local status = assert( task_output.status )
-    if tonumber( status ) ~= 0 then
-      error( 'preprocess command return non-zero status: ' ..
-                 status )
-    end
+  ltask.post_task( cxn, task.hash, {
+    command=assert( task.command ),
+    cwd=assert( task.cwd ),
+    description=assert( task.description ),
+  } )
+  info( 'queueing for task %s...', task.hash )
+  local task_output = ltask.queue_and_wait( cxn, task.hash )
+  -- Whatever happens we need to forward the stderr of the pre-
+  -- processor so that it can appear in the console.
+  local task_stderr_hash = assert( task_output.stderr )
+  assert( io.stderr ):write( get_blob( cxn, task_stderr_hash ) )
+  local status = assert( task_output.status )
+  if tonumber( status ) ~= 0 then
+    error(
+        'preprocess command return non-zero status: ' .. status )
   end
-  assert( task_output )
   local output_file = assert( task.output_file )
   local ii_hash = set_blob_from_file( cxn, output_file )
   return ii_hash
 end
 
--- TODO: dedupe this with the local/preprocess version.
 local function run_compile( cxn, analyzed, ii_hash )
   assert( analyzed )
   assert( ii_hash )
