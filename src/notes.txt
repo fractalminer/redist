@@ -16,7 +16,8 @@ TODO:
     and also needs to be checked to see if it is the right ver-
     sion.
   * Need to auto-detect the number of active workers to set -j
-    accordingly.
+    accordingly. When enabling worker advertising, make sure that
+    it doesn't happen too often.
 
 Plan for Monitor:
 -----------------------------------------------------------------

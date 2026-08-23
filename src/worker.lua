@@ -52,7 +52,6 @@ local format = assert( string.format )
 local insert = assert( table.insert )
 local concat = assert( table.concat )
 local remove = assert( table.remove )
-local rep = assert( string.rep )
 
 -----------------------------------------------------------------
 -- Constants.
@@ -143,7 +142,7 @@ local function find_compiler( compiler_type, compiler_version )
 end
 
 local function compile( cxn, task_hash, compiler, flags, body )
-  local tmp_input = format( '%s/farm.task.compiler.%s.cpp.ii',
+  local tmp_input = format( '%s/farm.task.compiler.%s.cpp',
                             args.workarea, task_hash )
   local tmp_output = format( '%s/farm.task.compiler.%s.o',
                              args.workarea, task_hash )
@@ -349,9 +348,7 @@ local function process_next_task( cxn )
     if not task and not args.wait then return false end
     -- Scroll the screen with a blank line so that inactive
     -- workers are more visually apparent in a grid.
-    if logger.level < logger.levels.TRACE then
-      print( rep( '\n', 20 ) )
-    end
+    if logger.level < logger.levels.TRACE then print() end
   until task
   assert( task.type )
   if task.type == 'local' then

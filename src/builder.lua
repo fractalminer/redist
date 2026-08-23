@@ -22,10 +22,10 @@ local posix = require( 'posix' )
 -----------------------------------------------------------------
 -- Aliases.
 -----------------------------------------------------------------
+local blob_exists = assert( farm.blob_exists )
 local cencode = assert( decode.cencode )
 local cround_trip = assert( decode.cround_trip )
 local get_blob = assert( farm.get_blob )
-local blob_exists = assert( farm.blob_exists )
 local get_blob_to_file = assert( farm.get_blob_to_file )
 local log_command = assert( ccache.log_command )
 local machine_id = assert( network.machine_id )
@@ -39,8 +39,9 @@ local debug = assert( logger.debug )
 
 local getcwd = assert( posix.unistd.getcwd )
 
-local format = assert( string.format )
 local concat = assert( table.concat )
+local format = assert( string.format )
+local insert = assert( table.insert )
 local remove = assert( table.remove )
 
 -----------------------------------------------------------------
@@ -95,6 +96,7 @@ local function create_local_preprocess_task( analyzed )
   assert( not decoded.special_flags.E )
   decoded.special_flags.c = false
   decoded.special_flags.E = true
+  insert( decoded.flags, '-frewrite-includes' )
   local c = assert( decoded.input_c_cpp_file )
 
   -- Put the .ii file next to where the .o would go.
@@ -106,7 +108,7 @@ local function create_local_preprocess_task( analyzed )
   remove( o )
   o = concat( o, '/' )
 
-  local output_file = format( '%s/%s.ii', o, c )
+  local output_file = format( '%s/%s', o, c )
   decoded.special_flags.o = output_file
   local command = concat( cencode( decoded ), ' ' )
   log_command( debug, 'command: %s', command )
