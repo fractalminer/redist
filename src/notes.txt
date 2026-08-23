@@ -1,3 +1,21 @@
+Problems:
+-----------------------------------------------------------------
+  * Dead workers: It seems that some workers can get stuck
+    waiting for new tasks and never see new tasks.
+  * When the DB is flushed workers seem to get stuck.
+  * Tasks might be getting dropped, but not sure.
+  * Workers utilization seems lower than it should be.
+  * The binaries seem to get corrupted.
+  * Ctrl-C doesn't seem to kill the builders.
+
+TODO:
+-----------------------------------------------------------------
+  * Need to auto-clean workarea.
+  * Need to set TTLs properly on all the keys.
+  * After writing a file from the contents of a blob, stat the
+    file size to make sure it is the same as the key.
+  * When pushing to the queue log, set the expiry on the list.
+
 Plan for Monitor:
 -----------------------------------------------------------------
   * Create a stdin table wrapper around fd 0 and give that object
