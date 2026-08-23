@@ -26,7 +26,6 @@ local BLUE = assert( color.ANSI_BLUE )
 local RED = assert( color.ANSI_RED )
 local YELLOW = assert( color.ANSI_YELLOW )
 local MAGENTA = assert( color.ANSI_MAGENTA )
--- local CYAN = assert( color.ANSI_CYAN )
 local NORMAL = assert( color.ANSI_NORMAL )
 
 local socket_select = assert( socket.select )
@@ -94,7 +93,12 @@ local function get_sorted_keys_by_type( cxn )
   local keys = cxn:keys( '*' )
   table.sort( keys )
   for _, key in ipairs( keys ) do
-    local val = get_key( cxn, key )
+    local val
+    if key:match( '^farm:blob:' ) then
+      val = '[suppressed]'
+    else
+      val = get_key( cxn, key )
+    end
     local t = type( val )
     local o = { key=key, val=val }
     if t == 'table' and val[1] then
