@@ -15,7 +15,7 @@ return harden{
   },
 
   builder={
-    EXPIRE_LOCAL_TASK=60, --
+    EXPIRE_LOCAL_TASK=3600, --
     EXPIRE_REMOTE_TASK=3600, --
   },
 }
