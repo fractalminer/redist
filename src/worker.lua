@@ -346,6 +346,9 @@ local function process_next_task( cxn )
     trace( 'checking for task...' )
     task = next_task( cxn )
     if not task and not args.wait then return false end
+    -- Scroll the screen with a blank line so that inactive
+    -- workers are more visually apparent in a grid.
+    if logger.level < logger.levels.TRACE then print() end
   until task
   assert( task.type )
   if task.type == 'local' then
