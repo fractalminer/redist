@@ -48,10 +48,11 @@ local set_hash = assert( ru.set_hash )
 local trace = assert( logger.trace )
 local write_file = assert( file.write_file )
 
-local format = string.format
-local insert = table.insert
-local concat = table.concat
-local remove = table.remove
+local format = assert( string.format )
+local insert = assert( table.insert )
+local concat = assert( table.concat )
+local remove = assert( table.remove )
+local rep = assert( string.rep )
 
 -----------------------------------------------------------------
 -- Constants.
@@ -243,7 +244,7 @@ local function run_local_task( cxn, task_hash )
   assertf( task_info.command, 'cannot find local task: %s',
            task_hash )
   local command_line = assert( task_info.command )
-  log_command( info, 'running command: %s', command_line )
+  log_command( trace, '%s', command_line )
   local cwd =
       assert( task_info.cwd, 'missing cwd in local task' )
   debug( 'cd %s', cwd )
@@ -348,7 +349,9 @@ local function process_next_task( cxn )
     if not task and not args.wait then return false end
     -- Scroll the screen with a blank line so that inactive
     -- workers are more visually apparent in a grid.
-    if logger.level < logger.levels.TRACE then print() end
+    if logger.level < logger.levels.TRACE then
+      print( rep( '\n', 20 ) )
+    end
   until task
   assert( task.type )
   if task.type == 'local' then

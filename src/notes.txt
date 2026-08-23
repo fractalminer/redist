@@ -1,12 +1,8 @@
 Problems:
 -----------------------------------------------------------------
-  * Dead workers: It seems that some workers can get stuck
-    waiting for new tasks and never see new tasks.
-  * When the DB is flushed workers seem to get stuck.
-  * Tasks might be getting dropped, but not sure.
-  * Workers utilization seems lower than it should be.
-  * The binaries seem to get corrupted.
-  * Ctrl-C doesn't seem to kill the builders.
+  * The binaries seem to crash when built on multiple hosts.
+  * Warnings pop up on the preprocessed code that don't other-
+    wise.
 
 TODO:
 -----------------------------------------------------------------
@@ -19,6 +15,8 @@ TODO:
     implies a certain gcc version... that needs to be in the hash
     and also needs to be checked to see if it is the right ver-
     sion.
+  * Need to auto-detect the number of active workers to set -j
+    accordingly.
 
 Plan for Monitor:
 -----------------------------------------------------------------
