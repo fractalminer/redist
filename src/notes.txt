@@ -8,6 +8,8 @@ TODO:
 -----------------------------------------------------------------
   * Need to auto-clean workarea.
   * Need to set TTLs properly on all the keys.
+  * We may not want to have the artifacts remain for long because
+    redis seems to really slow down when it saturates memory.
   * After writing a file from the contents of a blob, stat the
     file size to make sure it is the same as the key.
   * When pushing to the queue log, set the expiry on the list.

@@ -89,14 +89,17 @@ end
 
 local function create_local_preprocess_task( analyzed )
   local decoded = deep_copy( assert( analyzed.decoded ) )
-  -- require( 'moon.json' ).print( decoded )
   assert( decoded.special_flags.c )
   assert( decoded.special_flags.o )
   assert( decoded.input_c_cpp_file )
   assert( not decoded.special_flags.E )
   decoded.special_flags.c = false
   decoded.special_flags.E = true
-  insert( decoded.flags, '-frewrite-includes' )
+  local includes_only = compilers.pp_does_includes_only(
+                            analyzed.compiler_match.compiler_type )
+  if includes_only then
+    insert( decoded.flags, '-frewrite-includes' )
+  end
   local c = assert( decoded.input_c_cpp_file )
 
   -- Put the .ii file next to where the .o would go.
@@ -108,7 +111,8 @@ local function create_local_preprocess_task( analyzed )
   remove( o )
   o = concat( o, '/' )
 
-  local output_file = format( '%s/%s', o, c )
+  local ext = includes_only and '.ii' or ''
+  local output_file = format( '%s/%s%s', o, c, ext )
   decoded.special_flags.o = output_file
   local command = concat( cencode( decoded ), ' ' )
   log_command( debug, 'command: %s', command )

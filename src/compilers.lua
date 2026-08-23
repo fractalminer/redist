@@ -178,7 +178,15 @@ local function locate( info )
   return false, 'cannot locate compiler'
 end
 
+local function pp_does_includes_only( compiler_type )
+  return compiler_type:match( 'clang' )
+end
+
 -----------------------------------------------------------------
 -- Module.
 -----------------------------------------------------------------
-return { match_compiler=match_compiler, locate=locate }
+return {
+  match_compiler=match_compiler,
+  locate=locate,
+  pp_does_includes_only=pp_does_includes_only,
+}

@@ -141,9 +141,13 @@ local function find_compiler( compiler_type, compiler_version )
   return compiler
 end
 
-local function compile( cxn, task_hash, compiler, flags, body )
-  local tmp_input = format( '%s/farm.task.compiler.%s.cpp',
-                            args.workarea, task_hash )
+local function compile(cxn, task_hash, compiler, compiler_type,
+                       flags, body )
+  local pp_does_includes_only = compilers.pp_does_includes_only(
+                                    compiler_type )
+  local ext = pp_does_includes_only and '.ii' or ''
+  local tmp_input = format( '%s/farm.task.compiler.%s.cpp%s',
+                            args.workarea, task_hash, ext )
   local tmp_output = format( '%s/farm.task.compiler.%s.o',
                              args.workarea, task_hash )
   local cmd_elems = { compiler }
@@ -220,6 +224,7 @@ local function run_remote_task( cxn, task_hash )
   info( 'task description: %s', task_info.description )
   local compile_output = assert(
                              compile( cxn, task_hash, compiler,
+                                      task_info.compiler_type,
                                       task_info.compiler_flags,
                                       body ) )
   if compile_output.status == 0 then
