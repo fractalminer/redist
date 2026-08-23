@@ -417,6 +417,8 @@ local function main()
 
   local cxn<close> = assert( ru.connect() )
 
+  info( 'listen: %s', args.listen )
+
   while process_next_task( cxn ) and args.mode == 'drain' do
     ping( cxn )
   end

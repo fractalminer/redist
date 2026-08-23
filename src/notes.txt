@@ -15,6 +15,10 @@ TODO:
   * After writing a file from the contents of a blob, stat the
     file size to make sure it is the same as the key.
   * When pushing to the queue log, set the expiry on the list.
+  * Invoking the llvm compiler using gcc-current as the stdlib
+    implies a certain gcc version... that needs to be in the hash
+    and also needs to be checked to see if it is the right ver-
+    sion.
 
 Plan for Monitor:
 -----------------------------------------------------------------
