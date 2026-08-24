@@ -1,8 +1,3 @@
-Problems:
------------------------------------------------------------------
-  * Worker utilization is not great, there is a bottleneck some-
-    where.
-
 TODO:
 -----------------------------------------------------------------
   * Need to auto-clean workarea. It may help to have workers put
