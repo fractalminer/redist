@@ -5,13 +5,17 @@ Problems:
 
 TODO:
 -----------------------------------------------------------------
-  * Need to auto-clean workarea.
+  * Need to auto-clean workarea. It may help to have workers put
+    their files under a subfolder named by their PID.
   * Create a stats collector that runs on the worker hosts and
     collects stats about the hosts and uploads them to redis.
   * Create a monitor program that can monitor the state of the
     cluster.
   * Create a control program that can control the number of
     workers throughout the cluster (nice-to-have).
+  * Need to have a concept of worker node preference, i.e. when a
+    thelio worker is available it should take precedence over any
+    other.
   * Need to set TTLs properly on all the keys.
   * We may not want to have the artifacts remain for long because
     redis seems to really slow down when it saturates memory.

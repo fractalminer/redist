@@ -1,0 +1,52 @@
+Times
+------------------------------
+
+builder: bonobo
+
+  build: full cluster:
+
+    Configuration                                  Result   Time
+    gcc-16.2.0-mold-libstdc++-debug-asan-ninja     SUCCESS  236s
+    gcc-16.2.0-mold-libstdc++-debug-ninja          SUCCESS  154s
+    gcc-16.2.0-mold-libstdc++-relwdeb-asan-ninja   SUCCESS  386s
+    gcc-16.2.0-mold-libstdc++-relwdeb-ninja        SUCCESS  241s
+    clang-22.1.8-lld-libstdc++-debug-asan-ninja    SUCCESS  152s
+    clang-22.1.8-lld-libstdc++-debug-ninja         SUCCESS  113s
+    clang-22.1.8-lld-libstdc++-relwdeb-asan-ninja  SUCCESS  234s
+    clang-22.1.8-lld-libstdc++-relwdeb-ninja       SUCCESS  141s
+    clang-22.1.8-lld-libc++-debug-asan-ninja       SUCCESS  142s
+    clang-22.1.8-lld-libc++-debug-ninja            SUCCESS  102s
+    clang-22.1.8-lld-libc++-relwdeb-asan-ninja     SUCCESS  217s
+    clang-22.1.8-lld-libc++-relwdeb-ninja          SUCCESS  125s
+
+  build: fully cached in redis:
+
+    Configuration                                  Result   Time
+    gcc-16.2.0-mold-libstdc++-debug-asan-ninja     SUCCESS  73s
+    gcc-16.2.0-mold-libstdc++-debug-ninja          SUCCESS  52s
+    gcc-16.2.0-mold-libstdc++-relwdeb-asan-ninja   SUCCESS  62s
+    gcc-16.2.0-mold-libstdc++-relwdeb-ninja        SUCCESS  50s
+    clang-22.1.8-lld-libstdc++-debug-asan-ninja    SUCCESS  53s
+    clang-22.1.8-lld-libstdc++-debug-ninja         SUCCESS  44s
+    clang-22.1.8-lld-libstdc++-relwdeb-asan-ninja  SUCCESS  44s
+    clang-22.1.8-lld-libstdc++-relwdeb-ninja       SUCCESS  41s
+    clang-22.1.8-lld-libc++-debug-asan-ninja       SUCCESS  38s
+    clang-22.1.8-lld-libc++-debug-ninja            SUCCESS  32s
+    clang-22.1.8-lld-libc++-relwdeb-asan-ninja     SUCCESS  32s
+    clang-22.1.8-lld-libc++-relwdeb-ninja          SUCCESS  30s
+
+  build: fully cached in ccache:
+
+    Configuration                                  Result   Time
+    gcc-16.2.0-mold-libstdc++-debug-asan-ninja     SUCCESS  52s
+    gcc-16.2.0-mold-libstdc++-debug-ninja          SUCCESS  36s
+    gcc-16.2.0-mold-libstdc++-relwdeb-asan-ninja   SUCCESS  41s
+    gcc-16.2.0-mold-libstdc++-relwdeb-ninja        SUCCESS  31s
+    clang-22.1.8-lld-libstdc++-debug-asan-ninja    SUCCESS  29s
+    clang-22.1.8-lld-libstdc++-debug-ninja         SUCCESS  26s
+    clang-22.1.8-lld-libstdc++-relwdeb-asan-ninja  SUCCESS  25s
+    clang-22.1.8-lld-libstdc++-relwdeb-ninja       SUCCESS  24s
+    clang-22.1.8-lld-libc++-debug-asan-ninja       SUCCESS  32s
+    clang-22.1.8-lld-libc++-debug-ninja            SUCCESS  27s
+    clang-22.1.8-lld-libc++-relwdeb-asan-ninja     SUCCESS  26s
+    clang-22.1.8-lld-libc++-relwdeb-ninja          SUCCESS  24s
