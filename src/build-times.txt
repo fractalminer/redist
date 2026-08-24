@@ -112,3 +112,20 @@ redis:   thelio
     clang-22.1.8-lld-libc++-debug-ninja            SUCCESS  360s
     clang-22.1.8-lld-libc++-relwdeb-asan-ninja     SUCCESS  818s
     clang-22.1.8-lld-libc++-relwdeb-ninja          SUCCESS  569s
+
+  full cluster clean:
+
+    Configuration                                  Result   Time
+    ============================================================
+    gcc-16.2.0-mold-libstdc++-debug-asan-ninja     SUCCESS  264s
+    gcc-16.2.0-mold-libstdc++-debug-ninja          SUCCESS  150s
+    gcc-16.2.0-mold-libstdc++-relwdeb-asan-ninja   SUCCESS  475s
+    gcc-16.2.0-mold-libstdc++-relwdeb-ninja        SUCCESS  242s
+    clang-22.1.8-lld-libstdc++-debug-asan-ninja    SUCCESS  119s
+    clang-22.1.8-lld-libstdc++-debug-ninja         SUCCESS  106s
+    clang-22.1.8-lld-libstdc++-relwdeb-asan-ninja  SUCCESS  174s
+    clang-22.1.8-lld-libstdc++-relwdeb-ninja       SUCCESS  146s
+    clang-22.1.8-lld-libc++-debug-asan-ninja       SUCCESS  106s
+    clang-22.1.8-lld-libc++-debug-ninja            SUCCESS  95s
+    clang-22.1.8-lld-libc++-relwdeb-asan-ninja     SUCCESS  215s
+    clang-22.1.8-lld-libc++-relwdeb-ninja          SUCCESS  122s
