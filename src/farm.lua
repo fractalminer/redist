@@ -22,6 +22,7 @@ local function set_blob( cxn, body )
   if not cxn:exists( key ) then
     debug( 'uploading blob of size %d', #body )
     cxn:set( key, body )
+    debug( 'finished uploading blob' )
   end
   return h
 end
@@ -35,9 +36,10 @@ local function set_blob_from_file( cxn, fname )
 end
 
 local function download_blob( cxn, blob_hash )
-  debug( 'finding blob: %s', blob_hash )
+  debug( 'downloading blob: %s', blob_hash )
   local key = format( 'farm:blob:%s', blob_hash )
   local blob = cxn:get( key )
+  debug( 'finished downloading blob: %s', blob_hash )
   if not blob then
     error( format( 'blob not found for key %s', key ) )
   end
