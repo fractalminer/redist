@@ -2,6 +2,8 @@ TODO:
 -----------------------------------------------------------------
   * Need to set TTLs properly on all the keys.
     - When pushing to the queue log, set the expiry on the list.
+  * The connect() function seems to hang when the redis server is
+    not reachable... need to add a timeout.
   * Control/Monitoring:
     * Create a stats collector that runs on the worker hosts and
       collects stats about the hosts and uploads them to redis.
