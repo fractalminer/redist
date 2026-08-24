@@ -5,6 +5,8 @@ local hash = require( 'hash' )
 
 local logger = require( 'moon.logger' )
 
+local zlib = require( 'zlib' )
+
 -----------------------------------------------------------------
 -- Aliases.
 -----------------------------------------------------------------
@@ -15,13 +17,23 @@ local format = assert( string.format )
 -----------------------------------------------------------------
 -- Implementation.
 -----------------------------------------------------------------
+local function compress( what )
+  local deflate = zlib.deflate( assert( 1 ) )
+  return (deflate( what, 'finish' ))
+end
+
+local function decompress( what )
+  local inflate = zlib.inflate()
+  return (inflate( what ))
+end
+
 local function set_blob( cxn, body )
   assert( body, 'invalid body' )
   local h = hash.hash( body )
   local key = format( 'farm:blob:%s', h )
   if not cxn:exists( key ) then
     debug( 'uploading blob of size %d', #body )
-    cxn:set( key, body )
+    cxn:set( key, compress( body ) )
     debug( 'finished uploading blob' )
   end
   return h
@@ -43,6 +55,7 @@ local function download_blob( cxn, blob_hash )
   if not blob then
     error( format( 'blob not found for key %s', key ) )
   end
+  blob = decompress( blob )
   assert( type( blob ) == 'string',
           format( 'unexpected blob type: %s for key: %s',
                   type( blob ), key ) )
