@@ -74,3 +74,23 @@ redis:   thelio
     clang-22.1.8-lld-libc++-debug-ninja            SUCCESS  94s
     clang-22.1.8-lld-libc++-relwdeb-asan-ninja     SUCCESS  197s
     clang-22.1.8-lld-libc++-relwdeb-ninja          SUCCESS  133s
+
+builder: darter2
+redis:   thelio
+
+  local clean:
+
+    Configuration                                  Result   Time
+    ============================================================
+    gcc-16.2.0-mold-libstdc++-debug-asan-ninja     SUCCESS  870s
+    gcc-16.2.0-mold-libstdc++-debug-ninja          SUCCESS  571s
+    gcc-16.2.0-mold-libstdc++-relwdeb-asan-ninja   SUCCESS  1759s
+    gcc-16.2.0-mold-libstdc++-relwdeb-ninja        SUCCESS  912s
+    clang-22.1.8-lld-libstdc++-debug-asan-ninja    SUCCESS  449s
+    clang-22.1.8-lld-libstdc++-debug-ninja         SUCCESS  384s
+    clang-22.1.8-lld-libstdc++-relwdeb-asan-ninja  SUCCESS  815s
+    clang-22.1.8-lld-libstdc++-relwdeb-ninja       SUCCESS  602s
+    clang-22.1.8-lld-libc++-debug-asan-ninja       SUCCESS  435s
+    clang-22.1.8-lld-libc++-debug-ninja            SUCCESS  360s
+    clang-22.1.8-lld-libc++-relwdeb-asan-ninja     SUCCESS  818s
+    clang-22.1.8-lld-libc++-relwdeb-ninja          SUCCESS  569s
