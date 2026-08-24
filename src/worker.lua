@@ -40,7 +40,7 @@ local info = assert( logger.info )
 local log_command = assert( ccache.log_command )
 local machine_label = assert( network.machine_label )
 local match_compiler = assert( compilers.match_compiler )
-local now_micros = assert( time.now_micros )
+local timeit = assert( time.timeit_micros )
 local os_version = assert( os_stat.os_version )
 local popen = assert( subprocess.popen )
 local read_file = assert( file.read_file )
@@ -187,11 +187,10 @@ local function compile(cxn, task_hash, compiler, compiler_type,
     cwd=nil,
   }
   write_file( tmp_input, body )
-  local time_start = assert( now_micros() )
-  local status, stdout, stderr, reason =
-      popen( compiler, cmd_args, opts )
-  local time_end = assert( now_micros() )
-  local time_taken = time_end - time_start
+  local time_taken, status, stdout, stderr, reason = timeit(
+                                                         function()
+        return popen( compiler, cmd_args, opts )
+      end )
   if reason == 'cancelled' then
     err( 'compilation cancelled: %s', reason )
     return { status=1, stdout=stdout, stderr=stderr }
@@ -281,11 +280,10 @@ local function run_local_task( cxn, task_hash )
     on_poll=on_poll,
     cwd=cwd,
   }
-  local time_start = assert( now_micros() )
-  local status, stdout, stderr, reason = popen( command,
-                                                cmd_args, opts )
-  local time_end = assert( now_micros() )
-  local time_taken = time_end - time_start
+  local time_taken, status, stdout, stderr, reason = timeit(
+                                                         function()
+        return popen( command, cmd_args, opts )
+      end )
   if status == 0 then
     info( 'command successful' )
     if #stdout > 0 then trace( 'stdout:\n%s', stdout ) end
