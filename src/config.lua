@@ -7,6 +7,7 @@ return harden{
   general={
     HOST='192.168.1.214', -- thelio/ethernet
     -- HOST='192.168.1.98', -- bonobo
+    -- HOST='127.0.0.1', -- loopback
     PORT=6379, --
   },
 
