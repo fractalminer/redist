@@ -45,9 +45,7 @@ end
 
 local function blob_exists( cxn, blob_hash )
   local key = format( 'farm:blob:%s', blob_hash )
-  local blob = cxn:get( key )
-  if not blob then return false end
-  return true
+  return cxn:exists( key )
 end
 
 local function get_blob_to_file( cxn, blob_hash, ofile )
