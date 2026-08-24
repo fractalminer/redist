@@ -6,8 +6,9 @@ local cityhash = require( 'cityhash' )
 -----------------------------------------------------------------
 -- Aliases.
 -----------------------------------------------------------------
-local format = string.format
-local byte = string.byte
+local format = assert( string.format )
+local byte = assert( string.byte )
+local concat = assert( table.concat )
 
 -----------------------------------------------------------------
 -- Methods.
@@ -18,7 +19,9 @@ local function hex( str )
   end )
 end
 
+-- Accepts either a string or a list of strings.
 local function hash( data )
+  if type( data ) == 'table' then data = concat( data, ' ' ) end
   assert( type( data ) == 'string', 'hash data is invalid' )
   local res, len = hex( cityhash.hash128( data, #data ) )
   assert( len == 16 )

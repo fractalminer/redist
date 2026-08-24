@@ -1,10 +1,5 @@
 TODO:
 -----------------------------------------------------------------
-  * Need to improve hashes:
-    - Invoking the llvm compiler using gcc-current as the stdlib
-      implies a certain gcc version... that needs to be in the
-      hash and also needs to be checked to see if it is the right
-      version.
   * Need to auto-detect the number of active workers to set -j
     accordingly. When enabling worker advertising, make sure that
     it doesn't happen too often.

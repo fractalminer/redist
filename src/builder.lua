@@ -6,7 +6,7 @@ local ccache = require( 'ccache-helper' )
 local compilers = require( 'compilers' )
 local decode = require( 'decode' )
 local farm = require( 'farm' )
-local hash = require( 'hash' )
+local mhash = require( 'hash' )
 -- TODO: consolidate these two modules.
 local ltask, rtask = require( 'local-task' ),
                      require( 'remote-task' )
@@ -15,6 +15,7 @@ local os_stat = require( 'os-stat' )
 local ru = require( 'redis-util' )
 
 local logger = require( 'moon.logger' )
+local str = require( 'moon.str' )
 local tbl = require( 'moon.tbl' )
 
 local posix = require( 'posix' )
@@ -28,6 +29,7 @@ local cround_trip = assert( decode.cround_trip )
 local download_blob = assert( farm.download_blob )
 local download_blob_to_file =
     assert( farm.download_blob_to_file )
+local hash = assert( mhash.hash )
 local log_command = assert( ccache.log_command )
 local machine_id = assert( network.machine_id )
 local match_compiler = assert( compilers.match_compiler )
@@ -37,13 +39,14 @@ local set_blob_from_file = assert( farm.set_blob_from_file )
 local deep_copy = assert( tbl.deep_copy )
 local info = assert( logger.info )
 local debug = assert( logger.debug )
+local unwords = assert( str.unwords )
 
 local getcwd = assert( posix.unistd.getcwd )
+local dirname = assert( posix.libgen.dirname )
+local basename = assert( posix.libgen.basename )
 
-local concat = assert( table.concat )
 local format = assert( string.format )
 local insert = assert( table.insert )
-local remove = assert( table.remove )
 
 -----------------------------------------------------------------
 -- Globals.
@@ -101,29 +104,28 @@ local function create_local_preprocess_task( analyzed )
   for _, flag in ipairs( pp_style.pp_flags ) do
     insert( decoded.flags, flag )
   end
-  local c = assert( decoded.input_c_cpp_file )
-
-  -- Put the .ii file next to where the .o would go.
-  -- TODO: factor this out and improve it.
-  c = c:split( '/' )
-  c = c[#c]
-  local o = assert( decoded.special_flags.o )
-  o = o:split( '/' )
-  remove( o )
-  o = concat( o, '/' )
-
+  local cfname = basename( assert( decoded.input_c_cpp_file ) )
+  local out_dir = dirname( assert( decoded.special_flags.o ) )
   local ext = assert( pp_style.ext )
-  local output_file = format( '%s/%s%s', o, c, ext )
+  local output_file = format( '%s/%s%s', out_dir, cfname, ext )
   decoded.special_flags.o = output_file
   decoded.special_flags.x = assert( pp_style.x_pp )
-  local command = concat( cencode( decoded ), ' ' )
+  local command = unwords( cencode( decoded ) )
   log_command( debug, 'command: %s', command )
   local cwd = getcwd()
 
-  -- FIXME: improve this
-  local profile = command .. cwd .. machine_id()
+  -- This doesn't have to be perfect because the preprocessing
+  -- tasks are always rerun (redis-cached results are never
+  -- used). This is because then we'd have to hash the source
+  -- file and all headers it depends on, which we don't want to
+  -- be in the business of doing here.
+  local task_hash = hash{
+    os_version(), --
+    command, --
+    cwd, --
+    machine_id(), --
+  }
 
-  local task_hash = hash.hash( profile )
   local description = format( 'preprocess %s',
                               decoded.input_c_cpp_file )
   return {
@@ -157,7 +159,7 @@ local function create_remote_compile_task( analyzed, ii_hash )
   -- which we use for clang. See the comments around the pp_style
   -- method for more info.
   decoded.includes = {}
-  local flags = concat( cencode( decoded ), ' ' )
+  local flags = unwords( cencode( decoded ) )
 
   local os = assert( os_version() )
   local compiler_type = assert( compiler.compiler_type )
@@ -165,13 +167,27 @@ local function create_remote_compile_task( analyzed, ii_hash )
   local compiler_flags = assert( flags )
   local description = format( 'compiling %s',
                               decoded.input_c_cpp_file )
+  -- Ideally we'd include the source itself in the hash instead
+  -- of hashing the hash, but this is probably good enough and it
+  -- will save some CPU.
   local input = ii_hash
 
-  -- FIXME: improve this.
-  local profile = os .. compiler_type .. compiler_version ..
-                      compiler_flags .. input
-
-  local task_hash = hash.hash( profile )
+  -- NOTE: When we invoke clang we often uses the libstdc++ in
+  -- gcc-current, which is a symlink that could in theory point
+  -- to different gcc versions on different hosts. However, we
+  -- don't need to worry about that here because this file has
+  -- already been preprocessed (at least with respect to in-
+  -- cludes) and so it is a fully standalone file that will not
+  -- pull in any headers or libraries, it is just a compilation.
+  -- And preprocessing happens on the build host and so the cor-
+  -- rect stdlib version will already have been guaranteed.
+  local task_hash = hash{
+    os, --
+    compiler_type, --
+    compiler_version, --
+    compiler_flags, --
+    input, --
+  }
 
   -- Create a task.
   return {
