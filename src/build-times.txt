@@ -4,6 +4,23 @@ Times
 builder: bonobo
 redis:   thelio
 
+  full local clean:
+
+    Configuration                                  Result   Time
+    ============================================================
+    gcc-16.2.0-mold-libstdc++-debug-asan-ninja     SUCCESS  643s
+    gcc-16.2.0-mold-libstdc++-debug-ninja          SUCCESS  415s
+    gcc-16.2.0-mold-libstdc++-relwdeb-asan-ninja   SUCCESS  1377s
+    gcc-16.2.0-mold-libstdc++-relwdeb-ninja        SUCCESS  676s
+    clang-22.1.8-lld-libstdc++-debug-asan-ninja    SUCCESS  324s
+    clang-22.1.8-lld-libstdc++-debug-ninja         SUCCESS  276s
+    clang-22.1.8-lld-libstdc++-relwdeb-asan-ninja  SUCCESS  585s
+    clang-22.1.8-lld-libstdc++-relwdeb-ninja       SUCCESS  433s
+    clang-22.1.8-lld-libc++-debug-asan-ninja       SUCCESS  312s
+    clang-22.1.8-lld-libc++-debug-ninja            SUCCESS  258s
+    clang-22.1.8-lld-libc++-relwdeb-asan-ninja     SUCCESS  588s
+    clang-22.1.8-lld-libc++-relwdeb-ninja          SUCCESS  410s
+
   full cluster clean:
 
     Configuration                                  Result   Time
@@ -58,7 +75,7 @@ redis:   thelio
 builder: thelio
 redis:   thelio
 
-  local clean:
+  full local clean:
 
     Configuration                                  Result   Time
     ============================================================
@@ -78,7 +95,7 @@ redis:   thelio
 builder: darter2
 redis:   thelio
 
-  local clean:
+  full local clean:
 
     Configuration                                  Result   Time
     ============================================================
