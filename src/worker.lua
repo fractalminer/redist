@@ -15,6 +15,7 @@ local ru = require( 'redis-util' )
 local subprocess = require( 'subprocess' )
 local workarea = require( 'workarea' )
 
+local mcleanup = require( 'moon.cleanup' )
 local file = require( 'moon.file' )
 local logger = require( 'moon.logger' )
 local merr = require( 'moon.err' )
@@ -32,6 +33,7 @@ local posix = require( 'posix' )
 local assertf = assert( merr.assertf )
 local catch_control_c = assert( merr.catch_control_c )
 local cencode = assert( decode.cencode )
+local cleanup = assert( mcleanup.cleanup )
 local cround_trip = assert( decode.cround_trip )
 local debug = assert( logger.debug )
 local err = assert( logger.err )
@@ -134,7 +136,7 @@ local function advertise( cxn )
   if now < STATE.last_advertise +
       config.worker.ADVERTISE_INTERVAL_SECS then return end
   STATE.last_advertise = now
-  debug( 'advertising %s', machine_label() )
+  debug( 'advertising %s:%s', machine_label(), PID )
   local key = format( 'farm:worker:%s:%s', machine_label(), PID )
   local worker = {
     status=STATE.status,
@@ -144,6 +146,13 @@ local function advertise( cxn )
   }
   trace( 'advertisement: %s', format_table( worker ) )
   set_hash( cxn, key, worker, config.worker.EXPIRE_ADVERTISE_SECS )
+end
+
+local function unadvertise( cxn )
+  if not args.advertise then return end
+  debug( 'unadvertising %s:%s', machine_label(), PID )
+  local key = format( 'farm:worker:%s:%s', machine_label(), PID )
+  cxn:del( key )
 end
 
 local function find_compiler( compiler_type, compiler_version )
@@ -429,6 +438,8 @@ local function main()
   local cxn<close> = assert( ru.connect() )
 
   info( 'listen: %s', args.listen )
+
+  local _<close> = cleanup( function() unadvertise( cxn ) end )
 
   while process_next_task( cxn ) and args.mode == 'drain' do
     ping( cxn )

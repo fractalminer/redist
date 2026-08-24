@@ -174,7 +174,7 @@ local function main()
   local arg1 = arg[1]
   local watch = (arg1 == '--watch')
 
-  local cxn = assert( ru.connect() )
+  local cxn<close> = assert( ru.connect() )
   if not watch then
     dump( cxn )
   else

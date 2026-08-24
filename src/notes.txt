@@ -1,8 +1,5 @@
 TODO:
 -----------------------------------------------------------------
-  * Need to auto-detect the number of active workers to set -j
-    accordingly. When enabling worker advertising, make sure that
-    it doesn't happen too often.
   * Need to set TTLs properly on all the keys.
     - When pushing to the queue log, set the expiry on the list.
   * Control/Monitoring:
