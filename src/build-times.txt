@@ -79,18 +79,19 @@ redis:   thelio
 
     Configuration                                  Result   Time
     ============================================================
-    gcc-16.2.0-mold-libstdc++-debug-asan-ninja     SUCCESS  248s
-    gcc-16.2.0-mold-libstdc++-debug-ninja          SUCCESS  134s
-    gcc-16.2.0-mold-libstdc++-relwdeb-asan-ninja   SUCCESS  472s
-    gcc-16.2.0-mold-libstdc++-relwdeb-ninja        SUCCESS  238s
-    clang-22.1.8-lld-libstdc++-debug-asan-ninja    SUCCESS  134s
-    clang-22.1.8-lld-libstdc++-debug-ninja         SUCCESS  114s
-    clang-22.1.8-lld-libstdc++-relwdeb-asan-ninja  SUCCESS  231s
-    clang-22.1.8-lld-libstdc++-relwdeb-ninja       SUCCESS  149s
-    clang-22.1.8-lld-libc++-debug-asan-ninja       SUCCESS  112s
-    clang-22.1.8-lld-libc++-debug-ninja            SUCCESS  94s
-    clang-22.1.8-lld-libc++-relwdeb-asan-ninja     SUCCESS  197s
-    clang-22.1.8-lld-libc++-relwdeb-ninja          SUCCESS  133s
+    Configuration                                  Result   Time
+    gcc-16.2.0-mold-libstdc++-debug-asan-ninja     SUCCESS  284s
+    gcc-16.2.0-mold-libstdc++-debug-ninja          SUCCESS  183s
+    gcc-16.2.0-mold-libstdc++-relwdeb-asan-ninja   SUCCESS  586s
+    gcc-16.2.0-mold-libstdc++-relwdeb-ninja        SUCCESS  289s
+    clang-22.1.8-lld-libstdc++-debug-asan-ninja    SUCCESS  139s
+    clang-22.1.8-lld-libstdc++-debug-ninja         SUCCESS  115s
+    clang-22.1.8-lld-libstdc++-relwdeb-asan-ninja  SUCCESS  267s
+    clang-22.1.8-lld-libstdc++-relwdeb-ninja       SUCCESS  191s
+    clang-22.1.8-lld-libc++-debug-asan-ninja       SUCCESS  136s
+    clang-22.1.8-lld-libc++-debug-ninja            SUCCESS  108s
+    clang-22.1.8-lld-libc++-relwdeb-asan-ninja     SUCCESS  273s
+    clang-22.1.8-lld-libc++-relwdeb-ninja          SUCCESS  180s
 
 builder: darter2
 redis:   thelio
