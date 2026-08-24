@@ -19,18 +19,22 @@ local function set_blob( cxn, body )
   assert( body, 'invalid body' )
   local h = hash.hash( body )
   local key = format( 'farm:blob:%s', h )
-  if not cxn:exists( key ) then cxn:set( key, body ) end
+  if not cxn:exists( key ) then
+    debug( 'uploading blob of size %d', #body )
+    cxn:set( key, body )
+  end
   return h
 end
 
 local function set_blob_from_file( cxn, fname )
   assert( fname, 'invalid filename: ' .. fname )
   local f<close> = assert( io.open( fname, 'r' ) )
+  debug( 'reading file %s', fname )
   local body = f:read( 'a' )
   return set_blob( cxn, body )
 end
 
-local function get_blob( cxn, blob_hash )
+local function download_blob( cxn, blob_hash )
   debug( 'finding blob: %s', blob_hash )
   local key = format( 'farm:blob:%s', blob_hash )
   local blob = cxn:get( key )
@@ -48,8 +52,8 @@ local function blob_exists( cxn, blob_hash )
   return cxn:exists( key )
 end
 
-local function get_blob_to_file( cxn, blob_hash, ofile )
-  local blob = assert( get_blob( cxn, blob_hash ) )
+local function download_blob_to_file( cxn, blob_hash, ofile )
+  local blob = assert( download_blob( cxn, blob_hash ) )
   local f<close> = assert( io.open( ofile, 'w' ) )
   f:write( blob )
   return true
@@ -60,8 +64,8 @@ end
 -----------------------------------------------------------------
 return {
   blob_exists=blob_exists, --
-  get_blob=get_blob, --
+  download_blob=download_blob, --
   set_blob=set_blob, --
   set_blob_from_file=set_blob_from_file, --
-  get_blob_to_file=get_blob_to_file, --
+  download_blob_to_file=download_blob_to_file, --
 }

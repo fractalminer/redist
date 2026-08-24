@@ -25,8 +25,9 @@ local posix = require( 'posix' )
 local blob_exists = assert( farm.blob_exists )
 local cencode = assert( decode.cencode )
 local cround_trip = assert( decode.cround_trip )
-local get_blob = assert( farm.get_blob )
-local get_blob_to_file = assert( farm.get_blob_to_file )
+local download_blob = assert( farm.download_blob )
+local download_blob_to_file =
+    assert( farm.download_blob_to_file )
 local log_command = assert( ccache.log_command )
 local machine_id = assert( network.machine_id )
 local match_compiler = assert( compilers.match_compiler )
@@ -197,7 +198,8 @@ local function run_preprocess( cxn, analyzed )
   -- Whatever happens we need to forward the stderr of the pre-
   -- processor so that it can appear in the console.
   local task_stderr_hash = assert( task_output.stderr )
-  assert( io.stderr ):write( get_blob( cxn, task_stderr_hash ) )
+  assert( io.stderr ):write(
+      download_blob( cxn, task_stderr_hash ) )
   local status = assert( task_output.status )
   if tonumber( status ) ~= 0 then
     error(
@@ -229,7 +231,8 @@ local function run_compile( cxn, analyzed, ii_hash )
     -- Whatever happens we need to forward the stderr of the pre-
     -- processor so that it can appear in the console.
     local task_stderr_hash = assert( task_output.stderr )
-    assert( io.stderr ):write( get_blob( cxn, task_stderr_hash ) )
+    assert( io.stderr ):write( download_blob( cxn,
+                                              task_stderr_hash ) )
     local status = assert( task_output.status )
     if tonumber( status ) ~= 0 then
       error( 'compile command return non-zero status: ' .. status )
@@ -247,7 +250,7 @@ local function run_compile( cxn, analyzed, ii_hash )
   end
   local output_hash = assert( task_output.output )
   local output_file = analyzed.decoded.special_flags.o
-  assert( get_blob_to_file( cxn, output_hash, output_file ) )
+  assert( download_blob_to_file( cxn, output_hash, output_file ) )
   return true
 end
 
