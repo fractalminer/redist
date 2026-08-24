@@ -13,6 +13,7 @@ local network = require( 'network' )
 local os_stat = require( 'os-stat' )
 local ru = require( 'redis-util' )
 local subprocess = require( 'subprocess' )
+local workarea = require( 'workarea' )
 
 local file = require( 'moon.file' )
 local logger = require( 'moon.logger' )
@@ -44,6 +45,7 @@ local timeit = assert( time.timeit_micros )
 local os_version = assert( os_stat.os_version )
 local popen = assert( subprocess.popen )
 local read_file = assert( file.read_file )
+local remove_when_done = assert( workarea.remove_when_done )
 local set_hash = assert( ru.set_hash )
 local trace = assert( logger.trace )
 local write_file = assert( file.write_file )
@@ -149,6 +151,8 @@ local function compile(cxn, task_hash, compiler, compiler_type,
                             args.workarea, task_hash, ext )
   local tmp_output = format( '%s/farm.task.compiler.%s.o',
                              args.workarea, task_hash )
+  local _<close> = remove_when_done( tmp_input )
+  local _<close> = remove_when_done( tmp_output )
   local cmd_elems = { compiler }
   for _, flag in ipairs( flags:trim():split( '%s+' ) ) do
     insert( cmd_elems, flag )

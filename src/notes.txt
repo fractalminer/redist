@@ -1,39 +1,46 @@
 TODO:
 -----------------------------------------------------------------
-  * Need to auto-clean workarea. It may help to have workers put
-    their files under a subfolder named by their PID.
-  * Create a stats collector that runs on the worker hosts and
-    collects stats about the hosts and uploads them to redis.
-  * Create a monitor program that can monitor the state of the
-    cluster.
-  * Create a control program that can control the number of
-    workers throughout the cluster (nice-to-have).
-  * Need to have a concept of worker node preference, i.e. when a
-    thelio worker is available it should take precedence over any
-    other.
-  * Need to set TTLs properly on all the keys.
-  * We may not want to have the artifacts remain for long because
-    redis seems to really slow down when it saturates memory.
-  * After writing a file from the contents of a blob, stat the
-    file size to make sure it is the same as the key.
-  * When pushing to the queue log, set the expiry on the list.
-  * Invoking the llvm compiler using gcc-current as the stdlib
-    implies a certain gcc version... that needs to be in the hash
-    and also needs to be checked to see if it is the right ver-
-    sion.
+  * Need to improve hashes:
+    - Invoking the llvm compiler using gcc-current as the stdlib
+      implies a certain gcc version... that needs to be in the
+      hash and also needs to be checked to see if it is the right
+      version.
   * Need to auto-detect the number of active workers to set -j
     accordingly. When enabling worker advertising, make sure that
     it doesn't happen too often.
-  * Deal with timeouts, i.e. when a task never completes. This
-    can happen when e.g. a worker that removes the task from the
-    queue dies before finishing it.
+  * Need to set TTLs properly on all the keys.
+    - When pushing to the queue log, set the expiry on the list.
+  * Control/Monitoring:
+    * Create a stats collector that runs on the worker hosts and
+      collects stats about the hosts and uploads them to redis.
+    * Create a monitor program that can monitor the state of the
+      cluster.
+    * Create a control program that can control the number of
+      workers throughout the cluster (nice-to-have).
+  * Worker Death:
+    * Deal with timeouts, i.e. when a task never completes. This
+      can happen when e.g. a worker that removes the task from
+      the queue dies before finishing it.
+    * One idea is to have a cleanup function that will re-insert
+      the task into the queue on error, and is released once the
+      task completes. But for this we probably want to have some
+      kind of retry limit count so that they don't go into loops.
+  * Move the subprocess code into moon.
+  * Move all key creation into one module so that we have them
+    all in one place and consistent.
+  * Affinity:
+    * Need to have a concept of worker node affinity, i.e. when a
+      thelio worker is available it should take precedence over
+      any other.
+  * After writing a file from the contents of a blob, stat the
+    file size to make sure it is the same as the key.
 
 Plan for Monitor:
 -----------------------------------------------------------------
   * Create a stdin table wrapper around fd 0 and give that object
     to socket.select to wait on input along with any redis sockets.
       local stdin = {
-        function get_fd() {
+        function getfd() {
           return 0
         },
         function dirty() {

@@ -3,6 +3,8 @@ set -eo pipefail
 
 cd ~/dev/redist/src
 
+mkdir -p workarea
+
 lua worker.lua \
   --workarea=workarea \
   --verbosity=debug \
