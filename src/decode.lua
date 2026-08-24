@@ -37,6 +37,9 @@ local function cdecode( elems )
   local decoded = {
     binary=nil, --
     special_flags={
+      -- NOTE: for -D (define) directives, we may need to pre-
+      -- serve those since our preprocess might be an
+      -- include-only preprocess that leaves the macros in place.
       MD=nil, --
       MMD=nil, --
       MT=nil, --

@@ -179,12 +179,32 @@ local function locate( info )
 end
 
 local function pp_style( compiler_type )
-  local style = { includes_only=false, flag=nil, ext='.ii' }
+  local style = {
+    includes_only=false,
+    pp_flags={},
+    ext='.ii',
+    x_pp='c++',
+    x_compile='c++-cpp-output',
+  }
   if compiler_type:match( 'clang' ) then
+    -- For clang there is an issue where it will give noisier er-
+    -- rors when it is given the preprocessed output directly (in
+    -- particular, it warns about things inside of macros that
+    -- would normally be suppressed because they are inside of
+    -- macros). This -frewrite-includes tells clang to preprocess
+    -- in the sense of inserting the #include directives so as to
+    -- produce a standalone file, but to postpone evaluating the
+    -- macros. This way the compile output is not too noisy.
+    --
+    -- NOTE: one consequence of this is that, although we can
+    -- omit the -I directives when doing the compile job, we need
+    -- to preserve all the -D ones.
     style = {
       includes_only=true,
-      flag='-frewrite-includes', --
+      pp_flags={ '-frewrite-includes' }, --
       ext='', --
+      x_pp='c++',
+      x_compile='c++',
     }
   end
   return style

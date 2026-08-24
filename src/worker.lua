@@ -163,6 +163,7 @@ local function compile(cxn, task_hash, compiler, compiler_type,
           '-o must be present in compile command' )
   compile_info.binary = nil -- will insert manually below.
   compile_info.special_flags.c = true
+  compile_info.special_flags.x = assert( pp_style.x_compile )
   compile_info.input_c_cpp_file = tmp_input
   compile_info.special_flags.o = tmp_output
   local cmd_args = assert( cencode( compile_info ) )

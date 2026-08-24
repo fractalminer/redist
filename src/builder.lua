@@ -97,8 +97,8 @@ local function create_local_preprocess_task( analyzed )
   decoded.special_flags.E = true
   local pp_style = compilers.pp_style(
                        analyzed.compiler_match.compiler_type )
-  if pp_style.includes_only then
-    insert( decoded.flags, assert( pp_style.flag ) )
+  for _, flag in ipairs( pp_style.pp_flags ) do
+    insert( decoded.flags, flag )
   end
   local c = assert( decoded.input_c_cpp_file )
 
@@ -114,6 +114,7 @@ local function create_local_preprocess_task( analyzed )
   local ext = assert( pp_style.ext )
   local output_file = format( '%s/%s%s', o, c, ext )
   decoded.special_flags.o = output_file
+  decoded.special_flags.x = assert( pp_style.x_pp )
   local command = concat( cencode( decoded ), ' ' )
   log_command( debug, 'command: %s', command )
   local cwd = getcwd()
@@ -148,6 +149,12 @@ local function create_remote_compile_task( analyzed, ii_hash )
   decoded.special_flags.MMD = nil
   decoded.special_flags.MT = nil
   decoded.special_flags.MF = nil
+  -- NOTE: Although we can get rid of the include directives
+  -- here, for -D (define) directives, we may need to preserve
+  -- those since our preprocess might be an include-only pre-
+  -- process that leaves the macros in place (-frewrite-includes)
+  -- which we use for clang. See the comments around the pp_style
+  -- method for more info.
   decoded.includes = {}
   local flags = concat( cencode( decoded ), ' ' )
 
