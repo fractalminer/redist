@@ -41,6 +41,7 @@ local info = assert( logger.info )
 local log_command = assert( ccache.log_command )
 local machine_label = assert( network.machine_label )
 local match_compiler = assert( compilers.match_compiler )
+local now_seconds = assert( time.now_seconds )
 local timeit = assert( time.timeit_micros )
 local os_version = assert( os_stat.os_version )
 local popen = assert( subprocess.popen )
@@ -61,6 +62,8 @@ local remove = assert( table.remove )
 local HOME = assert( os.getenv( 'HOME' ),
                      'HOME environment variable not set' )
 
+local CANCEL_PROCESS = assert( subprocess.CANCEL_PROCESS )
+
 -----------------------------------------------------------------
 -- Globals.
 -----------------------------------------------------------------
@@ -73,6 +76,7 @@ local PID = assert( posix.getpid().pid )
 
 local STATE = {
   status='idle', --
+  last_advertise=0, --
   task=nil, --
 }
 
@@ -80,7 +84,7 @@ local STATE = {
 -- Implementation.
 -----------------------------------------------------------------
 local function next_task( cxn )
-  local timeout = config.worker.POLL_TIMEOUT
+  local timeout = config.worker.QUEUE_POLL_TIMEOUT_SECS
   local remote_queue = 'farm:compile:cpp:queue'
   local local_queue = format( 'farm:local:queue:%s',
                               machine_label() )
@@ -126,11 +130,20 @@ end
 
 local function advertise( cxn )
   if not args.advertise then return end
+  local now = now_seconds()
+  if now < STATE.last_advertise +
+      config.worker.ADVERTISE_INTERVAL_SECS then return end
+  STATE.last_advertise = now
+  debug( 'advertising %s', machine_label() )
   local key = format( 'farm:worker:%s:%s', machine_label(), PID )
-  set_hash( cxn, key, {
-    status=STATE.status, --
-    task=STATE.task or 'none', --
-  }, config.worker.EXPIRE_ADVERTISE )
+  local worker = {
+    status=STATE.status,
+    last_advertise=STATE.last_advertise,
+    listen=assert( args.listen ),
+    task=STATE.task or 'none',
+  }
+  trace( 'advertisement: %s', format_table( worker ) )
+  set_hash( cxn, key, worker, config.worker.EXPIRE_ADVERTISE_SECS )
 end
 
 local function find_compiler( compiler_type, compiler_version )
@@ -141,6 +154,20 @@ local function find_compiler( compiler_type, compiler_version )
   } ) )
   debug( 'constructed compiler %s', compiler )
   return compiler
+end
+
+local function make_poller( cxn, desc )
+  local start = now_seconds()
+  local function on_poll()
+    advertise( cxn ) -- does its own throttling.
+    local now = now_seconds()
+    local waited = now - start
+    debug( 'waiting for %s: %.1fs', desc, waited )
+    if waited > config.worker.POPEN_TIMEOUT_SECS then
+      return CANCEL_PROCESS
+    end
+  end
+  return on_poll
 end
 
 local function compile(cxn, task_hash, compiler, compiler_type,
@@ -154,7 +181,7 @@ local function compile(cxn, task_hash, compiler, compiler_type,
   local _<close> = remove_when_done( tmp_input )
   local _<close> = remove_when_done( tmp_output )
   local cmd_elems = { compiler }
-  for _, flag in ipairs( flags:trim():split( '%s+' ) ) do
+  for _, flag in ipairs( flags:words() ) do
     insert( cmd_elems, flag )
   end
   local compile_info = assert( cround_trip( cmd_elems ) )
@@ -172,39 +199,27 @@ local function compile(cxn, task_hash, compiler, compiler_type,
   compile_info.special_flags.o = tmp_output
   local cmd_args = assert( cencode( compile_info ) )
   debug( 'running: %s %s', compiler, concat( cmd_args, ' ' ) )
-  local polls = 0
-  local poll_interval_millis = 100
-  local function on_poll()
-    advertise( cxn )
-    debug( 'waiting for compilation: %.1fs',
-           (polls * poll_interval_millis) / 1000 )
-    polls = polls + 1
-    -- if polls > 10 then return CANCEL_PROCESS end
-    if polls > 10 * 60 * 10 then -- 10 mins (given poll interval)
-      return error( 'compilation timed out' )
-    end
-  end
   local opts = {
-    use_path_env=true,
-    poll_timeout_millis=poll_interval_millis,
-    on_poll=on_poll,
+    use_path_env=false,
+    poll_timeout_millis=config.worker.POPEN_POLL_TIMEOUT_MILLIS,
+    on_poll=assert( make_poller( cxn, 'compilation' ) ),
     cwd=nil,
   }
   write_file( tmp_input, body )
-  local time_taken, status, stdout, stderr, reason = timeit(
-                                                         function()
-        return popen( compiler, cmd_args, opts )
-      end )
-  if reason == 'cancelled' then
-    err( 'compilation cancelled: %s', reason )
-    return { status=1, stdout=stdout, stderr=stderr }
+  local time_taken, ran = timeit( function()
+    return popen( compiler, cmd_args, opts )
+  end )
+  if ran.reason == 'cancelled' then
+    err( 'compilation cancelled: %s', ran.reason )
+    return { status=1, stdout=ran.stdout, stderr=ran.stderr }
   end
-  local output = (status == 0) and read_file( tmp_output ) or ''
+  local output = (ran.status == 0) and read_file( tmp_output ) or
+                     ''
   return {
-    status=status,
+    status=ran.status,
     output=output,
-    stdout=stdout,
-    stderr=stderr,
+    stdout=ran.stdout,
+    stderr=ran.stderr,
     time_micros=time_taken,
   }
 end
@@ -245,7 +260,7 @@ end
 
 local function run_local_task( cxn, task_hash )
   info( 'performing local task: %s', task_hash )
-  STATE.status = 'running-local'
+  STATE.status = 'preprocessing'
   STATE.task = task_hash
   local task_info = ltask.find( cxn, task_hash )
   assertf( task_info.command, 'cannot find local task: %s',
@@ -258,49 +273,33 @@ local function run_local_task( cxn, task_hash )
   -- Sanity check. We technically don't need to know what command
   -- we're running here, but we should validate it just to be
   -- safe.
-  local decoded =
-      cround_trip( command_line:trim():split( '%s+' ) )
+  local decoded = cround_trip( command_line:words() )
   assert( decoded.special_flags.E,
           'expected preprocessor command' )
   assert( match_compiler( decoded.binary ) )
-  local cmd_args = command_line:split( '%s+' )
+  local cmd_args = command_line:words()
   local command = cmd_args[1]
   remove( cmd_args, 1 )
-  local polls = 0
-  local poll_interval_millis = 100
-  local function on_poll()
-    advertise( cxn )
-    debug( 'waiting for command: %.1fs',
-           (polls * poll_interval_millis) / 1000 )
-    polls = polls + 1
-    -- if polls > 10 then return CANCEL_PROCESS end
-    if polls > 10 * 60 * 10 then -- 10 mins (given poll interval)
-      return error( 'command timed out' )
-    end
-  end
   local opts = {
-    use_path_env=true,
-    poll_timeout_millis=poll_interval_millis,
-    on_poll=on_poll,
+    use_path_env=false,
+    poll_timeout_millis=config.worker.POPEN_POLL_TIMEOUT_MILLIS,
+    on_poll=assert( make_poller( cxn, 'command' ) ),
     cwd=cwd,
   }
-  local time_taken, status, stdout, stderr, reason = timeit(
-                                                         function()
-        return popen( command, cmd_args, opts )
-      end )
-  if status == 0 then
+  local time_taken, ran = timeit( function()
+    return popen( command, cmd_args, opts )
+  end )
+  if ran.status == 0 then
     info( 'command successful' )
-    if #stdout > 0 then trace( 'stdout:\n%s', stdout ) end
+    if #ran.stdout > 0 then trace( 'stdout:\n%s', ran.stdout ) end
   else
-    err( 'command failed [status=%d]:', status )
-    err( 'exit reason:', tostring( reason ) )
-    -- assert( io.stdout ):write( stdout )
-    -- assert( io.stderr ):write( stderr )
+    err( 'command failed [status=%d]:', ran.status )
+    err( 'exit reason:', tostring( ran.reason ) )
   end
   return {
-    status=status,
-    stdout=stdout,
-    stderr=stderr,
+    status=ran.status,
+    stdout=ran.stdout,
+    stderr=ran.stderr,
     time_micros=time_taken,
   }
 end
@@ -349,7 +348,7 @@ local function process_next_task( cxn )
   repeat
     STATE.status = 'idle'
     STATE.task = nil
-    advertise( cxn )
+    advertise( cxn ) -- does its own throttling.
     trace( 'checking for task...' )
     task = next_task( cxn )
     if not task and not args.wait then return false end

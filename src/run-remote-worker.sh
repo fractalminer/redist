@@ -1,15 +1,16 @@
 #!/bin/bash
 set -eo pipefail
 
-cd ~/dev/redist/src
+this_dir="$(dirname "$0")"
+cd "$this_dir"
 
-mkdir -p workarea
+workarea=/tmp/farm/workarea
+mkdir -p "$workarea"
 
 lua worker.lua \
-  --workarea=workarea \
+  --workarea="$workarea" \
   --verbosity=debug \
   --fail-on-meta-error \
-  --advertise=false \
   --listen=remote \
   --mode=drain \
   --wait

@@ -69,9 +69,12 @@ end
 --         called once (before the first poll).
 --
 -- Returns:
---   * status code
---   * stdout
---   * stderr
+--   {
+--     status=...,
+--     stdout=...,
+--     stderr=...,
+--     reason=...,
+--   }
 --
 local function popen( path, args, opts )
   assert( path, 'invalid path' )
@@ -160,7 +163,12 @@ local function popen( path, args, opts )
     local function done_with_status( status, reason )
       local stdout = concat( chunks[stdout_r] )
       local stderr = concat( chunks[stderr_r] )
-      return status, stdout, stderr, reason
+      return {
+        status=status,
+        stdout=stdout,
+        stderr=stderr,
+        reason=reason,
+      }
     end
 
     local function save( fd, buf ) insert( chunks[fd], buf ) end

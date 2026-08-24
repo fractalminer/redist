@@ -26,17 +26,16 @@ local function main( prog, ... )
     on_poll=on_poll,
     cwd=nil,
   }
-  local status, stdout, stderr, reason =
-      popen( prog, args, opts )
+  local ran = assert( popen( prog, args, opts ) )
   title( 'STDOUT' )
-  io.write( stdout )
+  io.write( ran.stdout )
   title( 'STDERR' )
-  io.write( stderr )
+  io.write( ran.stderr )
   title( 'STATS' )
-  printfln( 'STATUS: %d', status )
-  printfln( 'REASON: %s', reason )
+  printfln( 'STATUS: %d', ran.status )
+  printfln( 'REASON: %s', ran.reason )
   printfln( 'POLLS:  %d', polls )
-  return status
+  return ran.status
 end
 
 -----------------------------------------------------------------
