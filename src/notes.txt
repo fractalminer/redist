@@ -1,14 +1,17 @@
 Problems:
 -----------------------------------------------------------------
-  * The binaries seem to crash when built on multiple hosts.
-  * Warnings pop up on the preprocessed code that don't other-
-    wise.
   * Worker utilization is not great, there is a bottleneck some-
     where.
 
 TODO:
 -----------------------------------------------------------------
   * Need to auto-clean workarea.
+  * Create a stats collector that runs on the worker hosts and
+    collects stats about the hosts and uploads them to redis.
+  * Create a monitor program that can monitor the state of the
+    cluster.
+  * Create a control program that can control the number of
+    workers throughout the cluster (nice-to-have).
   * Need to set TTLs properly on all the keys.
   * We may not want to have the artifacts remain for long because
     redis seems to really slow down when it saturates memory.
@@ -22,6 +25,9 @@ TODO:
   * Need to auto-detect the number of active workers to set -j
     accordingly. When enabling worker advertising, make sure that
     it doesn't happen too often.
+  * Deal with timeouts, i.e. when a task never completes. This
+    can happen when e.g. a worker that removes the task from the
+    queue dies before finishing it.
 
 Plan for Monitor:
 -----------------------------------------------------------------
