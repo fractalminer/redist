@@ -5,12 +5,13 @@ TODO:
   * The connect() function seems to hang when the redis server is
     not reachable... need to add a timeout.
   * Control/Monitoring:
-    * Create a stats collector that runs on the worker hosts and
-      collects stats about the hosts and uploads them to redis.
-    * Create a monitor program that can monitor the state of the
-      cluster.
     * Create a control program that can control the number of
       workers throughout the cluster (nice-to-have).
+    * Create a stats collector that runs on the worker hosts and
+      collects stats about the hosts and uploads them to redis.
+      Then create a monitor program that can monitor the state of
+      the cluster.
+        - NOTE: we can just use btop for now.
   * Worker Death:
     * Deal with timeouts, i.e. when a task never completes. This
       can happen when e.g. a worker that removes the task from
