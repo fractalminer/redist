@@ -33,6 +33,7 @@ local insert = assert( table.insert )
 -----------------------------------------------------------------
 local POLL_TIMEOUT_SECS = .1
 local REDIS_UPDATE_INTERVAL_SECS = 1
+local REDRAW_INTERVAL_SECS = .1
 
 -----------------------------------------------------------------
 -- Globals.
@@ -40,11 +41,13 @@ local REDIS_UPDATE_INTERVAL_SECS = 1
 str.enable_string_injections()
 
 local g_last_update_time = 0
+local g_last_redraw_time = 0
 
 local g_status = ''
 
 local g_loops = 0
 local g_events = 0
+local g_redraws = 0
 local g_redis_updates = 0
 
 -----------------------------------------------------------------
@@ -194,6 +197,10 @@ local function progress_bar( len, pc )
 end
 
 local function redraw()
+  local now = now_seconds()
+  if now < g_last_redraw_time + REDRAW_INTERVAL_SECS then return end
+  g_last_redraw_time = now
+  g_redraws = g_redraws + 1
   mc.clear()
 
   local y = 0
@@ -271,11 +278,13 @@ local function redraw()
     advance()
   end
 
-  y = mc.LINES - 6
+  y = mc.LINES - 7
   advance()
   text( 'status:  %s', g_status )
   advance()
   text( 'updates: %s', g_redis_updates )
+  advance()
+  text( 'redraws: %s', g_redraws )
   advance()
   text( 'events:  %s', g_events )
   advance()
