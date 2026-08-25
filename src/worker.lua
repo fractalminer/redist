@@ -137,8 +137,11 @@ local function advertise( cxn )
       config.worker.ADVERTISE_INTERVAL_SECS then return end
   STATE.last_advertise = now
   local key = format( 'farm:worker:%s:%s', machine_label(), PID )
+  local sock = assert( cxn.network.socket )
+  local ip, port, _ = sock:getsockname()
   local worker = {
     status=STATE.status,
+    from=format( '%s:%s', ip, port ),
     last_advertise=STATE.last_advertise,
     listen=assert( args.listen ),
     task=STATE.task or 'none',
