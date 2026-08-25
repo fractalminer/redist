@@ -271,13 +271,14 @@ local function redraw()
     advance()
   end
 
-  move{ x=1, y=mc.LINES - 5 }
+  y = mc.LINES - 6
+  advance()
   text( 'status:  %s', g_status )
-  move{ x=1, y=mc.LINES - 4 }
+  advance()
   text( 'updates: %s', g_redis_updates )
-  move{ x=1, y=mc.LINES - 3 }
+  advance()
   text( 'events:  %s', g_events )
-  move{ x=1, y=mc.LINES - 2 }
+  advance()
   text( 'loops:   %s', g_loops )
 
   move{ x=mc.COLS - 1, y=mc.LINES - 1 }
