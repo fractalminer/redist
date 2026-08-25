@@ -37,6 +37,7 @@ local os_version = assert( os_stat.os_version )
 local set_blob_from_file = assert( farm.set_blob_from_file )
 
 local deep_copy = assert( tbl.deep_copy )
+local err = assert( logger.err )
 local info = assert( logger.info )
 local debug = assert( logger.debug )
 local unwords = assert( str.unwords )
@@ -218,8 +219,8 @@ local function run_preprocess( cxn, analyzed )
       download_blob( cxn, task_stderr_hash ) )
   local status = assert( task_output.status )
   if tonumber( status ) ~= 0 then
-    error(
-        'preprocess command return non-zero status: ' .. status )
+    err( 'preprocess command return non-zero status: %s', status )
+    return nil
   end
   local output_file = assert( task.output_file )
   local ii_hash = set_blob_from_file( cxn, output_file )
@@ -251,7 +252,8 @@ local function run_compile( cxn, analyzed, ii_hash )
                                               task_stderr_hash ) )
     local status = assert( task_output.status )
     if tonumber( status ) ~= 0 then
-      error( 'compile command return non-zero status: ' .. status )
+      err( 'compile command returned non-zero status: %s', status )
+      return false
     end
     assert( blob_exists( cxn, task_output.output ), format(
                 'blob does not exist for %s', task_output.output ) )
@@ -262,7 +264,8 @@ local function run_compile( cxn, analyzed, ii_hash )
   assert( task_output )
   local status = assert( task_output.status )
   if tonumber( status ) ~= 0 then
-    error( 'compile command return non-zero status: ' .. status )
+    err( 'compile command returned non-zero status: %s', status )
+    return false
   end
   local output_hash = assert( task_output.output )
   local output_file = analyzed.decoded.special_flags.o
@@ -272,7 +275,8 @@ end
 
 local function run( cxn, analyzed )
   local ii_hash = assert( run_preprocess( cxn, analyzed ) )
-  run_compile( cxn, analyzed, ii_hash )
+  if not ii_hash then return false end
+  return run_compile( cxn, analyzed, ii_hash )
 end
 
 -----------------------------------------------------------------
@@ -286,9 +290,9 @@ local function main()
 
   local command = assert( arg )
   local analyzed = assert( analyze_command( command ) )
-  run( cxn, analyzed )
-
-  return 0
+  local ok = run( cxn, analyzed )
+  if ok then return 0 end
+  return 1
 end
 
 -----------------------------------------------------------------
