@@ -232,9 +232,9 @@ local function run_compile( cxn, analyzed, ii_hash )
   assert( ii_hash )
   local task = create_remote_compile_task( analyzed, ii_hash )
   local task_output = rtask.output_of( cxn, task.hash )
-  if not task_output or
+  if not task_output or task_output.status == nil or
       not blob_exists( cxn, task_output.stderr ) or
-      not blob_exists( cxn, task_output.output ) then
+      not blob_exists( cxn, task_output.stdout ) then
     rtask.delete_output( cxn, task.hash )
     rtask.post_task( cxn, task.hash, {
       os=assert( task.os ),
@@ -246,28 +246,32 @@ local function run_compile( cxn, analyzed, ii_hash )
     } )
     info( 'queueing for task %s...', task.hash )
     task_output = rtask.queue_and_wait( cxn, task.hash )
-    -- Whatever happens we need to forward the stderr of the pre-
-    -- processor so that it can appear in the console.
-    local task_stderr_hash = assert( task_output.stderr )
-    assert( io.stderr ):write( download_blob( cxn,
-                                              task_stderr_hash ) )
-    local status = assert( task_output.status )
-    if tonumber( status ) ~= 0 then
-      err( 'compile command returned non-zero status: %s', status )
-      return false
-    end
-    assert( blob_exists( cxn, task_output.output ), format(
-                'blob does not exist for %s', task_output.output ) )
   else
     assert( task_output )
-    assert( blob_exists( cxn, task_output.output ) )
+    if task_output.status == 0 then
+      assert( blob_exists( cxn, task_output.output ) )
+    end
   end
   assert( task_output )
+  -- Whatever happens we need to forward the stderr of the pre-
+  -- processor so that it can appear in the console.
+  local task_stderr_hash = assert( task_output.stderr )
+  local stderr_blob = download_blob( cxn, task_stderr_hash )
+  assert( io.stderr ):write( stderr_blob )
   local status = assert( task_output.status )
   if tonumber( status ) ~= 0 then
-    err( 'compile command returned non-zero status: %s', status )
+    local log = debug
+    -- When the compile fails it typically will have emitted an
+    -- error to stderr which we will have printed above, and that
+    -- is usually sufficient. However, in the event that it
+    -- didn't emit anything, let's emit an error line so that we
+    -- know what is going on.
+    if #stderr_blob:trim() == 0 then log = err end
+    log( 'compile command returned non-zero status: %s', status )
     return false
   end
+  assert( blob_exists( cxn, task_output.output ), format(
+              'blob does not exist for %s', task_output.output ) )
   local output_hash = assert( task_output.output )
   local output_file = analyzed.decoded.special_flags.o
   assert( download_blob_to_file( cxn, output_hash, output_file ) )

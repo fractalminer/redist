@@ -1,9 +1,5 @@
 TODO:
 -----------------------------------------------------------------
-  * Need to set TTLs properly on all the keys.
-    - When pushing to the queue log, set the expiry on the list.
-  * The connect() function seems to hang when the redis server is
-    not reachable... need to add a timeout.
   * Control/Monitoring:
     * Create a control program that can control the number of
       workers throughout the cluster (nice-to-have).
@@ -31,6 +27,8 @@ TODO:
     * Currently there is a timeout for a running command; make
       sure that is adjusted properly and make sure that the
       worker doesn't abort when a popen times out.
+  * Need to set TTLs properly on all the keys.
+    - When pushing to the queue log, set the expiry on the list.
   * Move the subprocess code into moon.
   * Move all key creation into one module so that we have them
     all in one place and consistent.
@@ -43,6 +41,8 @@ TODO:
   * Add some logic into the make file that will auto-detect the
     availability of the remote cluster and will use it, rather
     than having to manually set REMOTE=.
+  * C-c seems to take a second or two when blocked on a socket...
+    see if that can be improved.
 
 Plan for Monitor:
 -----------------------------------------------------------------
