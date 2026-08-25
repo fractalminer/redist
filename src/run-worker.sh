@@ -9,7 +9,7 @@ mkdir -p "$workarea"
 
 lua worker.lua \
   --workarea="$workarea" \
-  --verbosity=trace \
+  --verbosity=debug \
   --fail-on-meta-error \
   --listen=both \
   --mode=drain \
