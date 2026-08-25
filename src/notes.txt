@@ -7,19 +7,30 @@ TODO:
   * Control/Monitoring:
     * Create a control program that can control the number of
       workers throughout the cluster (nice-to-have).
+    * Ideally we'd have a way to see the logs of the workers, but
+      not sure yet how that will be done.
     * Create a stats collector that runs on the worker hosts and
       collects stats about the hosts and uploads them to redis.
       Then create a monitor program that can monitor the state of
       the cluster.
-        - NOTE: we can just use btop for now.
+      - NOTE: we can just use btop for now.
   * Worker Death:
     * Deal with timeouts, i.e. when a task never completes. This
       can happen when e.g. a worker that removes the task from
-      the queue dies before finishing it.
-    * One idea is to have a cleanup function that will re-insert
-      the task into the queue on error, and is released once the
-      task completes. But for this we probably want to have some
-      kind of retry limit count so that they don't go into loops.
+      the queue dies before finishing it. The builder should mon-
+      itor the worker that is working on the task (when a worker
+      starts working on a task they should mark that task with
+      their identity) and if the worker disappears then the task
+      needs to be re-queued.
+    * There is currently a cleanup function that will unadvertise
+      the worker if it exits on error, though even if it termi-
+      nates suddenly, the advertisement should expire within one
+      minute.
+    * We should keep stats somehow of the count of worker deaths
+      per node.
+    * Currently there is a timeout for a running command; make
+      sure that is adjusted properly and make sure that the
+      worker doesn't abort when a popen times out.
   * Move the subprocess code into moon.
   * Move all key creation into one module so that we have them
     all in one place and consistent.
@@ -29,6 +40,9 @@ TODO:
       any other.
   * After writing a file from the contents of a blob, stat the
     file size to make sure it is the same as the key.
+  * Add some logic into the make file that will auto-detect the
+    availability of the remote cluster and will use it, rather
+    than having to manually set REMOTE=.
 
 Plan for Monitor:
 -----------------------------------------------------------------
