@@ -136,7 +136,6 @@ local function advertise( cxn )
   if now < STATE.last_advertise +
       config.worker.ADVERTISE_INTERVAL_SECS then return end
   STATE.last_advertise = now
-  debug( 'advertising %s:%s', machine_label(), PID )
   local key = format( 'farm:worker:%s:%s', machine_label(), PID )
   local worker = {
     status=STATE.status,
@@ -144,7 +143,8 @@ local function advertise( cxn )
     listen=assert( args.listen ),
     task=STATE.task or 'none',
   }
-  trace( 'advertisement: %s', format_table( worker ) )
+  trace( 'advertising %s:%s: %s', machine_label(), PID,
+         format_table( worker ) )
   set_hash( cxn, key, worker, config.worker.EXPIRE_ADVERTISE_SECS )
 end
 
