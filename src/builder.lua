@@ -235,6 +235,7 @@ local function run_compile( cxn, analyzed, ii_hash )
   if not task_output or
       not blob_exists( cxn, task_output.stderr ) or
       not blob_exists( cxn, task_output.output ) then
+    rtask.delete_output( cxn, task.hash )
     rtask.post_task( cxn, task.hash, {
       os=assert( task.os ),
       compiler_type=assert( task.compiler_type ),
