@@ -232,9 +232,14 @@ local function run_compile( cxn, analyzed, ii_hash )
   assert( ii_hash )
   local task = create_remote_compile_task( analyzed, ii_hash )
   local task_output = rtask.output_of( cxn, task.hash )
+  local succeeded_but_output_gone = task_output and
+                                        task_output.status == '0' and
+                                        not blob_exists( cxn,
+                                                         task_output.output )
   if not task_output or task_output.status == nil or
       not blob_exists( cxn, task_output.stderr ) or
-      not blob_exists( cxn, task_output.stdout ) then
+      not blob_exists( cxn, task_output.stdout ) or
+      succeeded_but_output_gone then
     rtask.delete_output( cxn, task.hash )
     rtask.post_task( cxn, task.hash, {
       os=assert( task.os ),
