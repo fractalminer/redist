@@ -28,7 +28,6 @@ TODO:
       any other.
   * After writing a file from the contents of a blob, stat the
     file size to make sure it is the same as the key.
-  * Fix ninja to avoid scrolling off the screen.
 
 Plan for Monitor:
 -----------------------------------------------------------------
