@@ -298,11 +298,11 @@ local function redraw()
 
     advance( 4 )
     textln( 'core:   %s',
-            progress_bar( mc.COLS - 16, node.core_utilization ) )
-    textln( 'worker: %s', progress_bar( mc.COLS - 16,
+            progress_bar( mc.COLS - 18, node.core_utilization ) )
+    textln( 'worker: %s', progress_bar( mc.COLS - 18,
                                         node.worker_utilization ) )
     if node.local_workers > 0 then
-      textln( 'local:  %s', progress_bar( mc.COLS - 16,
+      textln( 'local:  %s', progress_bar( mc.COLS - 18,
                                           node.local_worker_utilization ) )
     end
 
