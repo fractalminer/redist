@@ -114,6 +114,11 @@ local function update_data( cxn, opts )
   g_data.stats = {}
   local stats = g_data.stats
 
+  g_data.stats.preprocess_queue_size = assert(
+                                           state.preprocess_queue_size )
+  g_data.stats.compile_queue_size = assert(
+                                        state.compile_queue_size )
+
   stats.cores = assert( state.core_count )
   stats.active_cores = assert( state.active_core_count )
   stats.core_utilization = percent( stats.active_cores,
@@ -167,7 +172,7 @@ local function text( ... )
   mc.addstr( txt )
 end
 
-local function center( y, ... )
+local function text_center( y, ... )
   local txt
   if #{ ... } == 1 then
     txt = ...
@@ -197,7 +202,7 @@ local function redraw()
   if now < g_last_redraw_time + REDRAW_INTERVAL_SECS then return end
   g_last_redraw_time = now
   g_redraws = g_redraws + 1
-  mc.clear()
+  -- mc.clear()
 
   local y = 0
   local function advance( x )
@@ -205,37 +210,38 @@ local function redraw()
     y = y + 1
     move{ x=x, y=y }
   end
+  local function center( ... ) text_center( y, ... ) end
 
   mc.mvbox( y, 0, y + 2, mc.COLS - 1 )
   advance()
-  center( y, 'ReDist Build Farm Dashboard' )
+  center( 'ReDist Build Farm Dashboard' )
   advance()
   advance()
 
   -- Cluster.
   mc.mvbox( y, 0, y + 13, mc.COLS - 1 )
   advance()
-  center( y, 'CLUSTER' )
+  center( 'CLUSTER' )
   advance()
   advance()
   text( '%s', progress_bar( mc.COLS - 6,
                             g_data.stats.core_utilization ) )
   advance()
-  center( y, '(core utilization)' )
+  center( '(core utilization)' )
   advance()
   advance()
   text( '%s', progress_bar( mc.COLS - 6,
                             g_data.stats.worker_utilization ) )
   advance()
-  center( y, '(worker utilization)' )
+  center( '(worker utilization)' )
   advance()
   advance()
   advance()
-  center( y, 'core usage: %s/%s (%.1f%%)',
+  center( 'core usage: %s/%s (%.1f%%)',
           g_data.stats.active_cores, g_data.stats.cores,
           g_data.stats.core_utilization * 100 )
   advance()
-  center( y, 'worker usage: %s/%s (%.1f%%)',
+  center( 'worker usage: %s/%s (%.1f%%)',
           g_data.stats.approximate_active_workers,
           g_data.stats.total_workers,
           g_data.stats.worker_utilization * 100 )
@@ -243,10 +249,22 @@ local function redraw()
   advance()
   advance()
 
+  -- Queues.
+  mc.mvbox( y, 0, y + 5, mc.COLS - 1 )
+  advance()
+  center( 'QUEUES' )
+  advance()
+  advance()
+  center( 'preprocess: %s', g_data.stats.preprocess_queue_size )
+  advance()
+  center( 'compile: %s', g_data.stats.compile_queue_size )
+  advance()
+  advance()
+
   -- Nodes.
   mc.mvbox( y, 0, mc.LINES - 1, mc.COLS - 1 )
   advance()
-  center( y, 'NODES' )
+  center( 'NODES' )
   advance()
   for _, node in ipairs( g_data.nodes ) do
     advance()
