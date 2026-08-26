@@ -114,15 +114,16 @@ local function update_data( cxn, opts )
   g_data.stats = {}
   local stats = g_data.stats
 
-  stats.total_workers = assert( state.worker_count )
-  stats.active_workers = assert( state.active_worker_count )
-  stats.worker_utilization = percent( stats.active_workers,
-                                      stats.total_workers )
   stats.cores = assert( state.core_count )
   stats.active_cores = assert( state.active_core_count )
   stats.core_utilization = percent( stats.active_cores,
                                     stats.cores )
   stats.approximate_active_workers = 0
+  stats.total_workers = assert( state.worker_count )
+  stats.active_workers = assert( state.active_worker_count )
+  stats.worker_utilization = percent(
+                                 stats.approximate_active_workers,
+                                 stats.total_workers )
   g_data.nodes = {}
   local nodes = g_data.nodes
   on_ordered_kv( state.nodes, function( k, v )
@@ -131,16 +132,17 @@ local function update_data( cxn, opts )
     node.id = machine_id
     node.name = name
     node.from_host = 'unknown' -- assert( v.host )
-    node.total_workers = assert( v.worker_count )
-    node.active_workers = assert( v.active_worker_count )
-    node.worker_utilization = percent( node.active_workers,
-                                       node.total_workers )
     node.cores = assert( v.core_count )
     node.active_cores = assert( v.active_core_count )
     node.core_utilization = percent( node.active_cores,
                                      node.cores )
     node.approximate_active_workers = assert(
                                           v.approximate_active )
+    node.total_workers = assert( v.worker_count )
+    node.active_workers = assert( v.active_worker_count )
+    node.worker_utilization = percent(
+                                  node.approximate_active_workers,
+                                  node.total_workers )
     stats.approximate_active_workers =
         stats.approximate_active_workers +
             node.approximate_active_workers

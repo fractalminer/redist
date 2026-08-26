@@ -12,6 +12,7 @@ local str = require( 'moon.str' )
 -----------------------------------------------------------------
 local format = assert( string.format )
 local insert = assert( table.insert )
+local max = assert( math.max )
 local sort = assert( table.sort )
 
 -----------------------------------------------------------------
@@ -80,6 +81,7 @@ local function query_cluster_state( cxn, opts )
     node.approximate_active =
         cxn:get( approximate_active_key ) or 0
     node.approximate_active = tonumber( node.approximate_active )
+    node.approximate_active = max( node.approximate_active, 0 )
   end
   return state
 end
