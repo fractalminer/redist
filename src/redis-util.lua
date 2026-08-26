@@ -94,13 +94,9 @@ end
 --      tion immediately and not again.
 local function scoped_inc( cxn, key, expiry, condition )
   if condition == false then return cleaned() end
-  debug( 'incr key: %s=%s', key, cxn:incr( key ) )
-  -- cxn:incr( key )
+  cxn:incr( key )
   if expiry then cxn:expire( key, expiry ) end
-  return cleanup( function()
-    debug( 'decr key: %s=%s', key, cxn:decr( key ) )
-    -- cxn:decr( key )
-  end )
+  return cleanup( function() cxn:decr( key ) end )
 end
 
 local function scoped_node_inc( cxn, label, condition )
