@@ -1,6 +1,9 @@
 TODO:
 -----------------------------------------------------------------
-  * Control/Monitoring:
+  * Dashboard:
+    * The dashboard should go to sleep (increase poll delay after
+      a certain amount of time of no utilization), then as soon
+      as something happens it should go back to frequent updates.
     * Create a control program that can control the number of
       workers throughout the cluster (nice-to-have).
     * Ideally we'd have a way to see the logs of the workers, but

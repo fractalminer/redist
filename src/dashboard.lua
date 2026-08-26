@@ -148,8 +148,6 @@ local function update_data( cxn, opts )
     node.local_worker_utilization = percent(
                                         node.local_active_workers,
                                         node.local_workers )
-    stats.active_workers = stats.active_workers +
-                               node.active_workers
     insert( nodes, node )
   end )
   stats.worker_utilization = percent( stats.active_workers,
@@ -205,7 +203,7 @@ local function redraw()
   if now < g_last_redraw_time + REDRAW_INTERVAL_SECS then return end
   g_last_redraw_time = now
   g_redraws = g_redraws + 1
-  if g_redraws % 100 == 0 then mc.clear() end
+  if g_redraws % 20 == 0 then mc.clear() end
 
   local y = 0
   local old_x = 2
@@ -286,17 +284,21 @@ local function redraw()
             progress_bar( mc.COLS - 16, node.core_utilization ) )
     textln( 'worker: %s', progress_bar( mc.COLS - 16,
                                         node.worker_utilization ) )
-    textln( 'local:  %s', progress_bar( mc.COLS - 16,
-                                        node.local_worker_utilization ) )
+    if node.local_workers > 0 then
+      textln( 'local:  %s', progress_bar( mc.COLS - 16,
+                                          node.local_worker_utilization ) )
+    end
 
     advance( 4 )
     textln( 'core usage:   %s/%s (%.1f%%)', node.active_cores,
             node.cores, node.core_utilization * 100 )
     textln( 'worker usage: %s/%s (%.1f%%)', node.active_workers,
             node.total_workers, node.worker_utilization * 100 )
-    textln( 'local usage:  %s/%s (%.1f%%)',
-            node.local_active_workers, node.local_workers,
-            node.local_worker_utilization * 100 )
+    if node.local_workers > 0 then
+      textln( 'local usage:  %s/%s (%.1f%%)',
+              node.local_active_workers, node.local_workers,
+              node.local_worker_utilization * 100 )
+    end
 
     advance( 2 )
   end

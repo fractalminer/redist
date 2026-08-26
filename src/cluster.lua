@@ -54,11 +54,15 @@ local function query_cluster_state( cxn, opts )
     insert( state.nodes[node].workers, worker )
     ::continue::
   end
+  state.preprocess_queue_size = 0
+  local local_queues = cxn:keys( 'farm:local:queue:*' )
+  for _, local_queue_key in ipairs( local_queues ) do
+    state.preprocess_queue_size =
+        state.preprocess_queue_size + cxn:llen( local_queue_key )
+  end
   state.core_count = 1 -- TODO
   state.active_core_count = 0 -- TODO
-  state.preprocess_queue_size = cxn:llen(
-                                    'farm:compile:cpp:task:queue' )
-  state.compile_queue_size = cxn:llen( 'farm:local:task:queue' )
+  state.compile_queue_size = cxn:llen( 'farm:compile:cpp:queue' )
   state.active_worker_count = 0
   state.local_active_worker_count = 0
   state.worker_count = 0
