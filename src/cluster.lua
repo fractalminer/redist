@@ -10,6 +10,7 @@ local str = require( 'moon.str' )
 -----------------------------------------------------------------
 -- Aliases.
 -----------------------------------------------------------------
+local format = assert( string.format )
 local insert = assert( table.insert )
 local sort = assert( table.sort )
 
@@ -21,8 +22,10 @@ str.enable_string_injections()
 -----------------------------------------------------------------
 -- Implementation.
 -----------------------------------------------------------------
-local function query_cluster_state( cxn )
+local function query_cluster_state( cxn, opts )
   assert( cxn )
+  opts = opts or {}
+  opts.exclude_workers = opts.exclude_workers or false
   local state = {}
   local nodes = {}
   state.nodes = nodes
@@ -31,6 +34,7 @@ local function query_cluster_state( cxn )
   local total_worker_count = 0
   local total_active_worker_count = 0
   for _, key in ipairs( keys ) do
+    if key:match( 'approximate_active' ) then goto continue end
     local _, _, node, pid = key:tsplit( ':' )
     state.nodes[node] = state.nodes[node] or {}
     state.nodes[node].worker_count =
@@ -38,9 +42,16 @@ local function query_cluster_state( cxn )
     state.nodes[node].active_worker_count =
         state.nodes[node].active_worker_count or 0
     state.nodes[node].workers = state.nodes[node].workers or {}
+    total_worker_count = total_worker_count + 1
+    state.nodes[node].worker_count =
+        state.nodes[node].worker_count + 1
+    if opts.exclude_workers then goto continue end
     local tbl = cxn:hgetall( key )
-    local ip, from_port = assert( tbl.from ):tsplit( ':' )
-    state.nodes[node].host = ip
+    -- This catches races that happen when we flushdb and the key
+    -- we're querying disappears before the above hgetall query.
+    if not tbl or not tbl.from then goto continue end
+    local _, from_port = assert( tbl.from ):tsplit( ':' )
+    -- state.nodes[node].host = ip
     local worker = {
       pid=tonumber( pid ),
       task=assert( tbl.task ),
@@ -53,25 +64,29 @@ local function query_cluster_state( cxn )
           state.nodes[node].active_worker_count + 1
       total_active_worker_count = total_active_worker_count + 1
     end
-    total_worker_count = total_worker_count + 1
-    state.nodes[node].worker_count =
-        state.nodes[node].worker_count + 1
     insert( state.nodes[node].workers, worker )
+    ::continue::
   end
   state.worker_count = total_worker_count
   state.active_worker_count = total_active_worker_count
   state.core_count = 1 -- TODO
   state.active_core_count = 0 -- TODO
-  for _, node in pairs( state.nodes ) do
+  for name, node in pairs( state.nodes ) do
     node.core_count = 1 -- TODO
     node.active_core_count = 0 -- TODO
+    local approximate_active_key = format(
+                                       'farm:worker:%s:approximate_active',
+                                       name )
+    node.approximate_active =
+        cxn:get( approximate_active_key ) or 0
+    node.approximate_active = tonumber( node.approximate_active )
   end
   return state
 end
 
-local function print_cluster_state()
+local function print_cluster_state( opts )
   local cxn<close> = assert( ru.connect() )
-  local state = assert( query_cluster_state( cxn ) )
+  local state = assert( query_cluster_state( cxn, opts ) )
   print( json.tostring_pretty( state ) )
 end
 

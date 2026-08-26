@@ -9,6 +9,7 @@ return harden{
     -- HOST='192.168.1.98', -- bonobo
     -- HOST='127.0.0.1', -- loopback
     PORT=6379, --
+    CONNECT_TIMEOUT_SECS=10,
   },
 
   worker={

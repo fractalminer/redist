@@ -47,7 +47,8 @@ local function connect()
   -- don't want to put a timeout on its underlying socket because
   -- we generally want to be able to block on it while waiting to
   -- read data from redis.
-  if not tcp_reachable( HOST, PORT, 1 --[[second]]  ) then
+  if not tcp_reachable( HOST, PORT,
+                        config.general.CONNECT_TIMEOUT_SECS ) then
     fatal( 'redis server at %s:%s is not reachable.', HOST, PORT )
   end
   local cxn = assert( redis.connect( HOST, PORT ) )

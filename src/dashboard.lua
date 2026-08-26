@@ -22,6 +22,7 @@ local catch_control_c = assert( merr.catch_control_c )
 local cleanup = assert( mcleanup.cleanup )
 local on_ordered_kv = assert( tbl.on_ordered_kv )
 local now_seconds = assert( time.now_seconds )
+local timeit_micros = assert( time.timeit_micros )
 
 local socket_select = assert( socket.select )
 
@@ -81,25 +82,7 @@ end
 -----------------------------------------------------------------
 -- Redis Data.
 -----------------------------------------------------------------
-local g_data = {
-  stats={
-    total_workers=2, --
-    active_workers=3, --
-  },
-  nodes={
-    {
-      id='xxx',
-      name='darter2',
-      from_host='127.0.0.1', --
-      total_workers=6, --
-      active_workers=4, --
-      worker_utilization=.666666, --
-      cores=24, --
-      active_cores=20, --
-      core_utilization=.8, --
-    },
-  },
-}
+local g_data = {}
 
 local function percent( n, d )
   assert( n )
@@ -120,8 +103,14 @@ local function update_data( cxn, opts )
   g_last_update_time = now
   g_redis_updates = g_redis_updates + 1
 
-  local state = assert( query_cluster_state( cxn ) )
+  local query_time, state = timeit_micros( function()
+    return query_cluster_state( cxn, {
+      exclude_workers=true, --
+    } )
+  end )
+  assert( state )
   g_data = {}
+  g_data.query_time_micros = query_time
   g_data.stats = {}
   local stats = g_data.stats
 
@@ -133,7 +122,7 @@ local function update_data( cxn, opts )
   stats.active_cores = assert( state.active_core_count )
   stats.core_utilization = percent( stats.active_cores,
                                     stats.cores )
-
+  stats.approximate_active_workers = 0
   g_data.nodes = {}
   local nodes = g_data.nodes
   on_ordered_kv( state.nodes, function( k, v )
@@ -141,7 +130,7 @@ local function update_data( cxn, opts )
     local node = {}
     node.id = machine_id
     node.name = name
-    node.from_host = assert( v.host )
+    node.from_host = 'unknown' -- assert( v.host )
     node.total_workers = assert( v.worker_count )
     node.active_workers = assert( v.active_worker_count )
     node.worker_utilization = percent( node.active_workers,
@@ -150,6 +139,11 @@ local function update_data( cxn, opts )
     node.active_cores = assert( v.active_core_count )
     node.core_utilization = percent( node.active_cores,
                                      node.cores )
+    node.approximate_active_workers = assert(
+                                          v.approximate_active )
+    stats.approximate_active_workers =
+        stats.approximate_active_workers +
+            node.approximate_active_workers
     insert( nodes, node )
   end )
 end
@@ -235,12 +229,12 @@ local function redraw()
   advance()
   advance()
   advance()
-  center( y, '  core usage: %s/%s (%.1f%%)',
+  center( y, 'core usage: %s/%s (%.1f%%)',
           g_data.stats.active_cores, g_data.stats.cores,
           g_data.stats.core_utilization * 100 )
   advance()
   center( y, 'worker usage: %s/%s (%.1f%%)',
-          g_data.stats.active_workers,
+          g_data.stats.approximate_active_workers,
           g_data.stats.total_workers,
           g_data.stats.worker_utilization * 100 )
   advance()
@@ -271,8 +265,9 @@ local function redraw()
     text( 'core usage:   %s/%s (%.1f%%)', node.active_cores,
           node.cores, node.core_utilization * 100 )
     advance( 4 )
-    text( 'worker usage: %s/%s (%.1f%%)', node.active_workers,
-          node.total_workers, node.worker_utilization * 100 )
+    text( 'worker usage: %s/%s (%.1f%%)',
+          node.approximate_active_workers, node.total_workers,
+          node.worker_utilization * 100 )
     advance()
 
     advance()
@@ -282,7 +277,8 @@ local function redraw()
   advance()
   text( 'status:  %s', g_status )
   advance()
-  text( 'updates: %s', g_redis_updates )
+  text( 'updates: %s [%.1fms]', g_redis_updates,
+        (g_data.query_time_micros or 0) / 1000 )
   advance()
   text( 'redraws: %s', g_redraws )
   advance()
@@ -306,7 +302,6 @@ local function loop( cxn, pubsub_cxn, pubsub_msgs )
     update_data( cxn )
     redraw()
     g_loops = g_loops + 1
-    mc.refresh()
     local input = assert( next_event( pubsub_cxn,
                                       POLL_TIMEOUT_SECS ) )
     if input.keyboard then

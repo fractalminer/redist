@@ -323,6 +323,13 @@ local function process_task(cxn, task, perform, set_result,
   local task_hash = assert( task.hash )
   debug( 'found task hash: %s', task_hash )
   publish( cxn, task_hash, 'started' )
+  local approx_active_key = format(
+                                'farm:worker:%s:approximate_active',
+                                machine_label() )
+  cxn:incr( approx_active_key )
+  local _<close> = cleanup( function()
+    cxn:decr( approx_active_key )
+  end )
   local ok, result = pcall( perform, cxn, task_hash )
   if ok then
     set_result( cxn, task_hash, result )
