@@ -1,9 +1,15 @@
 TODO:
 -----------------------------------------------------------------
   * Dashboard:
-    * The way that workers are advertising themselves with in-
-      c/dec is flawed since it gets messed up when we flush the
-      DB... might need to find another way to do that.
+    * Problem: The way that workers are advertising themselves
+      with inc/dec is flawed since it gets messed up when we
+      flush the DB... might need to find another way to do that.
+        - Solution: instead of the inc/dec of counts, use redis
+          sets. There will be one set for workers, active, local,
+          etc., and the scoped guards just act on those sets. The
+          static counts can be done in the advertise method and
+          then the active counts can be done based on a scope
+          guard.
     * The dashboard should go to sleep (increase poll delay after
       a certain amount of time of no utilization), then as soon
       as something happens it should go back to frequent updates.
