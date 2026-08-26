@@ -18,9 +18,6 @@ return harden{
     EXPIRE_ADVERTISE_SECS=20,
     POPEN_POLL_TIMEOUT_MILLIS=100,
     POPEN_TIMEOUT_SECS=600,
-    -- This should last at least as long as a task takes to run
-    -- so that the counts don't disappear during that time.
-    EXPIRE_APPROX_COUNT_SECS=600,
   },
 
   builder={

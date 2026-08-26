@@ -9,6 +9,7 @@ local mcleanup = require( 'moon.cleanup' )
 
 local redis = require( 'redis' )
 local socket = require( 'socket' )
+local posix = require( 'posix' )
 
 -----------------------------------------------------------------
 -- Aliases.
@@ -27,8 +28,12 @@ local unpack = assert( table.unpack )
 -----------------------------------------------------------------
 -- Config Fields.
 -----------------------------------------------------------------
-local EXPIRE_APPROX_COUNT_SECS = config.worker
-                                     .EXPIRE_APPROX_COUNT_SECS
+local EXPIRE_ADVERTISE_SECS = config.worker.EXPIRE_ADVERTISE_SECS
+
+-----------------------------------------------------------------
+-- Globals.
+-----------------------------------------------------------------
+local PID<const> = assert( posix.getpid().pid )
 
 -----------------------------------------------------------------
 -- Methods.
@@ -87,23 +92,35 @@ local function set_hash( cxn, key, tbl, expiry )
   end )
 end
 
--- Since this returns a cleanup object, that means that:
---   1. You should store it in a to-be-closed variable.
---   2. You can call release() on it to avoid it closing.
---   3. You can call cleanup_now() on it to run the closing func-
---      tion immediately and not again.
-local function scoped_inc( cxn, key, expiry, condition )
-  if condition == false then return cleaned() end
-  cxn:incr( key )
-  if expiry then cxn:expire( key, expiry ) end
-  return cleanup( function() cxn:decr( key ) end )
+local function broadcast_presence( cxn, set )
+  local key = 'farm:node:%s:presence:%s'
+  key = key:format( machine_label(), set )
+  assert( cxn:sadd( key, PID ) )
+  cxn:expire( key, EXPIRE_ADVERTISE_SECS )
+  trace( 'added presence: %s|%s', key, PID )
 end
 
-local function scoped_node_inc( cxn, label, condition )
-  local key = ('farm:node:%s:count:%s'):format( machine_label(),
-                                                label )
-  return scoped_inc( cxn, key, EXPIRE_APPROX_COUNT_SECS,
-                     condition )
+local function remove_presence( cxn, set )
+  local key = 'farm:node:%s:presence:%s'
+  key = key:format( machine_label(), set )
+  -- Don't assert here just in case the set no longer exists.
+  cxn:srem( key, PID )
+  trace( 'removed presence: %s|%s', key, PID )
+end
+
+-- Set the presence of this worker in the given set when the con-
+-- dition is true, in a way that will be unwound when the result
+-- goes out of scope.
+--
+-- Since this returns a cleanup object, that means that:
+--  1. You should store it in a to-be-closed variable.
+--  2. You can call release() on it to avoid it closing.
+--  3. You can call cleanup_now() on it to run the closing func-
+--     tion immediately and not again.
+local function scoped_presence( cxn, set, condition )
+  if condition == false then return cleaned() end
+  broadcast_presence( cxn, set )
+  return cleanup( function() remove_presence( cxn, set ) end )
 end
 
 -----------------------------------------------------------------
@@ -112,6 +129,7 @@ end
 return {
   connect=connect, --
   set_hash=set_hash, --
-  scoped_inc=scoped_inc, --
-  scoped_node_inc=scoped_node_inc, --
+  broadcast_presence=broadcast_presence, --
+  remove_presence=remove_presence, --
+  scoped_presence=scoped_presence, --
 }

@@ -221,6 +221,7 @@ local function redraw()
   g_last_redraw_time = now
   g_redraws = g_redraws + 1
   if g_redraws % 20 == 0 then mc.clear() end
+  -- mc.clear()
 
   local y = 0
   local old_x = 2

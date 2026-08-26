@@ -71,12 +71,9 @@ local function query_cluster_state( cxn, opts )
     node.core_count = 1 -- TODO
     node.active_core_count = 0 -- TODO
     local function get_count( label )
-      local key = format( 'farm:node:%s:count:%s', name, label )
-      local n = cxn:get( key )
-      n = n or 0
-      n = tonumber( n )
-      n = max( n, 0 )
-      return n
+      local key =
+          format( 'farm:node:%s:presence:%s', name, label )
+      return tonumber( cxn:scard( key ) or 0 )
     end
     node.worker_count = get_count( 'workers_count' )
     node.active_worker_count = get_count( 'workers_active' )
