@@ -49,6 +49,7 @@ local os_version = assert( os_stat.os_version )
 local popen = assert( subprocess.popen )
 local read_file = assert( file.read_file )
 local remove_when_done = assert( workarea.remove_when_done )
+local scoped_node_inc = assert( ru.scoped_node_inc )
 local set_hash = assert( ru.set_hash )
 local trace = assert( logger.trace )
 local write_file = assert( file.write_file )
@@ -322,19 +323,16 @@ local function process_task(cxn, task, perform, set_result,
   assert( set_result )
   local task_hash = assert( task.hash )
   debug( 'found task hash: %s', task_hash )
-  local approx_active_key = format(
-                                'farm:worker:%s:approximate_active',
-                                machine_label() )
-  cxn:incr( approx_active_key )
-  cxn:expire( approx_active_key,
-              config.worker.EXPIRE_APPROX_ACTIVE_SECS )
-  local update_active<close> = cleanup( function()
-    cxn:decr( approx_active_key )
-  end )
+  local is_local = (args.listen == 'local')
+  local active<close> = scoped_node_inc( cxn, 'workers_active' )
+  local local_active<close> = scoped_node_inc( cxn,
+                                               'workers_active_local',
+                                               is_local )
   -- Publish after we increment the active count.
   publish( cxn, task_hash, 'started' )
   local ok, result = pcall( perform, cxn, task_hash )
-  update_active:cleanup_now()
+  active:cleanup_now()
+  local_active:cleanup_now()
   if ok then
     set_result( cxn, task_hash, result )
     if result.status == 0 then
@@ -367,8 +365,15 @@ local function process_task(cxn, task, perform, set_result,
 end
 
 local function process_next_task( cxn )
+  local is_local = (args.listen == 'local')
   local task
   repeat
+    -- Event though these properties aren't expected to change,
+    -- we do them here because otherwise they will expire.
+    local worker<close> = scoped_node_inc( cxn, 'workers_count' )
+    local local_only<close> = scoped_node_inc( cxn,
+                                               'workers_local',
+                                               is_local )
     STATE.status = 'idle'
     STATE.task = nil
     advertise( cxn ) -- does its own throttling.

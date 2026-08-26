@@ -123,12 +123,9 @@ local function update_data( cxn, opts )
   stats.active_cores = assert( state.active_core_count )
   stats.core_utilization = percent( stats.active_cores,
                                     stats.cores )
-  stats.approximate_active_workers = 0
+  stats.active_workers = 0
   stats.total_workers = assert( state.worker_count )
   stats.active_workers = assert( state.active_worker_count )
-  stats.worker_utilization = percent(
-                                 stats.approximate_active_workers,
-                                 stats.total_workers )
   g_data.nodes = {}
   local nodes = g_data.nodes
   on_ordered_kv( state.nodes, function( k, v )
@@ -141,18 +138,22 @@ local function update_data( cxn, opts )
     node.active_cores = assert( v.active_core_count )
     node.core_utilization = percent( node.active_cores,
                                      node.cores )
-    node.approximate_active_workers = assert(
-                                          v.approximate_active )
-    node.total_workers = assert( v.worker_count )
     node.active_workers = assert( v.active_worker_count )
-    node.worker_utilization = percent(
-                                  node.approximate_active_workers,
-                                  node.total_workers )
-    stats.approximate_active_workers =
-        stats.approximate_active_workers +
-            node.approximate_active_workers
+    node.total_workers = assert( v.worker_count )
+    node.local_workers = assert( v.local_worker_count )
+    node.local_active_workers = assert(
+                                    v.local_active_worker_count )
+    node.worker_utilization = percent( node.active_workers,
+                                       node.total_workers )
+    node.local_worker_utilization = percent(
+                                        node.local_active_workers,
+                                        node.local_workers )
+    stats.active_workers = stats.active_workers +
+                               node.active_workers
     insert( nodes, node )
   end )
+  stats.worker_utilization = percent( stats.active_workers,
+                                      stats.total_workers )
 end
 
 -----------------------------------------------------------------
@@ -170,6 +171,7 @@ local function text( ... )
     txt = format( ... )
   end
   mc.addstr( txt )
+  mc.clrtoeol()
 end
 
 local function text_center( y, ... )
@@ -183,6 +185,7 @@ local function text_center( y, ... )
   local left = mc.COLS // 2 - len // 2
   move{ x=left, y=y }
   mc.addstr( txt )
+  mc.clrtoeol()
 end
 
 -----------------------------------------------------------------
@@ -202,37 +205,49 @@ local function redraw()
   if now < g_last_redraw_time + REDRAW_INTERVAL_SECS then return end
   g_last_redraw_time = now
   g_redraws = g_redraws + 1
-  -- mc.clear()
+  if g_redraws % 100 == 0 then mc.clear() end
 
   local y = 0
+  local old_x = 2
   local function advance( x )
-    x = x or 2
+    x = x or old_x
+    old_x = x
     y = y + 1
     move{ x=x, y=y }
   end
   local function center( ... ) text_center( y, ... ) end
+  local function textln( ... )
+    text( ... )
+    advance()
+  end
 
-  mc.mvbox( y, 0, y + 2, mc.COLS - 1 )
-  advance()
-  center( 'ReDist Build Farm Dashboard' )
-  advance()
-  advance()
+  local box_start = nil
+  local function start_box( title )
+    box_start = y
+    advance()
+    center( title )
+    advance()
+  end
+  local function finish_box()
+    local box_end = y
+    mc.mvbox( box_start, 0, box_end, mc.COLS - 1 )
+    advance()
+    move{ x=1, y=y }
+  end
+
+  start_box( 'ReDist Build Farm Dashboard' )
+  finish_box()
 
   -- Cluster.
-  mc.mvbox( y, 0, y + 13, mc.COLS - 1 )
+  start_box( 'CLUSTER' )
   advance()
-  center( 'CLUSTER' )
-  advance()
-  advance()
-  text( '%s', progress_bar( mc.COLS - 6,
-                            g_data.stats.core_utilization ) )
-  advance()
+  textln( '%s', progress_bar( mc.COLS - 6,
+                              g_data.stats.core_utilization ) )
   center( '(core utilization)' )
   advance()
   advance()
-  text( '%s', progress_bar( mc.COLS - 6,
-                            g_data.stats.worker_utilization ) )
-  advance()
+  textln( '%s', progress_bar( mc.COLS - 6,
+                              g_data.stats.worker_utilization ) )
   center( '(worker utilization)' )
   advance()
   advance()
@@ -242,69 +257,59 @@ local function redraw()
           g_data.stats.core_utilization * 100 )
   advance()
   center( 'worker usage: %s/%s (%.1f%%)',
-          g_data.stats.approximate_active_workers,
+          g_data.stats.active_workers,
           g_data.stats.total_workers,
           g_data.stats.worker_utilization * 100 )
   advance()
   advance()
-  advance()
+  finish_box()
 
   -- Queues.
-  mc.mvbox( y, 0, y + 5, mc.COLS - 1 )
-  advance()
-  center( 'QUEUES' )
-  advance()
+  start_box( 'QUEUES' )
   advance()
   center( 'preprocess: %s', g_data.stats.preprocess_queue_size )
   advance()
   center( 'compile: %s', g_data.stats.compile_queue_size )
   advance()
   advance()
+  finish_box()
 
   -- Nodes.
-  mc.mvbox( y, 0, mc.LINES - 1, mc.COLS - 1 )
-  advance()
-  center( 'NODES' )
-  advance()
+  start_box( 'NODES' )
   for _, node in ipairs( g_data.nodes ) do
     advance()
-    text( 'NODE: %s [%s]', node.name, node.from_host )
-    advance()
+    textln( 'NODE: %s [%s]', node.name, node.from_host )
     mc.hline( mc.COLS - 4 )
 
     advance( 4 )
-    text( 'core:   %s',
-          progress_bar( mc.COLS - 16, node.core_utilization ) )
-    advance( 4 )
-    text( 'worker: %s',
-          progress_bar( mc.COLS - 16, node.worker_utilization ) )
+    textln( 'core:   %s',
+            progress_bar( mc.COLS - 16, node.core_utilization ) )
+    textln( 'worker: %s', progress_bar( mc.COLS - 16,
+                                        node.worker_utilization ) )
+    textln( 'local:  %s', progress_bar( mc.COLS - 16,
+                                        node.local_worker_utilization ) )
 
-    advance()
-
     advance( 4 )
-    text( 'core usage:   %s/%s (%.1f%%)', node.active_cores,
-          node.cores, node.core_utilization * 100 )
-    advance( 4 )
-    text( 'worker usage: %s/%s (%.1f%%)',
-          node.approximate_active_workers, node.total_workers,
-          node.worker_utilization * 100 )
-    advance()
+    textln( 'core usage:   %s/%s (%.1f%%)', node.active_cores,
+            node.cores, node.core_utilization * 100 )
+    textln( 'worker usage: %s/%s (%.1f%%)', node.active_workers,
+            node.total_workers, node.worker_utilization * 100 )
+    textln( 'local usage:  %s/%s (%.1f%%)',
+            node.local_active_workers, node.local_workers,
+            node.local_worker_utilization * 100 )
 
-    advance()
+    advance( 2 )
   end
+  finish_box()
 
   y = mc.LINES - 7
-  advance()
-  text( 'status:  %s', g_status )
-  advance()
-  text( 'updates: %s [%.1fms]', g_redis_updates,
-        (g_data.query_time_micros or 0) / 1000 )
-  advance()
-  text( 'redraws: %s', g_redraws )
-  advance()
-  text( 'events:  %s', g_events )
-  advance()
-  text( 'loops:   %s', g_loops )
+  advance( 2 )
+  textln( 'status:  %s', g_status )
+  textln( 'updates: %s [%.1fms]', g_redis_updates,
+          (g_data.query_time_micros or 0) / 1000 )
+  textln( 'redraws: %s', g_redraws )
+  textln( 'events:  %s', g_events )
+  textln( 'loops:   %s', g_loops )
 
   move{ x=mc.COLS - 1, y=mc.LINES - 1 }
 

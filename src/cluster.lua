@@ -32,20 +32,11 @@ local function query_cluster_state( cxn, opts )
   state.nodes = nodes
   local keys = cxn:keys( 'farm:worker:*' )
   sort( keys )
-  local total_worker_count = 0
-  local total_active_worker_count = 0
   for _, key in ipairs( keys ) do
     if key:match( 'approximate_active' ) then goto continue end
     local _, _, node, pid = key:tsplit( ':' )
     state.nodes[node] = state.nodes[node] or {}
-    state.nodes[node].worker_count =
-        state.nodes[node].worker_count or 0
-    state.nodes[node].active_worker_count =
-        state.nodes[node].active_worker_count or 0
     state.nodes[node].workers = state.nodes[node].workers or {}
-    total_worker_count = total_worker_count + 1
-    state.nodes[node].worker_count =
-        state.nodes[node].worker_count + 1
     if opts.exclude_workers then goto continue end
     local tbl = cxn:hgetall( key )
     -- This catches races that happen when we flushdb and the key
@@ -60,31 +51,39 @@ local function query_cluster_state( cxn, opts )
       status=assert( tbl.status ),
       from_port=assert( from_port ),
     }
-    if worker.status ~= 'idle' then
-      state.nodes[node].active_worker_count =
-          state.nodes[node].active_worker_count + 1
-      total_active_worker_count = total_active_worker_count + 1
-    end
     insert( state.nodes[node].workers, worker )
     ::continue::
   end
-  state.worker_count = total_worker_count
-  state.active_worker_count = total_active_worker_count
   state.core_count = 1 -- TODO
   state.active_core_count = 0 -- TODO
   state.preprocess_queue_size = cxn:llen(
                                     'farm:compile:cpp:task:queue' )
   state.compile_queue_size = cxn:llen( 'farm:local:task:queue' )
+  state.active_worker_count = 0
+  state.local_active_worker_count = 0
+  state.worker_count = 0
   for name, node in pairs( state.nodes ) do
     node.core_count = 1 -- TODO
     node.active_core_count = 0 -- TODO
-    local approximate_active_key = format(
-                                       'farm:worker:%s:approximate_active',
-                                       name )
-    node.approximate_active =
-        cxn:get( approximate_active_key ) or 0
-    node.approximate_active = tonumber( node.approximate_active )
-    node.approximate_active = max( node.approximate_active, 0 )
+    local function get_count( label )
+      local key = format( 'farm:node:%s:count:%s', name, label )
+      local n = cxn:get( key )
+      n = n or 0
+      n = tonumber( n )
+      n = max( n, 0 )
+      return n
+    end
+    node.worker_count = get_count( 'workers_count' )
+    node.active_worker_count = get_count( 'workers_active' )
+    node.local_worker_count = get_count( 'workers_local' )
+    node.local_active_worker_count = get_count(
+                                         'workers_active_local' )
+    state.active_worker_count = state.active_worker_count +
+                                    node.active_worker_count
+    state.local_active_worker_count =
+        state.local_active_worker_count +
+            node.local_active_worker_count
+    state.worker_count = state.worker_count + node.worker_count
   end
   return state
 end
