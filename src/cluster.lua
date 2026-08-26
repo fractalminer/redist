@@ -66,6 +66,7 @@ local function query_cluster_state( cxn, opts )
   state.active_worker_count = 0
   state.local_active_worker_count = 0
   state.worker_count = 0
+  state.local_worker_count = 0
   for name, node in pairs( state.nodes ) do
     node.core_count = 1 -- TODO
     node.active_core_count = 0 -- TODO
@@ -88,6 +89,8 @@ local function query_cluster_state( cxn, opts )
         state.local_active_worker_count +
             node.local_active_worker_count
     state.worker_count = state.worker_count + node.worker_count
+    state.local_worker_count = state.local_worker_count +
+                                   node.local_worker_count
   end
   return state
 end

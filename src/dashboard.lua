@@ -124,7 +124,10 @@ local function update_data( cxn, opts )
   stats.core_utilization = percent( stats.active_cores,
                                     stats.cores )
   stats.active_workers = 0
+  stats.local_active_workers = assert(
+                                   state.local_active_worker_count )
   stats.total_workers = assert( state.worker_count )
+  stats.local_workers = assert( state.local_worker_count )
   stats.active_workers = assert( state.active_worker_count )
   g_data.nodes = {}
   local nodes = g_data.nodes
@@ -140,11 +143,18 @@ local function update_data( cxn, opts )
                                      node.cores )
     node.active_workers = assert( v.active_worker_count )
     node.total_workers = assert( v.worker_count )
+    node.remote_workers = node.total_workers -
+                              node.active_workers
     node.local_workers = assert( v.local_worker_count )
     node.local_active_workers = assert(
                                     v.local_active_worker_count )
     node.worker_utilization = percent( node.active_workers,
                                        node.total_workers )
+    node.remote_active_workers =
+        node.active_workers - node.local_active_workers
+    node.r_worker_utilization = percent(
+                                    node.remote_active_workers,
+                                    node.remote_workers )
     node.local_worker_utilization = percent(
                                         node.local_active_workers,
                                         node.local_workers )
@@ -152,6 +162,13 @@ local function update_data( cxn, opts )
   end )
   stats.worker_utilization = percent( stats.active_workers,
                                       stats.total_workers )
+  stats.remote_active_workers = stats.active_workers -
+                                    stats.local_active_workers
+  stats.remote_workers = stats.total_workers -
+                             stats.local_workers
+  stats.r_worker_utilization = percent(
+                                   stats.remote_active_workers,
+                                   stats.remote_workers )
 end
 
 -----------------------------------------------------------------
@@ -245,8 +262,8 @@ local function redraw()
   advance()
   advance()
   textln( '%s', progress_bar( mc.COLS - 6,
-                              g_data.stats.worker_utilization ) )
-  center( '(worker utilization)' )
+                              g_data.stats.r_worker_utilization ) )
+  center( '(r-worker utilization)' )
   advance()
   advance()
   advance()
@@ -254,10 +271,10 @@ local function redraw()
           g_data.stats.active_cores, g_data.stats.cores,
           g_data.stats.core_utilization * 100 )
   advance()
-  center( 'worker usage: %s/%s (%.1f%%)',
-          g_data.stats.active_workers,
-          g_data.stats.total_workers,
-          g_data.stats.worker_utilization * 100 )
+  center( 'r-worker usage: %s/%s (%.1f%%)', g_data.stats
+              .active_workers - g_data.stats.local_active_workers,
+          g_data.stats.total_workers - g_data.stats.local_workers,
+          g_data.stats.r_worker_utilization * 100 )
   advance()
   advance()
   finish_box()
