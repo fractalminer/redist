@@ -34,7 +34,6 @@ local assertf = assert( merr.assertf )
 local broadcast_presence = assert( ru.broadcast_presence )
 local catch_control_c = assert( merr.catch_control_c )
 local cencode = assert( decode.cencode )
-local chain = assert( mcleanup.chain )
 local cleanup = assert( mcleanup.cleanup )
 local cround_trip = assert( decode.cround_trip )
 local debug = assert( logger.debug )
@@ -51,7 +50,6 @@ local popen = assert( subprocess.popen )
 local read_file = assert( file.read_file )
 local remove_presence = assert( ru.remove_presence )
 local remove_when_done = assert( workarea.remove_when_done )
-local scoped_presence = assert( ru.scoped_presence )
 local set_hash = assert( ru.set_hash )
 local timeit = assert( time.timeit_micros )
 local trace = assert( logger.trace )
@@ -134,27 +132,20 @@ local function next_task( cxn )
   end
 end
 
-local function broadcast_worker( cxn )
-  broadcast_presence( cxn, 'workers_count' )
-  if args.listen == 'local' then
-    broadcast_presence( cxn, 'workers_local' )
-  end
-end
-
-local function remove_worker( cxn )
-  remove_presence( cxn, 'workers_count' )
-  if args.listen == 'local' then
-    remove_presence( cxn, 'workers_local' )
-  end
-end
-
 local function advertise( cxn )
   if not args.advertise then return end
-  local now = now_seconds()
-  if now < STATE.last_advertise +
-      config.worker.ADVERTISE_INTERVAL_SECS then return end
-  STATE.last_advertise = now
-  broadcast_worker( cxn )
+  local is_local = (args.listen == 'local')
+  broadcast_presence( cxn, 'workers_count' )
+  if is_local then broadcast_presence( cxn, 'workers_local' ) end
+  if STATE.status ~= 'idle' then
+    broadcast_presence( cxn, 'workers_active' )
+    if is_local then
+      broadcast_presence( cxn, 'workers_active_local' )
+    end
+  else
+    remove_presence( cxn, 'workers_active' )
+    remove_presence( cxn, 'workers_active_local' )
+  end
   local key = format( 'farm:worker:%s:%s', machine_label(), PID )
   local sock = assert( cxn.network.socket )
   local ip, port, _ = sock:getsockname()
@@ -170,10 +161,22 @@ local function advertise( cxn )
   set_hash( cxn, key, worker, config.worker.EXPIRE_ADVERTISE_SECS )
 end
 
+local function advertise_throttled( cxn )
+  if not args.advertise then return end
+  local now = now_seconds()
+  if now < STATE.last_advertise +
+      config.worker.ADVERTISE_INTERVAL_SECS then return end
+  STATE.last_advertise = now
+  advertise( cxn )
+end
+
 local function unadvertise( cxn )
   if not args.advertise then return end
   debug( 'unadvertising %s:%s', machine_label(), PID )
-  remove_worker( cxn )
+  remove_presence( cxn, 'workers_count' )
+  remove_presence( cxn, 'workers_local' )
+  remove_presence( cxn, 'workers_active' )
+  remove_presence( cxn, 'workers_active_local' )
   local key = format( 'farm:worker:%s:%s', machine_label(), PID )
   cxn:del( key )
 end
@@ -191,7 +194,7 @@ end
 local function make_poller( cxn, desc )
   local start = now_seconds()
   local function on_poll()
-    advertise( cxn ) -- does its own throttling.
+    advertise_throttled( cxn ) -- does its own throttling.
     local now = now_seconds()
     local waited = now - start
     debug( 'waiting for %s: %.1fs', desc, waited )
@@ -258,8 +261,6 @@ end
 
 local function run_remote_task( cxn, task_hash )
   info( 'performing remote task: %s', task_hash )
-  STATE.status = 'compiling'
-  STATE.task = task_hash
   local task_info = rtask.find( cxn, task_hash )
   assertf( task_info.input, 'cannot find remote task: %s',
            task_hash )
@@ -292,8 +293,6 @@ end
 
 local function run_local_task( cxn, task_hash )
   info( 'performing local task: %s', task_hash )
-  STATE.status = 'preprocessing'
-  STATE.task = task_hash
   local task_info = ltask.find( cxn, task_hash )
   assertf( task_info.command, 'cannot find local task: %s',
            task_hash )
@@ -336,25 +335,19 @@ local function run_local_task( cxn, task_hash )
   }
 end
 
-local function scoped_active( cxn )
-  local is_local = (args.listen == 'local')
-  return chain{
-    scoped_presence( cxn, 'workers_active' ),
-    scoped_presence( cxn, 'workers_active_local', is_local ),
-  }
-end
-
 local function process_task(cxn, task, perform, set_result,
                             publish )
   assert( perform )
   assert( set_result )
   local task_hash = assert( task.hash )
   debug( 'found task hash: %s', task_hash )
-  local active<close> = scoped_active( cxn )
+  STATE.status = 'active'
+  STATE.task = task_hash
+  advertise( cxn )
   -- Publish after we increment the active count.
   publish( cxn, task_hash, 'started' )
   local ok, result = pcall( perform, cxn, task_hash )
-  active:cleanup_now()
+  advertise( cxn )
   if ok then
     set_result( cxn, task_hash, result )
     if result.status == 0 then
@@ -391,7 +384,7 @@ local function process_next_task( cxn )
   repeat
     STATE.status = 'idle'
     STATE.task = nil
-    advertise( cxn ) -- does its own throttling.
+    advertise_throttled( cxn ) -- does its own throttling.
     trace( 'checking for task...' )
     task = next_task( cxn )
     if not task and not args.wait then return false end
