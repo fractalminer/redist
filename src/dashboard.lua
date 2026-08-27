@@ -143,18 +143,17 @@ local function update_data( cxn, opts )
                                      node.cores )
     node.active_workers = assert( v.active_worker_count )
     node.total_workers = assert( v.worker_count )
-    node.remote_workers = node.total_workers -
-                              node.active_workers
     node.local_workers = assert( v.local_worker_count )
+    node.remote_workers = node.total_workers - node.local_workers
     node.local_active_workers = assert(
                                     v.local_active_worker_count )
     node.worker_utilization = percent( node.active_workers,
                                        node.total_workers )
     node.remote_active_workers =
         node.active_workers - node.local_active_workers
-    node.r_worker_utilization = percent(
-                                    node.remote_active_workers,
-                                    node.remote_workers )
+    node.remote_worker_utilization = percent(
+                                         node.remote_active_workers,
+                                         node.remote_workers )
     node.local_worker_utilization = percent(
                                         node.local_active_workers,
                                         node.local_workers )
@@ -166,9 +165,12 @@ local function update_data( cxn, opts )
                                     stats.local_active_workers
   stats.remote_workers = stats.total_workers -
                              stats.local_workers
-  stats.r_worker_utilization = percent(
-                                   stats.remote_active_workers,
-                                   stats.remote_workers )
+  stats.remote_worker_utilization = percent(
+                                        stats.remote_active_workers,
+                                        stats.remote_workers )
+  stats.local_worker_utilization = percent(
+                                       stats.local_active_workers,
+                                       stats.local_workers )
 end
 
 -----------------------------------------------------------------
@@ -262,9 +264,14 @@ local function redraw()
   center( '(core utilization)' )
   advance()
   advance()
-  textln( '%s', progress_bar( mc.COLS - 6,
-                              g_data.stats.r_worker_utilization ) )
+  textln( '%s', progress_bar( mc.COLS - 6, g_data.stats
+                                  .remote_worker_utilization ) )
   center( '(r-worker utilization)' )
+  advance()
+  advance()
+  textln( '%s', progress_bar( mc.COLS - 6, g_data.stats
+                                  .local_worker_utilization ) )
+  center( '(l-worker utilization)' )
   advance()
   advance()
   advance()
@@ -275,7 +282,12 @@ local function redraw()
   center( 'r-worker usage: %s/%s (%.1f%%)', g_data.stats
               .active_workers - g_data.stats.local_active_workers,
           g_data.stats.total_workers - g_data.stats.local_workers,
-          g_data.stats.r_worker_utilization * 100 )
+          g_data.stats.remote_worker_utilization * 100 )
+  advance()
+  center( 'l-worker usage: %s/%s (%.1f%%)',
+          g_data.stats.local_active_workers,
+          g_data.stats.local_workers,
+          g_data.stats.local_worker_utilization * 100 )
   advance()
   advance()
   finish_box()
@@ -301,19 +313,20 @@ local function redraw()
     textln( 'core:   %s',
             progress_bar( mc.COLS - 18, node.core_utilization ) )
     textln( 'worker: %s', progress_bar( mc.COLS - 18,
-                                        node.worker_utilization ) )
+                                        node.remote_worker_utilization ) )
     if node.local_workers > 0 then
       textln( 'local:  %s', progress_bar( mc.COLS - 18,
                                           node.local_worker_utilization ) )
     end
 
     advance( 4 )
-    textln( 'core usage:   %s/%s (%.1f%%)', node.active_cores,
+    textln( 'core   usage: %s/%s (%.1f%%)', node.active_cores,
             node.cores, node.core_utilization * 100 )
-    textln( 'worker usage: %s/%s (%.1f%%)', node.active_workers,
-            node.total_workers, node.worker_utilization * 100 )
+    textln( 'worker usage: %s/%s (%.1f%%)',
+            node.remote_active_workers, node.remote_workers,
+            node.remote_worker_utilization * 100 )
     if node.local_workers > 0 then
-      textln( 'local usage:  %s/%s (%.1f%%)',
+      textln( 'local  usage: %s/%s (%.1f%%)',
               node.local_active_workers, node.local_workers,
               node.local_worker_utilization * 100 )
     end
