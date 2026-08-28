@@ -67,16 +67,12 @@ end
 local ProcessPool = {}
 
 function ProcessPool:log_pids()
-  debug( 'running=%s, terminating=%s', self._running_pids,
-         self._pending_term_pids )
+  debug( 'running: %s', self._running_pids )
+  debug( 'pending: %s', self._pending_term_pids )
 end
 
 function ProcessPool:running_count()
   return self._running_pids:size()
-end
-
-function ProcessPool:terminating_count()
-  return self._pending_term_pids:size()
 end
 
 function ProcessPool:live_count()
@@ -84,36 +80,39 @@ function ProcessPool:live_count()
              self._pending_term_pids:size()
 end
 
-function ProcessPool:target_count()
-  return assert( self._target_count ) --
+function ProcessPool:target()
+  return assert( self._target ) --
 end
 
 function ProcessPool:command() return self._cmd end
 
 function ProcessPool:inc( n )
   n = n or 1
-  self._target_count = self._target_count + n
+  self._target = self._target + n
 end
 
 function ProcessPool:dec( n )
   n = n or 1
-  self._target_count = max( self._target_count - n, 0 )
+  self._target = max( self._target - n, 0 )
 end
 
 function ProcessPool:set( n )
   local req = 'must specify a number >= 0'
   assert( n and type( n ) == 'number', req )
   assert( n >= 0, req )
-  self._target_count = n
+  self._target = n
 end
 
 function ProcessPool:_check_running()
+  -- We don't expect any of the running processes to be finished
+  -- here because they are supposed to run until we terminate
+  -- them. But if they've exited unexpectedly we will detect that
+  -- here and handle it.
   local reaped_pids = set()
   for pid in self._running_pids do
     local updated_pid = wait( pid, WNOHANG )
     if updated_pid and updated_pid > 0 then
-      assert( updated_pid == pid,
-              format( '%s != %s', updated_pid, pid ) )
+      assert( updated_pid == pid )
       -- This child died unexpectedly, so kill its process group
       -- just to make sure that it doesn't leave any orphans. We
       -- can do this because the process group still exists if
@@ -132,13 +131,12 @@ function ProcessPool:_check_running()
   self._running_pids:subtract( reaped_pids )
 end
 
-function ProcessPool:_reap()
+function ProcessPool:_reap_pending()
   local reaped_pids = set()
   for pid in self._pending_term_pids do
     local updated_pid = wait( pid, WNOHANG )
     if updated_pid and updated_pid > 0 then
-      assert( updated_pid == pid,
-              format( '%s != %s', updated_pid, pid ) )
+      assert( updated_pid == pid )
       info( 'reaped pid %d', pid )
       reaped_pids:add( pid )
     end
@@ -147,6 +145,7 @@ function ProcessPool:_reap()
 end
 
 function ProcessPool:stop( sig )
+  self._target = 0
   sig = sig or signal.SIGTERM
   for pid in self._running_pids do
     warn( 'stopping child pid %d', pid )
@@ -156,24 +155,23 @@ function ProcessPool:stop( sig )
   self._running_pids:clear()
   while self._pending_term_pids:size() > 0 do
     info( 'waiting for children to stop...' )
-    self:_reap()
+    self:_reap_pending()
     sleep( .1 )
   end
-  self._target_count = 0
   info( 'process pool stopped.' )
 end
 
 -- "Stopped" means that there are no child process and we don't
 -- want to create any.
 function ProcessPool:stopped()
-  return self:live_count() == 0 and self._target_count == 0
+  return self:live_count() == 0 and self._target == 0
 end
 
-function ProcessPool:advance()
-  self:_check_running()
-  self:_reap()
-
-  local need_change = self:target_count() - self:running_count()
+-- Try to make the number of running children match the target
+-- number that is desired, which could be more or less than we
+-- have running.
+function ProcessPool:_seek_target()
+  local need_change = self:target() - self:running_count()
   if need_change > 0 then
     for _ = 1, need_change do
       info( 'spawning new child' )
@@ -193,12 +191,18 @@ function ProcessPool:advance()
   end
 end
 
+function ProcessPool:advance()
+  self:_check_running()
+  self:_reap_pending()
+  self:_seek_target()
+end
+
 function ProcessPool.new( opts )
   assert( opts, 'missing options argument' )
   assert( opts.cmd )
   local o = {
     _cmd=opts.cmd, --
-    _target_count=0, --
+    _target=0, --
     _running_pids=set(), --
     _pending_term_pids=set(), --
   }
