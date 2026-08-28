@@ -25,6 +25,10 @@ return harden{
     EXPIRE_REMOTE_TASK=3600, --
   },
 
+  node_manager={
+    MAX_WORKERS_PER_TYPE=6, --
+  },
+
   scripts={
     dec_if_positive='scripts/dec-if-positive.lua', --
   },

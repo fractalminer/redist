@@ -3,6 +3,7 @@
 -- Imports.
 -----------------------------------------------------------------
 local ru = require( 'redis-util' )
+local farm = require( 'farm' )
 
 local json = require( 'moon.json' )
 local str = require( 'moon.str' )
@@ -10,9 +11,10 @@ local str = require( 'moon.str' )
 -----------------------------------------------------------------
 -- Aliases.
 -----------------------------------------------------------------
+local WorkerCount = assert( farm.WorkerCount )
+
 local format = assert( string.format )
 local insert = assert( table.insert )
-local max = assert( math.max )
 local sort = assert( table.sort )
 
 -----------------------------------------------------------------
@@ -88,6 +90,17 @@ local function query_cluster_state( cxn, opts )
     state.worker_count = state.worker_count + node.worker_count
     state.local_worker_count = state.local_worker_count +
                                    node.local_worker_count
+
+    local remote_target_count =
+        WorkerCount( cxn, name, 'remote' ):get()
+    local local_target_count =
+        WorkerCount( cxn, name, 'local' ):get()
+    local both_target_count =
+        WorkerCount( cxn, name, 'both' ):get()
+    node.target_count = {}
+    node.target_count.remote = remote_target_count
+    node.target_count['local'] = local_target_count
+    node.target_count.both = both_target_count
   end
   return state
 end

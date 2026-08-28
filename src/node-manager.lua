@@ -1,12 +1,15 @@
 -----------------------------------------------------------------
 -- Supervisor that runs a worker node.
 -----------------------------------------------------------------
+local config = require( 'config' )
+local farm = require( 'farm' )
 local network = require( 'network' )
 local process_pool = require( 'process-pool' )
 local ru = require( 'redis-util' )
 
 local logger = require( 'moon.logger' )
 local mcleanup = require( 'moon.cleanup' )
+local mmath = require( 'moon.math' )
 local str = require( 'moon.str' )
 local time = require( 'moon.time' )
 
@@ -17,8 +20,10 @@ local signal = require( 'posix.signal' )
 -- Aliases.
 -----------------------------------------------------------------
 local ProcessPool = assert( process_pool.ProcessPool )
+local WorkerCount = assert( farm.WorkerCount )
 
 local chain = assert( mcleanup.chain )
+local clamp = assert( mmath.clamp )
 local cleanup = assert( mcleanup.cleanup )
 local debug = assert( logger.debug )
 local info = assert( logger.info )
@@ -65,21 +70,25 @@ handle_stop_signal( SIGTERM )
 local POOLS = {
   workers_both={
     target=0,
+    worker_type='both',
     cmd={ 'bash', 'run-worker.sh' },
     pool=nil,
   },
   workers_remote={
     target=0,
+    worker_type='remote',
     cmd={ 'bash', 'run-remote-worker.sh' },
     pool=nil,
   },
   workers_local={
     target=0,
+    worker_type='local',
     cmd={ 'bash', 'run-local-worker.sh' },
     pool=nil,
   },
   node_stats_finder={
-    target=1,
+    target=0,
+    worker_type=nil,
     cmd={ 'bash', 'run-node-stats-finder.sh' },
     pool=nil,
   },
@@ -110,11 +119,19 @@ local function run( cxn )
   local pools<close> = add_pools()
 
   while not STOP do
-    for _, pool_conf in pairs( POOLS ) do
-      local pool = assert( pool_conf.pool )
+    for _, conf in pairs( POOLS ) do
+      local pool = assert( conf.pool )
       debug( '[%s] [%d] running', pool:name(),
              pool:running_count() )
       pool:log_pids()
+      if conf.worker_type then
+        local worker_count = WorkerCount( cxn, machine_label(),
+                                          conf.worker_type )
+        local count = worker_count:get()
+        count = clamp( count, 0,
+                       config.node_manager.MAX_WORKERS_PER_TYPE )
+        pool:set( count )
+      end
       pool:advance()
     end
     sleep( 1.0 )

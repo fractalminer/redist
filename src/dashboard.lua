@@ -2,6 +2,7 @@
 -- Dashboard for build farm control/monitoring.
 -----------------------------------------------------------------
 local ru = require( 'redis-util' )
+local farm = require( 'farm' )
 local cluster = require( 'cluster' )
 
 local mcleanup = require( 'moon.cleanup' )
@@ -17,6 +18,7 @@ local socket = require( 'socket' )
 -- Aliases.
 -----------------------------------------------------------------
 local query_cluster_state = assert( cluster.query_cluster_state )
+local WorkerCount = assert( farm.WorkerCount )
 
 local catch_control_c = assert( merr.catch_control_c )
 local cleanup = assert( mcleanup.cleanup )
@@ -50,6 +52,34 @@ local g_loops = 0
 local g_events = 0
 local g_redraws = 0
 local g_redis_updates = 0
+
+local INPUT_STATE = {
+  node_label='darter2-b0db31b5853309832ffb1a156766e000',
+  counter_type='local',
+}
+
+-----------------------------------------------------------------
+-- Input processors.
+-----------------------------------------------------------------
+local function change_target_label()
+  if INPUT_STATE.counter_type == 'local' then
+    INPUT_STATE.counter_type = 'both'
+  else
+    INPUT_STATE.counter_type = 'local'
+  end
+end
+
+local function increase_target_count( cxn )
+  local worker_count = WorkerCount( cxn, INPUT_STATE.node_label,
+                                    INPUT_STATE.counter_type )
+  worker_count:inc()
+end
+
+local function decrease_target_count( cxn )
+  local worker_count = WorkerCount( cxn, INPUT_STATE.node_label,
+                                    INPUT_STATE.counter_type )
+  worker_count:dec()
+end
 
 -----------------------------------------------------------------
 -- Socket helpers.
@@ -136,6 +166,7 @@ local function update_data( cxn, opts )
     local node = {}
     node.id = machine_id
     node.name = name
+    node.node_label = k
     node.from_host = 'unknown' -- assert( v.host )
     node.cores = assert( v.core_count )
     node.active_cores = assert( v.active_core_count )
@@ -157,6 +188,7 @@ local function update_data( cxn, opts )
     node.local_worker_utilization = percent(
                                         node.local_active_workers,
                                         node.local_workers )
+    node.target_count = assert( v.target_count )
     insert( nodes, node )
   end )
   stats.worker_utilization = percent( stats.active_workers,
@@ -320,11 +352,23 @@ local function redraw()
     end
 
     advance( 4 )
-    textln( 'core   usage: %s/%s (%.1f%%)', node.active_cores,
-            node.cores, node.core_utilization * 100 )
-    textln( 'worker usage: %s/%s (%.1f%%)',
+    local function counter_widget( counter_type )
+      local is_selected = INPUT_STATE.node_label ==
+                              node.node_label and
+                              INPUT_STATE.counter_type ==
+                              counter_type
+      local caret = is_selected and '>' or ' '
+      return format( '%s %s target: %d', caret, counter_type,
+                     node.target_count[counter_type] )
+    end
+    local both_widget = counter_widget( 'both' )
+    local local_widget = counter_widget( 'local' )
+    textln( 'core   usage: %s/%s (%.1f%%)    %s',
+            node.active_cores, node.cores,
+            node.core_utilization * 100, both_widget )
+    textln( 'worker usage: %s/%s (%.1f%%)    %s',
             node.remote_active_workers, node.remote_workers,
-            node.remote_worker_utilization * 100 )
+            node.remote_worker_utilization * 100, local_widget )
     if node.local_workers > 0 then
       textln( 'local  usage: %s/%s (%.1f%%)',
               node.local_active_workers, node.local_workers,
@@ -367,6 +411,10 @@ local function loop( cxn, pubsub_cxn, pubsub_msgs )
       if key == 'q' then return true end
       g_status = 'key=' .. key
       g_events = g_events + 1
+      if key == 'j' then change_target_label() end
+      if key == 'k' then change_target_label() end
+      if key == 'l' then increase_target_count( cxn ) end
+      if key == 'h' then decrease_target_count( cxn ) end
     end
     if input.redis then
       pubsub_msgs()
