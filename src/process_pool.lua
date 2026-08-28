@@ -100,6 +100,13 @@ function ProcessPool:dec( n )
   self._target_count = max( self._target_count - n, 0 )
 end
 
+function ProcessPool:set( n )
+  local req = 'must specify a number >= 0'
+  assert( n and type( n ) == 'number', req )
+  assert( n >= 0, req )
+  self._target_count = n
+end
+
 function ProcessPool:_check_running()
   local reaped_pids = set()
   for pid in self._running_pids do

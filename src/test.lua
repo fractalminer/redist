@@ -21,6 +21,8 @@ logger.level = logger.levels.INFO
 signal.signal( signal.SIGINT, function() stop = true end )
 signal.signal( signal.SIGTERM, function() stop = true end )
 
+pool:set( 10 )
+
 local function ramp()
   while not stop do
     debug( '[%d] running', pool:running_count() )
