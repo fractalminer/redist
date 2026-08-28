@@ -11,11 +11,13 @@ local signal = require( 'posix.signal' )
 -----------------------------------------------------------------
 -- Aliases.
 -----------------------------------------------------------------
-local debug = assert( logger.debug )
-local err = assert( logger.err )
-local info = assert( logger.info )
 local sleep = assert( time.sleep )
-local warn = assert( logger.warn )
+
+local _debug = assert( logger.debug )
+local _err = assert( logger.err )
+local _info = assert( logger.info )
+local _trace = assert( logger.trace )
+local _warn = assert( logger.warn )
 
 local execp = assert( posix.execp )
 local fork = assert( posix.fork )
@@ -66,10 +68,23 @@ end
 -----------------------------------------------------------------
 local ProcessPool = {}
 
-function ProcessPool:log_pids()
-  debug( 'running: %s', self._running_pids )
-  debug( 'pending: %s', self._pending_term_pids )
+function ProcessPool:log_impl( log, ... )
+  local msg = format( ... )
+  log( '[%s] %s', self._name, msg )
 end
+
+function ProcessPool:err( ... ) self:log_impl( _err, ... ) end
+function ProcessPool:warn( ... ) self:log_impl( _warn, ... ) end
+function ProcessPool:info( ... ) self:log_impl( _info, ... ) end
+function ProcessPool:debug( ... ) self:log_impl( _debug, ... ) end
+function ProcessPool:trace( ... ) self:log_impl( _trace, ... ) end
+
+function ProcessPool:log_pids()
+  self:debug( 'running: %s', self._running_pids )
+  self:debug( 'pending: %s', self._pending_term_pids )
+end
+
+function ProcessPool:name() return self._name end
 
 function ProcessPool:running_count()
   return self._running_pids:size()
@@ -124,7 +139,7 @@ function ProcessPool:_check_running()
       -- It prevents orphan processes from continuing to run
       -- which would then be out of our view.
       killpg( pid, signal.SIGTERM )
-      err( 'child exited unexpectedly: pid=%d', pid )
+      self:err( 'child exited unexpectedly: pid=%d', pid )
       reaped_pids:add( pid )
     end
   end
@@ -137,7 +152,7 @@ function ProcessPool:_reap_pending()
     local updated_pid = wait( pid, WNOHANG )
     if updated_pid and updated_pid > 0 then
       assert( updated_pid == pid )
-      info( 'reaped pid %d', pid )
+      self:info( 'reaped pid %d', pid )
       reaped_pids:add( pid )
     end
   end
@@ -145,20 +160,22 @@ function ProcessPool:_reap_pending()
 end
 
 function ProcessPool:stop( sig )
+  if self:stopped() then return end
+  self:info( 'stopping process pool' )
   self._target = 0
   sig = sig or signal.SIGTERM
   for pid in self._running_pids do
-    warn( 'stopping child pid %d', pid )
+    self:warn( 'stopping child pid %d', pid )
     killpg( pid, signal.SIGTERM )
     self._pending_term_pids:add( pid )
   end
   self._running_pids:clear()
   while self._pending_term_pids:size() > 0 do
-    info( 'waiting for children to stop...' )
+    self:info( 'waiting for children to stop...' )
     self:_reap_pending()
     sleep( .1 )
   end
-  info( 'process pool stopped.' )
+  self:info( 'process pool stopped.' )
 end
 
 -- "Stopped" means that there are no child process and we don't
@@ -174,12 +191,12 @@ function ProcessPool:_seek_target()
   local need_change = self:target() - self:running_count()
   if need_change > 0 then
     for _ = 1, need_change do
-      info( 'spawning new child' )
+      self:info( 'spawning new child' )
       self._running_pids:add( spawn( self:command() ) )
     end
   elseif need_change < 0 then
     for pid in self._running_pids do
-      info( 'terminating process group %d', pid )
+      self:info( 'terminating process group %d', pid )
       killpg( pid, signal.SIGTERM )
       self._pending_term_pids:add( pid )
       need_change = need_change + 1
@@ -201,10 +218,11 @@ function ProcessPool.new( opts )
   assert( opts, 'missing options argument' )
   assert( opts.cmd )
   local o = {
-    _cmd=opts.cmd, --
-    _target=0, --
-    _running_pids=set(), --
-    _pending_term_pids=set(), --
+    _cmd=opts.cmd,
+    _name=opts.name or 'unnamed',
+    _target=opts.target or 0,
+    _running_pids=set(),
+    _pending_term_pids=set(),
   }
   return setmetatable( o, {
     __newindex=function()
@@ -212,10 +230,11 @@ function ProcessPool.new( opts )
     end,
     __index=ProcessPool,
     __metatable=false,
+    __close=function( self ) self:stop() end,
   } )
 end
 
 -----------------------------------------------------------------
 -- Finished.
 -----------------------------------------------------------------
-return ProcessPool.new
+return { ProcessPool=ProcessPool.new }

@@ -26,13 +26,13 @@ local time = require( 'moon.time' )
 local argparse = require( 'argparse' )
 
 local posix = require( 'posix' )
+local signal = require( 'posix.signal' )
 
 -----------------------------------------------------------------
 -- Aliases.
 -----------------------------------------------------------------
 local assertf = assert( merr.assertf )
-local broadcast_presence = assert( ru.broadcast_presence )
-local catch_control_c = assert( merr.catch_control_c )
+local broadcast_presence = assert( farm.broadcast_presence )
 local cencode = assert( decode.cencode )
 local cleanup = assert( mcleanup.cleanup )
 local cround_trip = assert( decode.cround_trip )
@@ -47,8 +47,9 @@ local match_compiler = assert( compilers.match_compiler )
 local now_seconds = assert( time.now_seconds )
 local os_version = assert( os_stat.os_version )
 local popen = assert( subprocess.popen )
+local printfln = assert( printer.printfln )
 local read_file = assert( file.read_file )
-local remove_presence = assert( ru.remove_presence )
+local remove_presence = assert( farm.remove_presence )
 local remove_when_done = assert( workarea.remove_when_done )
 local set_hash = assert( ru.set_hash )
 local timeit = assert( time.timeit_micros )
@@ -68,6 +69,9 @@ local HOME = assert( os.getenv( 'HOME' ),
 
 local CANCEL_PROCESS = assert( subprocess.CANCEL_PROCESS )
 
+local SIGINT = assert( signal.SIGINT )
+local SIGTERM = assert( signal.SIGTERM )
+
 -----------------------------------------------------------------
 -- Globals.
 -----------------------------------------------------------------
@@ -83,6 +87,24 @@ local STATE = {
   last_advertise=0, --
   task=nil, --
 }
+
+-----------------------------------------------------------------
+-- Signals.
+-----------------------------------------------------------------
+local STOP = false
+
+local function handle_stop_signal( sig )
+  assert( sig )
+  signal.signal( sig, function()
+    STOP = true
+    printfln(
+        '\nstop signal %d received: worker waiting to exit...',
+        sig )
+  end )
+end
+
+handle_stop_signal( SIGINT )
+handle_stop_signal( SIGTERM )
 
 -----------------------------------------------------------------
 -- Implementation.
@@ -388,6 +410,7 @@ local function process_next_task( cxn )
     trace( 'checking for task...' )
     task = next_task( cxn )
     if not task and not args.wait then return false end
+    if STOP then return false end
   until task
   assert( task.type )
   if task.type == 'local' then
@@ -463,7 +486,9 @@ local function main()
 
   local _<close> = cleanup( function() unadvertise( cxn ) end )
 
-  while process_next_task( cxn ) and args.mode == 'drain' do
+  while not STOP do
+    local did_task = process_next_task( cxn )
+    if not did_task and args.mode ~= 'drain' then break end
     ping( cxn )
   end
 end
@@ -471,7 +496,4 @@ end
 -----------------------------------------------------------------
 -- Startup.
 -----------------------------------------------------------------
-os.exit( catch_control_c( main, function()
-  print( '\nctrl-c: exiting.' )
-  return 127
-end ) )
+os.exit( main() )
