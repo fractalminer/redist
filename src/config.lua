@@ -24,4 +24,8 @@ return harden{
     EXPIRE_LOCAL_TASK=3600, --
     EXPIRE_REMOTE_TASK=3600, --
   },
+
+  scripts={
+    dec_if_positive='scripts/dec-if-positive.lua', --
+  },
 }

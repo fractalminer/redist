@@ -4,6 +4,7 @@
 local config = require( 'config' )
 
 local logger = require( 'moon.logger' )
+local file = require( 'moon.file' )
 
 local redis = require( 'redis' )
 local socket = require( 'socket' )
@@ -11,6 +12,8 @@ local socket = require( 'socket' )
 -----------------------------------------------------------------
 -- Aliases.
 -----------------------------------------------------------------
+local read_file = assert( file.read_file )
+
 local debug = assert( logger.debug )
 local trace = assert( logger.trace )
 local fatal = assert( logger.fatal )
@@ -75,10 +78,42 @@ local function set_hash( cxn, key, tbl, expiry )
   end )
 end
 
+local function redis_script( source )
+  local sha
+  -- This will auto reload the script if redis forgot about it.
+  return function( cxn, nkeys, ... )
+    if not sha then
+      debug( 'reloading script...' )
+      sha = cxn:script( 'load', source )
+    end
+    local ok, res = pcall( cxn.evalsha, cxn, sha, nkeys, ... )
+    if ok then return res end
+    if tostring( res ):find( 'NOSCRIPT', 1, true ) then
+      sha = cxn:script( 'load', source )
+      return cxn:evalsha( sha, nkeys, ... )
+    end
+    error( res )
+  end
+end
+
+local function run_redis_script( cxn, info, ... )
+  if not info.stored then
+    debug( 'reading script file %s', info.script )
+    local body = assert( file.read_file( info.script ) )
+    assert( #body > 0 )
+    info.stored = assert( redis_script( body ) )
+  end
+  local nkeys = assert( info.nkeys )
+  assert( #{ ... } >= nkeys )
+  return info.stored( cxn, nkeys, ... )
+end
+
 -----------------------------------------------------------------
 -- Module.
 -----------------------------------------------------------------
 return {
-  connect=connect, --
-  set_hash=set_hash, --
+  connect=connect,
+  set_hash=set_hash,
+  redis_script=redis_script,
+  run_redis_script=run_redis_script,
 }

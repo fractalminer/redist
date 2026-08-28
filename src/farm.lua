@@ -1,6 +1,7 @@
 -----------------------------------------------------------------
 -- Implementation.
 -----------------------------------------------------------------
+local ru = require( 'redis-util' )
 local hash = require( 'hash' )
 local network = require( 'network' )
 local config = require( 'config' )
@@ -15,6 +16,7 @@ local posix = require( 'posix' )
 -- Aliases.
 -----------------------------------------------------------------
 local machine_label = assert( network.machine_label )
+local run_redis_script = assert( ru.run_redis_script )
 
 local debug = assert( logger.debug )
 local trace = assert( logger.trace )
@@ -119,15 +121,60 @@ local function remove_presence( cxn, set )
   trace( 'removed presence: %s|%s', key, PID )
 end
 
+local DEC_IF_POSITIVE<const> = {
+  script=config.scripts.dec_if_positive,
+  nkeys=1,
+  stored=nil,
+}
+
+local function dec_if_positive( cxn, key )
+  return run_redis_script( cxn, DEC_IF_POSITIVE, key )
+end
+
+-----------------------------------------------------------------
+-- WorkerCount
+-----------------------------------------------------------------
+local WorkerCount = {}
+WorkerCount.__index = WorkerCount
+
+function WorkerCount:key()
+  return format( 'farm:node:%s:target_count:%s', self._node,
+                 self._label )
+end
+
+function WorkerCount:get()
+  return tonumber( self._cxn:get( self:key() ) or 0 )
+end
+
+function WorkerCount:set( count )
+  assert( count, 'missing count' )
+  return self._cxn:set( self:key(), count )
+end
+
+function WorkerCount:inc() return self._cxn:incr( self:key() ) end
+
+function WorkerCount:dec()
+  return dec_if_positive( self._cxn, self:key() )
+end
+
+function WorkerCount.new( cxn, node, label )
+  assert( cxn, 'missing cxn' )
+  assert( node, 'missing node' )
+  assert( label, 'missing label' )
+  local o = { _cxn=cxn, _node=node, _label=label }
+  return setmetatable( o, WorkerCount )
+end
+
 -----------------------------------------------------------------
 -- Module.
 -----------------------------------------------------------------
 return {
-  blob_exists=blob_exists, --
-  download_blob=download_blob, --
-  set_blob=set_blob, --
-  set_blob_from_file=set_blob_from_file, --
-  download_blob_to_file=download_blob_to_file, --
-  broadcast_presence=broadcast_presence, --
-  remove_presence=remove_presence, --
+  blob_exists=blob_exists,
+  download_blob=download_blob,
+  set_blob=set_blob,
+  set_blob_from_file=set_blob_from_file,
+  download_blob_to_file=download_blob_to_file,
+  broadcast_presence=broadcast_presence,
+  remove_presence=remove_presence,
+  WorkerCount=WorkerCount.new,
 }
