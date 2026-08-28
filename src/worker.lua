@@ -98,8 +98,7 @@ local function handle_stop_signal( sig )
   signal.signal( sig, function()
     STOP = true
     printfln(
-        '\nstop signal %d received: worker waiting to exit...',
-        sig )
+        'stop signal %d received: worker waiting to exit...', sig )
   end )
 end
 

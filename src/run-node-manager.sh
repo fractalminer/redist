@@ -4,5 +4,7 @@ set -eo pipefail
 this_dir="$(dirname "$0")"
 cd "$this_dir"
 
-lua node-manager.lua \
+source waiter.sh
+
+waiter lua node-manager.lua \
   --verbosity=debug
