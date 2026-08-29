@@ -16,14 +16,22 @@ TODO:
     * Since it is going to be long-running it should probably
       have a way to throttle itself to essentially go to sleep
       when not being used.
+    * Should restore a task to the queue if the worker that was
+      working on it died. However, each time this is done, a
+      counter on the task should be incremented so that it
+      doesn't get retried more than a certain number of times.
+      Not sure yet if we want to have the worker try to do this
+      or if it is better in either the node manager (or actually,
+      even better, a separate job; the node manager should just
+      be a process pool ideally).
   * Worker Death:
-    * Deal with timeouts, i.e. when a task never completes. This
-      can happen when e.g. a worker that removes the task from
-      the queue dies before finishing it. The builder should mon-
-      itor the worker that is working on the task (when a worker
-      starts working on a task they should mark that task with
-      their identity) and if the worker disappears then the task
-      needs to be re-queued.
+    * Deal with timeouts/failures, i.e. when a task never com-
+      pletes. This can happen when e.g. a worker that removes the
+      task from the queue dies before finishing it. The builder
+      should monitor the worker that is working on the task (when
+      a worker starts working on a task they should mark that
+      task with their identity) and if the worker disappears then
+      the task needs to be re-queued.
     * There is currently a cleanup function that will unadvertise
       the worker if it exits on error, though even if it termi-
       nates suddenly, the advertisement should expire within one
