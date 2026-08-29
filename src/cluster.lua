@@ -32,20 +32,34 @@ local function query_cluster_state( cxn, opts )
   local state = {}
   local nodes = {}
   state.nodes = nodes
-  local keys = cxn:keys( 'farm:worker:*' )
+  local keys
+
+  -- First get a list of all nodes just from the node manager ad-
+  -- vertisements. This will ensure that nodes with no workers
+  -- will be picked up. However, if a node has a worker running
+  -- but not a manager running (sometimes done during local test-
+  -- ing) the node will still get picked up when iterating
+  -- through the workers below.
+  keys = cxn:keys( 'farm:node:*:presence:manager' )
   sort( keys )
   for _, key in ipairs( keys ) do
-    if key:match( 'approximate_active' ) then goto continue end
+    local _, _, node, _, _ = key:tsplit( ':' )
+    nodes[node] = { workers={} }
+  end
+
+  -- Now get all workers.
+  keys = cxn:keys( 'farm:worker:*' )
+  sort( keys )
+  for _, key in ipairs( keys ) do
     local _, _, node, pid = key:tsplit( ':' )
-    state.nodes[node] = state.nodes[node] or {}
-    state.nodes[node].workers = state.nodes[node].workers or {}
+    nodes[node] = nodes[node] or {}
+    nodes[node].workers = nodes[node].workers or {}
     if opts.exclude_workers then goto continue end
     local tbl = cxn:hgetall( key )
     -- This catches races that happen when we flushdb and the key
     -- we're querying disappears before the above hgetall query.
     if not tbl or not tbl.from then goto continue end
     local _, from_port = assert( tbl.from ):tsplit( ':' )
-    -- state.nodes[node].host = ip
     local worker = {
       pid=tonumber( pid ),
       task=assert( tbl.task ),
@@ -53,7 +67,7 @@ local function query_cluster_state( cxn, opts )
       status=assert( tbl.status ),
       from_port=assert( from_port ),
     }
-    insert( state.nodes[node].workers, worker )
+    insert( nodes[node].workers, worker )
     ::continue::
   end
   state.preprocess_queue_size = 0
@@ -69,7 +83,7 @@ local function query_cluster_state( cxn, opts )
   state.local_active_worker_count = 0
   state.worker_count = 0
   state.local_worker_count = 0
-  for name, node in pairs( state.nodes ) do
+  for name, node in pairs( nodes ) do
     node.core_count = 1 -- TODO
     node.active_core_count = 0 -- TODO
     local function get_count( label )

@@ -5,15 +5,13 @@ TODO:
     * The dashboard should go to sleep (increase poll delay after
       a certain amount of time of no utilization), then as soon
       as something happens it should go back to frequent updates.
-    * Create a control program that can control the number of
-      workers throughout the cluster (nice-to-have).
+    * Add color.
     * Ideally we'd have a way to see the logs of the workers, but
       not sure yet how that will be done.
-    * Create a stats collector that runs on the worker hosts and
-      collects stats about the hosts and uploads them to redis.
-      Then create a monitor program that can monitor the state of
-      the cluster.
-      - NOTE: we can just use btop for now.
+  * Node Stats Collector:
+    * One such process per node that collects CPU/RAM usage info.
+  * Node Manager:
+    * Should keep track of the number of unexpected worker deaths.
   * Worker Death:
     * Deal with timeouts, i.e. when a task never completes. This
       can happen when e.g. a worker that removes the task from
@@ -26,8 +24,6 @@ TODO:
       the worker if it exits on error, though even if it termi-
       nates suddenly, the advertisement should expire within one
       minute.
-    * We should keep stats somehow of the count of worker deaths
-      per node.
     * Currently there is a timeout for a running command; make
       sure that is adjusted properly and make sure that the
       worker doesn't abort when a popen times out.
@@ -42,9 +38,6 @@ TODO:
       any other.
   * After writing a file from the contents of a blob, stat the
     file size to make sure it is the same as the key.
-  * Add some logic into the make file that will auto-detect the
-    availability of the remote cluster and will use it, rather
-    than having to manually set REMOTE=.
   * C-c seems to take a second or two when blocked on a socket...
     see if that can be improved.
 

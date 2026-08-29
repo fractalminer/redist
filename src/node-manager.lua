@@ -30,6 +30,7 @@ local info = assert( logger.info )
 local machine_label = assert( network.machine_label )
 local sleep = assert( time.sleep )
 
+local format = assert( string.format )
 local insert = assert( table.insert )
 
 -----------------------------------------------------------------
@@ -110,6 +111,23 @@ local function add_pools()
   return chain( res )
 end
 
+local function adjust_pool_count( cxn, pool, conf )
+  if not conf.worker_type then return end
+  local worker_count = WorkerCount( cxn, machine_label(),
+                                    conf.worker_type )
+  local count = worker_count:get()
+  count = clamp( count, 0,
+                 config.node_manager.MAX_WORKERS_PER_TYPE )
+  pool:set( count )
+end
+
+local function advertise_node( cxn )
+  local key = format( 'farm:node:%s:presence:manager',
+                      machine_label() )
+  cxn:set( key, 1 )
+  cxn:expire( key, config.node_manager.EXPIRE_ADVERTISE_SECS )
+end
+
 -----------------------------------------------------------------
 -- Implementation.
 -----------------------------------------------------------------
@@ -119,19 +137,13 @@ local function run( cxn )
   local pools<close> = add_pools()
 
   while not STOP do
+    advertise_node( cxn )
     for _, conf in pairs( POOLS ) do
       local pool = assert( conf.pool )
       debug( '[%s] [%d] running', pool:name(),
              pool:running_count() )
       pool:log_pids()
-      if conf.worker_type then
-        local worker_count = WorkerCount( cxn, machine_label(),
-                                          conf.worker_type )
-        local count = worker_count:get()
-        count = clamp( count, 0,
-                       config.node_manager.MAX_WORKERS_PER_TYPE )
-        pool:set( count )
-      end
+      adjust_pool_count( cxn, pool, conf )
       pool:advance()
     end
     sleep( 1.0 )

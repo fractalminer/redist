@@ -30,13 +30,14 @@ local socket_select = assert( socket.select )
 
 local format = assert( string.format )
 local insert = assert( table.insert )
+local sort = assert( table.sort )
 
 -----------------------------------------------------------------
 -- Constants.
 -----------------------------------------------------------------
 local POLL_TIMEOUT_SECS = .1
 local REDIS_UPDATE_INTERVAL_SECS = 1
-local REDRAW_INTERVAL_SECS = .1
+local REDRAW_INTERVAL_SECS = .01
 
 -----------------------------------------------------------------
 -- Globals.
@@ -47,35 +48,76 @@ local g_last_update_time = 0
 local g_last_redraw_time = 0
 
 local g_status = ''
+local g_sub_status = ''
 
 local g_loops = 0
 local g_events = 0
 local g_redraws = 0
 local g_redis_updates = 0
 
-local INPUT_STATE = {
-  node_label='darter2-b0db31b5853309832ffb1a156766e000',
-  counter_type='local',
-}
+local INPUT_STATE = { node_label=nil, counter_type=nil }
+
+local g_data = {}
 
 -----------------------------------------------------------------
 -- Input processors.
 -----------------------------------------------------------------
-local function change_target_label()
+local function find_node( label )
+  local node_labels = {}
+  on_ordered_kv( g_data.nodes, function( _, o )
+    insert( node_labels, o.node_label )
+  end )
+  local i
+  for j, node_label in ipairs( node_labels ) do
+    i = i or j
+    if node_label == label then i = j end
+  end
+  return i, node_labels
+end
+
+local function node_up( label )
+  local i, node_labels = find_node( label )
+  if not i then return end
+  i = i - 1
+  if i < 1 then i = #node_labels end
+  return assert( node_labels[i] )
+end
+
+local function node_down( label )
+  local i, node_labels = find_node( label )
+  if not i then return end
+  i = i + 1
+  if i > #node_labels then i = 1 end
+  return assert( node_labels[i] )
+end
+
+local function target_label_up()
   if INPUT_STATE.counter_type == 'local' then
     INPUT_STATE.counter_type = 'both'
   else
     INPUT_STATE.counter_type = 'local'
+    INPUT_STATE.node_label = node_up( INPUT_STATE.node_label )
+  end
+end
+
+local function target_label_down()
+  if INPUT_STATE.counter_type == 'local' then
+    INPUT_STATE.counter_type = 'both'
+  else
+    INPUT_STATE.counter_type = 'local'
+    INPUT_STATE.node_label = node_down( INPUT_STATE.node_label )
   end
 end
 
 local function increase_target_count( cxn )
+  if not INPUT_STATE.node_label then return end
   local worker_count = WorkerCount( cxn, INPUT_STATE.node_label,
                                     INPUT_STATE.counter_type )
   worker_count:inc()
 end
 
 local function decrease_target_count( cxn )
+  if not INPUT_STATE.node_label then return end
   local worker_count = WorkerCount( cxn, INPUT_STATE.node_label,
                                     INPUT_STATE.counter_type )
   worker_count:dec()
@@ -112,8 +154,6 @@ end
 -----------------------------------------------------------------
 -- Redis Data.
 -----------------------------------------------------------------
-local g_data = {}
-
 local function percent( n, d )
   assert( n )
   assert( d )
@@ -346,10 +386,8 @@ local function redraw()
             progress_bar( mc.COLS - 18, node.core_utilization ) )
     textln( 'worker: %s', progress_bar( mc.COLS - 18,
                                         node.remote_worker_utilization ) )
-    if node.local_workers > 0 then
-      textln( 'local:  %s', progress_bar( mc.COLS - 18,
-                                          node.local_worker_utilization ) )
-    end
+    textln( 'local:  %s', progress_bar( mc.COLS - 18,
+                                        node.local_worker_utilization ) )
 
     advance( 4 )
     local function counter_widget( counter_type )
@@ -358,30 +396,29 @@ local function redraw()
                               INPUT_STATE.counter_type ==
                               counter_type
       local caret = is_selected and '>' or ' '
-      return format( '%s %s target: %d', caret, counter_type,
+      return format( '%s %5s target: %d', caret, counter_type,
                      node.target_count[counter_type] )
     end
     local both_widget = counter_widget( 'both' )
     local local_widget = counter_widget( 'local' )
-    textln( 'core   usage: %s/%s (%.1f%%)    %s',
+    textln( 'core   usage: %2s/%2s (%3.1f%%)    %s',
             node.active_cores, node.cores,
             node.core_utilization * 100, both_widget )
-    textln( 'worker usage: %s/%s (%.1f%%)    %s',
+    textln( 'worker usage: %2s/%2s (%3.1f%%)    %s',
             node.remote_active_workers, node.remote_workers,
             node.remote_worker_utilization * 100, local_widget )
-    if node.local_workers > 0 then
-      textln( 'local  usage: %s/%s (%.1f%%)',
-              node.local_active_workers, node.local_workers,
-              node.local_worker_utilization * 100 )
-    end
+    textln( 'local  usage: %2s/%2s (%3.1f%%)',
+            node.local_active_workers, node.local_workers,
+            node.local_worker_utilization * 100 )
 
     advance( 2 )
   end
   finish_box()
 
-  y = mc.LINES - 7
+  y = mc.LINES - 8
   advance( 2 )
   textln( 'status:  %s', g_status )
+  textln( 'substat: %s', g_sub_status )
   textln( 'updates: %s [%.1fms]', g_redis_updates,
           (g_data.query_time_micros or 0) / 1000 )
   textln( 'redraws: %s', g_redraws )
@@ -411,10 +448,14 @@ local function loop( cxn, pubsub_cxn, pubsub_msgs )
       if key == 'q' then return true end
       g_status = 'key=' .. key
       g_events = g_events + 1
-      if key == 'j' then change_target_label() end
-      if key == 'k' then change_target_label() end
+      if key == 'j' then target_label_down() end
+      if key == 'k' then target_label_up() end
       if key == 'l' then increase_target_count( cxn ) end
       if key == 'h' then decrease_target_count( cxn ) end
+      g_sub_status = format( 'node=%s,type=%s',
+                             INPUT_STATE.node_label,
+                             INPUT_STATE.counter_type )
+      update_data( cxn, { force=true } )
     end
     if input.redis then
       pubsub_msgs()
