@@ -1,15 +1,21 @@
 #!/bin/bash
-set -e
+set -eo pipefail
+
+this_dir="$(dirname "$0")"
+cd "$this_dir"
 
 source cxn.sh
 
-echo -n 'CONFIRM: delete all redis keys? [y/n]: '
-read -a answer
+del_pattern() {
+  local pattern="$1"
+  [[ -n "$pattern" ]]
+  echo "DEL '$pattern'"
+  ./redis-cli.sh KEYS "$pattern" | xargs ./redis-cli.sh DEL
+}
 
-if [[ ! "$answer" =~ ^[yY].* ]]; then
-  echo cancelled.
-  exit 1
-fi
+del_pattern "farm:blob:*"
+del_pattern "farm:compile:*"
+del_pattern "farm:local:*"
+del_pattern "farm:log:*"
 
-echo DELETING...
-redis-cli FLUSHALL
+echo finished.
