@@ -1,6 +1,7 @@
 -----------------------------------------------------------------
 -- Dashboard for build farm control/monitoring.
 -----------------------------------------------------------------
+local config = require( 'config' )
 local ru = require( 'redis-util' )
 local farm = require( 'farm' )
 local cluster = require( 'cluster' )
@@ -103,9 +104,9 @@ end
 local function target_label_down()
   if INPUT_STATE.counter_type == 'local' then
     INPUT_STATE.counter_type = 'both'
+    INPUT_STATE.node_label = node_down( INPUT_STATE.node_label )
   else
     INPUT_STATE.counter_type = 'local'
-    INPUT_STATE.node_label = node_down( INPUT_STATE.node_label )
   end
 end
 
@@ -113,7 +114,18 @@ local function increase_target_count( cxn )
   if not INPUT_STATE.node_label then return end
   local worker_count = WorkerCount( cxn, INPUT_STATE.node_label,
                                     INPUT_STATE.counter_type )
-  worker_count:inc()
+  -- The node manager will impose this limit itself as well for
+  -- extra safety, but for a good UX we will impose it here in
+  -- the dashboard UI.
+  local max_count = config.node_manager.MAX_WORKERS_PER_TYPE
+  local cur_count = worker_count:get()
+  if cur_count > max_count then
+    worker_count:set( max_count )
+  elseif cur_count == max_count then
+    return
+  else
+    worker_count:inc()
+  end
 end
 
 local function decrease_target_count( cxn )

@@ -26,7 +26,7 @@ return harden{
   },
 
   node_manager={
-    MAX_WORKERS_PER_TYPE=10, --
+    MAX_WORKERS_PER_TYPE=48, --
     EXPIRE_ADVERTISE_SECS=5, --
   },
 
