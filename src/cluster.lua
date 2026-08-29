@@ -15,6 +15,7 @@ local WorkerCount = assert( farm.WorkerCount )
 
 local format = assert( string.format )
 local insert = assert( table.insert )
+local max = assert( math.max )
 local sort = assert( table.sort )
 
 -----------------------------------------------------------------
@@ -76,16 +77,39 @@ local function query_cluster_state( cxn, opts )
     state.preprocess_queue_size =
         state.preprocess_queue_size + cxn:llen( local_queue_key )
   end
-  state.core_count = 1 -- TODO
-  state.active_core_count = 0 -- TODO
+  state.mem_total_gb = 0
+  state.mem_used_gb = 0
+  state.mem_percent_used = 0
+  state.core_count = 0
+  state.active_core_count = 0
+  state.cores_percent_used = 0
   state.compile_queue_size = cxn:llen( 'farm:compile:cpp:queue' )
   state.active_worker_count = 0
   state.local_active_worker_count = 0
   state.worker_count = 0
   state.local_worker_count = 0
   for name, node in pairs( nodes ) do
-    node.core_count = 1 -- TODO
-    node.active_core_count = 0 -- TODO
+    local node_stats = cxn:hgetall(
+                           format( 'farm:node:%s:stats', name ) )
+    node_stats = node_stats or {}
+    node_stats.cores_total = node_stats.cores_total or 1
+    node_stats.cores_percent_used =
+        node_stats.cores_percent_used or 0
+    node.mem_total_gb = tonumber( node_stats.mem_total_gb or 0 )
+    node.mem_percent_used = tonumber(
+                                node_stats.mem_percent_used or 0 )
+    node.mem_used_gb = node.mem_total_gb * node.mem_percent_used
+    node.core_count = node_stats.cores_total
+    node.cores_percent_used = tonumber(
+                                  node_stats.cores_percent_used )
+    node.active_core_count = node.core_count *
+                                 node.cores_percent_used
+    state.core_count = state.core_count + node_stats.cores_total
+    state.active_core_count = state.active_core_count +
+                                  node.core_count *
+                                  node.cores_percent_used
+    state.mem_total_gb = state.mem_total_gb + node.mem_total_gb
+    state.mem_used_gb = state.mem_used_gb + node.mem_used_gb
     local function get_count( label )
       local key =
           format( 'farm:node:%s:presence:%s', name, label )
@@ -115,6 +139,14 @@ local function query_cluster_state( cxn, opts )
     node.target_count.remote = remote_target_count
     node.target_count['local'] = local_target_count
     node.target_count.both = both_target_count
+  end
+  if state.core_count > 0 then
+    state.cores_percent_used = state.active_core_count /
+                                   state.core_count
+  end
+  if state.mem_used_gb > 0 then
+    state.mem_percent_used = state.mem_used_gb /
+                                 state.mem_total_gb
   end
   return state
 end

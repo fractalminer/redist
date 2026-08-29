@@ -221,6 +221,9 @@ local function update_data( cxn, opts )
   stats.active_cores = assert( state.active_core_count )
   stats.core_utilization = percent( stats.active_cores,
                                     stats.cores )
+  stats.mem = assert( state.mem_total_gb )
+  stats.active_mem = assert( state.mem_used_gb )
+  stats.mem_utilization = percent( stats.active_mem, stats.mem )
   stats.active_workers = 0
   stats.local_active_workers = assert(
                                    state.local_active_worker_count )
@@ -240,6 +243,9 @@ local function update_data( cxn, opts )
     node.active_cores = assert( v.active_core_count )
     node.core_utilization = percent( node.active_cores,
                                      node.cores )
+    node.mem = assert( v.mem_total_gb )
+    node.active_mem = assert( v.mem_used_gb )
+    node.mem_utilization = percent( node.active_mem, node.mem )
     node.active_workers = assert( v.active_worker_count )
     node.total_workers = assert( v.worker_count )
     node.local_workers = assert( v.local_worker_count )
@@ -377,7 +383,7 @@ local function redraw()
     center( '(l-worker utilization)' )
     advance()
     advance()
-    center( 'core usage: %s/%s (%.1f%%)',
+    center( 'core usage: %.1f/%s (%.1f%%)',
             g_data.stats.active_cores, g_data.stats.cores,
             g_data.stats.core_utilization * 100 )
     advance()
@@ -416,6 +422,8 @@ local function redraw()
     advance( 4 )
     textln( 'core:   %s',
             progress_bar( mc.COLS - 18, node.core_utilization ) )
+    textln( 'mem:    %s',
+            progress_bar( mc.COLS - 18, node.mem_utilization ) )
     textln( 'worker: %s', progress_bar( mc.COLS - 18,
                                         node.remote_worker_utilization ) )
     if node.local_workers > 0 then
@@ -435,7 +443,7 @@ local function redraw()
     end
     local both_widget = counter_widget( 'both' )
     local local_widget = counter_widget( 'local' )
-    textln( 'core   usage: %2s/%2s (%3.1f%%)    %s',
+    textln( 'core   usage: %2.1fs/%2s (%3.1f%%)    %s',
             node.active_cores, node.cores,
             node.core_utilization * 100, both_widget )
     textln( 'worker usage: %2s/%2s (%3.1f%%)    %s',
@@ -485,10 +493,16 @@ local function loop( cxn, pubsub_cxn, pubsub_msgs )
       if key == 'q' then return true end
       g_status = 'key=' .. key
       g_events = g_events + 1
-      if key == 'j' then target_label_down() end
-      if key == 'k' then target_label_up() end
-      if key == 'l' then increase_target_count( cxn ) end
-      if key == 'h' then decrease_target_count( cxn ) end
+      if key == 'j' or key == 'DOWN' then
+        target_label_down()
+      end
+      if key == 'k' or key == 'UP' then target_label_up() end
+      if key == 'l' or key == 'RIGHT' then
+        increase_target_count( cxn )
+      end
+      if key == 'h' or key == 'LEFT' then
+        decrease_target_count( cxn )
+      end
       if key == 'x' then clear_target_count( cxn ) end
       if key == 'f' then full_target_count( cxn ) end
       g_sub_status = format( 'node=%s,type=%s',

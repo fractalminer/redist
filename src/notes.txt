@@ -8,8 +8,6 @@ TODO:
     * Add color.
     * Ideally we'd have a way to see the logs of the workers, but
       not sure yet how that will be done.
-  * Node Stats Collector:
-    * One such process per node that collects CPU/RAM usage info.
   * Node Manager:
     * Should keep track of the number of unexpected worker
       deaths.

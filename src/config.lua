@@ -30,6 +30,10 @@ return harden{
     EXPIRE_ADVERTISE_SECS=5, --
   },
 
+  stats_collector={
+    EXPIRE_ADVERTISE_SECS=5, --
+  },
+
   scripts={
     dec_if_positive='scripts/dec-if-positive.lua', --
   },

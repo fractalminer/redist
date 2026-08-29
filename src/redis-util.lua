@@ -12,8 +12,6 @@ local socket = require( 'socket' )
 -----------------------------------------------------------------
 -- Aliases.
 -----------------------------------------------------------------
-local read_file = assert( file.read_file )
-
 local debug = assert( logger.debug )
 local trace = assert( logger.trace )
 local fatal = assert( logger.fatal )
@@ -108,6 +106,16 @@ local function run_redis_script( cxn, info, ... )
   return info.stored( cxn, nkeys, ... )
 end
 
+local DEC_IF_POSITIVE<const> = {
+  script=config.scripts.dec_if_positive,
+  nkeys=1,
+  stored=nil,
+}
+
+local function dec_if_positive( cxn, key )
+  return run_redis_script( cxn, DEC_IF_POSITIVE, key )
+end
+
 -----------------------------------------------------------------
 -- Module.
 -----------------------------------------------------------------
@@ -116,4 +124,5 @@ return {
   set_hash=set_hash,
   redis_script=redis_script,
   run_redis_script=run_redis_script,
+  dec_if_positive=dec_if_positive,
 }

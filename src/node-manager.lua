@@ -88,7 +88,7 @@ local POOLS = {
     pool=nil,
   },
   node_stats_finder={
-    target=0,
+    target=1,
     worker_type=nil,
     cmd={ 'bash', 'run-node-stats-finder.sh' },
     pool=nil,
@@ -154,8 +154,7 @@ end
 -- Main.
 -----------------------------------------------------------------
 local function main()
-  local parser = argparse( arg[0],
-                           'ReDist Distributed Build Worker' )
+  local parser = argparse( arg[0], 'ReDist Node Manager' )
 
   -- LuaFormatter off
   parser:option( '--verbosity' )

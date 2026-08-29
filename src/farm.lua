@@ -1,10 +1,10 @@
 -----------------------------------------------------------------
 -- Implementation.
 -----------------------------------------------------------------
-local ru = require( 'redis-util' )
+local config = require( 'config' )
 local hash = require( 'hash' )
 local network = require( 'network' )
-local config = require( 'config' )
+local ru = require( 'redis-util' )
 
 local logger = require( 'moon.logger' )
 local time = require( 'moon.time' )
@@ -15,12 +15,12 @@ local posix = require( 'posix' )
 -----------------------------------------------------------------
 -- Aliases.
 -----------------------------------------------------------------
+local dec_if_positive = assert( ru.dec_if_positive )
 local machine_label = assert( network.machine_label )
-local run_redis_script = assert( ru.run_redis_script )
 
 local debug = assert( logger.debug )
-local trace = assert( logger.trace )
 local timeit = assert( time.timeit_micros )
+local trace = assert( logger.trace )
 
 local format = assert( string.format )
 
@@ -119,16 +119,6 @@ local function remove_presence( cxn, set )
   -- Don't assert here just in case the set no longer exists.
   cxn:srem( key, PID )
   trace( 'removed presence: %s|%s', key, PID )
-end
-
-local DEC_IF_POSITIVE<const> = {
-  script=config.scripts.dec_if_positive,
-  nkeys=1,
-  stored=nil,
-}
-
-local function dec_if_positive( cxn, key )
-  return run_redis_script( cxn, DEC_IF_POSITIVE, key )
 end
 
 -----------------------------------------------------------------
