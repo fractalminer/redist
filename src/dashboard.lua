@@ -409,7 +409,7 @@ local function redraw()
   -- Nodes.
   if has_nodes then start_box( 'NODES' ) end
   for _, node in ipairs( g_data.nodes ) do
-    advance()
+    advance( 2 )
     textln( 'NODE: %s [%s]', node.name, node.from_host )
     mc.hline( mc.COLS - 4 )
 
@@ -435,20 +435,17 @@ local function redraw()
     end
     local both_widget = counter_widget( 'both' )
     local local_widget = counter_widget( 'local' )
-    center( 'core   usage: %2s/%2s (%3.1f%%)    %s',
+    textln( 'core   usage: %2s/%2s (%3.1f%%)    %s',
             node.active_cores, node.cores,
             node.core_utilization * 100, both_widget )
-    advance()
-    center( 'worker usage: %2s/%2s (%3.1f%%)    %s',
+    textln( 'worker usage: %2s/%2s (%3.1f%%)    %s',
             node.remote_active_workers, node.remote_workers,
             node.remote_worker_utilization * 100, local_widget )
     if node.local_workers > 0 then
-      center( 'local  usage: %2s/%2s (%3.1f%%)',
+      textln( 'local  usage: %2s/%2s (%3.1f%%)',
               node.local_active_workers, node.local_workers,
               node.local_worker_utilization * 100 )
     end
-
-    advance( 2 )
   end
   if has_nodes then
     advance()
