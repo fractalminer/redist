@@ -15,7 +15,6 @@ local WorkerCount = assert( farm.WorkerCount )
 
 local format = assert( string.format )
 local insert = assert( table.insert )
-local max = assert( math.max )
 local sort = assert( table.sort )
 
 -----------------------------------------------------------------

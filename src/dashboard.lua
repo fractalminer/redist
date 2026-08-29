@@ -31,7 +31,6 @@ local socket_select = assert( socket.select )
 
 local format = assert( string.format )
 local insert = assert( table.insert )
-local sort = assert( table.sort )
 
 -----------------------------------------------------------------
 -- Constants.
