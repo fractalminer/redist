@@ -334,7 +334,7 @@ local function redraw()
   local function finish_box()
     local box_end = y
     mc.mvbox( box_start, 0, box_end, mc.COLS - 1 )
-    advance()
+    -- advance()
     move{ x=1, y=y }
   end
 
@@ -360,7 +360,6 @@ local function redraw()
     textln( '%s', progress_bar( mc.COLS - 6, g_data.stats
                                     .local_worker_utilization ) )
     center( '(l-worker utilization)' )
-    advance()
     advance()
     advance()
     center( 'core usage: %s/%s (%.1f%%)',
@@ -404,8 +403,10 @@ local function redraw()
             progress_bar( mc.COLS - 18, node.core_utilization ) )
     textln( 'worker: %s', progress_bar( mc.COLS - 18,
                                         node.remote_worker_utilization ) )
-    textln( 'local:  %s', progress_bar( mc.COLS - 18,
-                                        node.local_worker_utilization ) )
+    if node.local_workers > 0 then
+      textln( 'local:  %s', progress_bar( mc.COLS - 18,
+                                          node.local_worker_utilization ) )
+    end
 
     advance( 4 )
     local function counter_widget( counter_type )
@@ -419,21 +420,25 @@ local function redraw()
     end
     local both_widget = counter_widget( 'both' )
     local local_widget = counter_widget( 'local' )
-    textln( 'core   usage: %2s/%2s (%3.1f%%)    %s',
+    center( 'core   usage: %2s/%2s (%3.1f%%)    %s',
             node.active_cores, node.cores,
             node.core_utilization * 100, both_widget )
-    textln( 'worker usage: %2s/%2s (%3.1f%%)    %s',
+    advance()
+    center( 'worker usage: %2s/%2s (%3.1f%%)    %s',
             node.remote_active_workers, node.remote_workers,
             node.remote_worker_utilization * 100, local_widget )
     if node.local_workers > 0 then
-      textln( 'local  usage: %2s/%2s (%3.1f%%)',
+      center( 'local  usage: %2s/%2s (%3.1f%%)',
               node.local_active_workers, node.local_workers,
               node.local_worker_utilization * 100 )
     end
 
     advance( 2 )
   end
-  if has_nodes then finish_box() end
+  if has_nodes then
+    advance()
+    finish_box()
+  end
 
   y = mc.LINES - 8
   advance( 2 )
