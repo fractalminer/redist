@@ -337,44 +337,49 @@ local function redraw()
     move{ x=1, y=y }
   end
 
+  local has_nodes = #g_data.nodes > 0
+
   start_box( 'ReDist Build Farm Dashboard' )
   finish_box()
 
   -- Cluster.
-  start_box( 'CLUSTER' )
-  advance()
-  textln( '%s', progress_bar( mc.COLS - 6,
-                              g_data.stats.core_utilization ) )
-  center( '(core utilization)' )
-  advance()
-  advance()
-  textln( '%s', progress_bar( mc.COLS - 6, g_data.stats
-                                  .remote_worker_utilization ) )
-  center( '(r-worker utilization)' )
-  advance()
-  advance()
-  textln( '%s', progress_bar( mc.COLS - 6, g_data.stats
-                                  .local_worker_utilization ) )
-  center( '(l-worker utilization)' )
-  advance()
-  advance()
-  advance()
-  center( 'core usage: %s/%s (%.1f%%)',
-          g_data.stats.active_cores, g_data.stats.cores,
-          g_data.stats.core_utilization * 100 )
-  advance()
-  center( 'r-worker usage: %s/%s (%.1f%%)', g_data.stats
-              .active_workers - g_data.stats.local_active_workers,
-          g_data.stats.total_workers - g_data.stats.local_workers,
-          g_data.stats.remote_worker_utilization * 100 )
-  advance()
-  center( 'l-worker usage: %s/%s (%.1f%%)',
-          g_data.stats.local_active_workers,
-          g_data.stats.local_workers,
-          g_data.stats.local_worker_utilization * 100 )
-  advance()
-  advance()
-  finish_box()
+  if has_nodes then
+    start_box( 'CLUSTER' )
+    advance()
+    textln( '%s', progress_bar( mc.COLS - 6,
+                                g_data.stats.core_utilization ) )
+    center( '(core utilization)' )
+    advance()
+    advance()
+    textln( '%s', progress_bar( mc.COLS - 6, g_data.stats
+                                    .remote_worker_utilization ) )
+    center( '(r-worker utilization)' )
+    advance()
+    advance()
+    textln( '%s', progress_bar( mc.COLS - 6, g_data.stats
+                                    .local_worker_utilization ) )
+    center( '(l-worker utilization)' )
+    advance()
+    advance()
+    advance()
+    center( 'core usage: %s/%s (%.1f%%)',
+            g_data.stats.active_cores, g_data.stats.cores,
+            g_data.stats.core_utilization * 100 )
+    advance()
+    center( 'r-worker usage: %s/%s (%.1f%%)', g_data.stats
+                .active_workers -
+                g_data.stats.local_active_workers, g_data.stats
+                .total_workers - g_data.stats.local_workers,
+            g_data.stats.remote_worker_utilization * 100 )
+    advance()
+    center( 'l-worker usage: %s/%s (%.1f%%)',
+            g_data.stats.local_active_workers,
+            g_data.stats.local_workers,
+            g_data.stats.local_worker_utilization * 100 )
+    advance()
+    advance()
+    finish_box()
+  end
 
   -- Queues.
   start_box( 'QUEUES' )
@@ -387,7 +392,7 @@ local function redraw()
   finish_box()
 
   -- Nodes.
-  start_box( 'NODES' )
+  if has_nodes then start_box( 'NODES' ) end
   for _, node in ipairs( g_data.nodes ) do
     advance()
     textln( 'NODE: %s [%s]', node.name, node.from_host )
@@ -425,7 +430,7 @@ local function redraw()
 
     advance( 2 )
   end
-  finish_box()
+  if has_nodes then finish_box() end
 
   y = mc.LINES - 8
   advance( 2 )

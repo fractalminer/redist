@@ -11,7 +11,11 @@ TODO:
   * Node Stats Collector:
     * One such process per node that collects CPU/RAM usage info.
   * Node Manager:
-    * Should keep track of the number of unexpected worker deaths.
+    * Should keep track of the number of unexpected worker
+      deaths.
+    * Since it is going to be long-running it should probably
+      have a way to throttle itself to essentially go to sleep
+      when not being used.
   * Worker Death:
     * Deal with timeouts, i.e. when a task never completes. This
       can happen when e.g. a worker that removes the task from
