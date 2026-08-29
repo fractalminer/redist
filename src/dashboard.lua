@@ -136,6 +136,21 @@ local function decrease_target_count( cxn )
   worker_count:dec()
 end
 
+local function clear_target_count( cxn )
+  if not INPUT_STATE.node_label then return end
+  local worker_count = WorkerCount( cxn, INPUT_STATE.node_label,
+                                    INPUT_STATE.counter_type )
+  worker_count:set( 0 )
+end
+
+local function full_target_count( cxn )
+  if not INPUT_STATE.node_label then return end
+  local worker_count = WorkerCount( cxn, INPUT_STATE.node_label,
+                                    INPUT_STATE.counter_type )
+  -- TODO
+  worker_count:set( 16 )
+end
+
 -----------------------------------------------------------------
 -- Socket helpers.
 -----------------------------------------------------------------
@@ -472,6 +487,8 @@ local function loop( cxn, pubsub_cxn, pubsub_msgs )
       if key == 'k' then target_label_up() end
       if key == 'l' then increase_target_count( cxn ) end
       if key == 'h' then decrease_target_count( cxn ) end
+      if key == 'x' then clear_target_count( cxn ) end
+      if key == 'f' then full_target_count( cxn ) end
       g_sub_status = format( 'node=%s,type=%s',
                              INPUT_STATE.node_label,
                              INPUT_STATE.counter_type )

@@ -34,6 +34,10 @@ TODO:
   * Need to set TTLs properly on all the keys.
     - When pushing to the queue log, set the expiry on the list.
   * Move the subprocess code into moon.
+  * Have the worker update a sorted set with the time spent so
+    far on a translation unit so that the dashboard can query the
+    top n of them and show them along with their times and their
+    hosts, almost giving a ninja-like output.
   * We need to somehow find a way to have a script run make for
     the remote builds, that way it can time the entire build and
     log it to redis as a "job". That way we have the configura-
