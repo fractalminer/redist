@@ -34,6 +34,16 @@ TODO:
   * Need to set TTLs properly on all the keys.
     - When pushing to the queue log, set the expiry on the list.
   * Move the subprocess code into moon.
+  * We need to somehow find a way to have a script run make for
+    the remote builds, that way it can time the entire build and
+    log it to redis as a "job". That way we have the configura-
+    tion and timing.
+  * CI listener: we could also have a special process running on
+    one host that listens to a queue of jobs and does a checkout
+    and build of all platforms like a CI, then communicates re-
+    sults. That way if we commit some changes and want to test
+    the all-platforms build, we can do that without using all the
+    local cores for preprocessing.
   * Move all key creation into one module so that we have them
     all in one place and consistent.
   * Affinity/Node Selection:
