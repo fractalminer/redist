@@ -102,7 +102,8 @@ local function target_label_up()
 end
 
 local function target_label_down()
-  if INPUT_STATE.counter_type == 'local' then
+  if INPUT_STATE.counter_type == 'local' or
+      INPUT_STATE.node_label == nil then
     INPUT_STATE.counter_type = 'both'
     INPUT_STATE.node_label = node_down( INPUT_STATE.node_label )
   else
@@ -424,9 +425,11 @@ local function redraw()
     textln( 'worker usage: %2s/%2s (%3.1f%%)    %s',
             node.remote_active_workers, node.remote_workers,
             node.remote_worker_utilization * 100, local_widget )
-    textln( 'local  usage: %2s/%2s (%3.1f%%)',
-            node.local_active_workers, node.local_workers,
-            node.local_worker_utilization * 100 )
+    if node.local_workers > 0 then
+      textln( 'local  usage: %2s/%2s (%3.1f%%)',
+              node.local_active_workers, node.local_workers,
+              node.local_worker_utilization * 100 )
+    end
 
     advance( 2 )
   end

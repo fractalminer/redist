@@ -36,10 +36,22 @@ TODO:
   * Move the subprocess code into moon.
   * Move all key creation into one module so that we have them
     all in one place and consistent.
-  * Affinity:
+  * Affinity/Node Selection:
     * Need to have a concept of worker node affinity, i.e. when a
       thelio worker is available it should take precedence over
       any other.
+    * Currently there is only one compile queue, but it may be
+      worth having two, one for fast compiles and another for
+      slow ones (and there can be a third "general" queue for
+      when we don't have info about expected compile time). That
+      way, a beefy node could give priority to the slow queue and
+      vice versa for the non-beefy node. The remote compile
+      workers currently include compile time in the task output,
+      but they should also put that in another hash that is ad-
+      dressable by file basename, that way it can potentially be
+      used by the builder on subsequent builds to know which
+      queue to put it in (otherwise it just selects adds it to
+      the general queue).
   * After writing a file from the contents of a blob, stat the
     file size to make sure it is the same as the key.
   * C-c seems to take a second or two when blocked on a socket...
