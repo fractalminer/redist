@@ -44,6 +44,9 @@ TODO:
     * Currently there is a timeout for a running command; make
       sure that is adjusted properly and make sure that the
       worker doesn't abort when a popen times out.
+    * A worker should have a flag where it can be given a parent
+      pid and if it is given it then it should detect if that pid
+      goes away and if so it should stop.
   * Need to set TTLs properly on all the keys.
     - When pushing to the queue log, set the expiry on the list.
   * Move the subprocess code into moon.
