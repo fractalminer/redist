@@ -87,6 +87,12 @@ local function query_cluster_state( cxn, opts )
   state.local_active_worker_count = 0
   state.worker_count = 0
   state.local_worker_count = 0
+  local function number( from )
+    if not from then return 0 end
+    if from == '' then return 0 end
+    local num = tonumber( from )
+    return assert( num, format( 'invalid number: "%s"', from ) )
+  end
   for name, node in pairs( nodes ) do
     local node_stats = cxn:hgetall(
                            format( 'farm:node:%s:stats', name ) )
@@ -94,12 +100,12 @@ local function query_cluster_state( cxn, opts )
     node_stats.cores_total = node_stats.cores_total or 1
     node_stats.cores_percent_used =
         node_stats.cores_percent_used or 0
-    node.mem_total_gb = tonumber( node_stats.mem_total_gb or 0 )
-    node.mem_percent_used = tonumber(
+    node.mem_total_gb = number( node_stats.mem_total_gb or 0 )
+    node.mem_percent_used = number(
                                 node_stats.mem_percent_used or 0 )
     node.mem_used_gb = node.mem_total_gb * node.mem_percent_used
-    node.core_count = tonumber( node_stats.cores_total )
-    node.cores_percent_used = tonumber(
+    node.core_count = number( node_stats.cores_total )
+    node.cores_percent_used = number(
                                   node_stats.cores_percent_used or
                                       0 )
     node.active_core_count = node.core_count *
@@ -113,7 +119,7 @@ local function query_cluster_state( cxn, opts )
     local function get_count( label )
       local key =
           format( 'farm:node:%s:presence:%s', name, label )
-      return tonumber( cxn:scard( key ) or 0 )
+      return number( cxn:scard( key ) or 0 )
     end
     node.worker_count = get_count( 'workers_count' )
     node.active_worker_count = get_count( 'workers_active' )

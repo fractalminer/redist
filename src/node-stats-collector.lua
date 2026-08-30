@@ -106,8 +106,9 @@ local function cpu_percent_used( s1, s2 )
                                     s1.cpu_total_ticks
   local delta_cpu_used_ticks = s2.cpu_used_ticks -
                                    s1.cpu_used_ticks
-  local percent_used = delta_cpu_used_ticks /
-                           delta_cpu_total_ticks
+  local percent_used = delta_cpu_total_ticks > 0 and
+                           delta_cpu_used_ticks /
+                           delta_cpu_total_ticks or 0
   assert( s1.cpus == s2.cpus )
   local cores_used = s1.cpus * percent_used
   return { percent_used=percent_used, cores_used=cores_used }
@@ -153,10 +154,10 @@ end
 local function run( cxn )
   assert( cxn )
 
-  local last_sample = read_cpu_info()
-  local cpu_usage
+  local last_sample, cpu_usage
   while not STOP do
     local sample = read_cpu_info()
+    last_sample = last_sample or sample
     debug( 'cpu sample: %s', format_table( sample ) )
     cpu_usage = cpu_percent_used( last_sample, sample )
     local mem_usage = read_mem_usage()
