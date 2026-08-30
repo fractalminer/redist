@@ -24,7 +24,7 @@ local WorkerCount = assert( farm.WorkerCount )
 local catch_control_c = assert( merr.catch_control_c )
 local cleanup = assert( mcleanup.cleanup )
 local on_ordered_kv = assert( tbl.on_ordered_kv )
-local now_seconds = assert( time.now_seconds )
+local now_millis = assert( time.now_millis )
 local timeit_micros = assert( time.timeit_micros )
 
 local socket_select = assert( socket.select )
@@ -37,8 +37,8 @@ local min = assert( math.min )
 -- Constants.
 -----------------------------------------------------------------
 local POLL_TIMEOUT_SECS = .1
-local REDIS_UPDATE_INTERVAL_SECS = 1
-local REDRAW_INTERVAL_SECS = .01
+local REDIS_UPDATE_INTERVAL_MILLIS = 1000
+local REDRAW_INTERVAL_MILLIS = 10
 
 -----------------------------------------------------------------
 -- Globals.
@@ -64,7 +64,6 @@ local g_data = {}
 -- Input processors.
 -----------------------------------------------------------------
 local function find_node( label )
-  local node_labels = {}
   for _, node in ipairs( g_data.nodes ) do
     if node.node_label == label then return node end
   end
@@ -210,9 +209,9 @@ end
 local function update_data( cxn, opts )
   assert( cxn )
   opts = opts or {}
-  local now = now_seconds()
+  local now = now_millis()
   if not opts.force then
-    if now < g_last_update_time + REDIS_UPDATE_INTERVAL_SECS then
+    if now < g_last_update_time + REDIS_UPDATE_INTERVAL_MILLIS then
       return
     end
   end
@@ -345,8 +344,10 @@ local function progress_bar( len, pc, opts )
 end
 
 local function redraw()
-  local now = now_seconds()
-  if now < g_last_redraw_time + REDRAW_INTERVAL_SECS then return end
+  local now = now_millis()
+  if now < g_last_redraw_time + REDRAW_INTERVAL_MILLIS then
+    return
+  end
   g_last_redraw_time = now
   g_redraws = g_redraws + 1
   if g_redraws % 20 == 0 then mc.clear() end
