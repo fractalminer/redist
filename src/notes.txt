@@ -5,6 +5,9 @@ TODO:
     * The dashboard should go to sleep (increase poll delay after
       a certain amount of time of no utilization), then as soon
       as something happens it should go back to frequent updates.
+    * Currently it can't visually scale to many more nodes. We
+      need to create a right panel with node detail and keep the
+      left pane more compact.
     * Add color.
     * Ideally we'd have a way to see the logs of the workers, but
       not sure yet how that will be done.
