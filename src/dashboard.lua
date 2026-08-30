@@ -31,6 +31,7 @@ local socket_select = assert( socket.select )
 
 local format = assert( string.format )
 local insert = assert( table.insert )
+local min = assert( math.min )
 
 -----------------------------------------------------------------
 -- Constants.
@@ -64,6 +65,13 @@ local g_data = {}
 -----------------------------------------------------------------
 local function find_node( label )
   local node_labels = {}
+  for _, node in ipairs( g_data.nodes ) do
+    if node.node_label == label then return node end
+  end
+end
+
+local function find_node_index( label )
+  local node_labels = {}
   on_ordered_kv( g_data.nodes, function( _, o )
     insert( node_labels, o.node_label )
   end )
@@ -76,7 +84,7 @@ local function find_node( label )
 end
 
 local function node_up( label )
-  local i, node_labels = find_node( label )
+  local i, node_labels = find_node_index( label )
   if not i then return end
   i = i - 1
   if i < 1 then i = #node_labels end
@@ -84,7 +92,7 @@ local function node_up( label )
 end
 
 local function node_down( label )
-  local i, node_labels = find_node( label )
+  local i, node_labels = find_node_index( label )
   if not i then return end
   i = i + 1
   if i > #node_labels then i = 1 end
@@ -110,14 +118,24 @@ local function target_label_down()
   end
 end
 
+local function max_workers_per_type( node_label )
+  assert( node_label )
+  local node = assert( find_node( node_label ) )
+  local cap = node.cores or 1
+  cap = cap * 2
+  -- The node manager will impose this limit itself as well for
+  -- extra safety, but for a good UX we will impose it here in
+  -- the dashboard UI.
+  cap = min( cap, config.node_manager.MAX_WORKERS_PER_TYPE )
+  return cap
+end
+
 local function increase_target_count( cxn )
   if not INPUT_STATE.node_label then return end
   local worker_count = WorkerCount( cxn, INPUT_STATE.node_label,
                                     INPUT_STATE.counter_type )
-  -- The node manager will impose this limit itself as well for
-  -- extra safety, but for a good UX we will impose it here in
-  -- the dashboard UI.
-  local max_count = config.node_manager.MAX_WORKERS_PER_TYPE
+  local max_count =
+      max_workers_per_type( INPUT_STATE.node_label )
   local cur_count = worker_count:get()
   if cur_count > max_count then
     worker_count:set( max_count )
@@ -146,8 +164,9 @@ local function full_target_count( cxn )
   if not INPUT_STATE.node_label then return end
   local worker_count = WorkerCount( cxn, INPUT_STATE.node_label,
                                     INPUT_STATE.counter_type )
-  -- TODO
-  worker_count:set( 16 )
+  local max_count =
+      max_workers_per_type( INPUT_STATE.node_label )
+  worker_count:set( max_count )
 end
 
 -----------------------------------------------------------------
@@ -313,12 +332,15 @@ end
 -----------------------------------------------------------------
 -- Rendering.
 -----------------------------------------------------------------
-local function progress_bar( len, pc )
+local function progress_bar( len, pc, opts )
+  opts = opts or {}
+  opts.on = opts.on or '|'
+  opts.off = opts.off or '-'
   len = math.max( len, 2 )
   local n_bar = math.floor( len * pc )
   local n_spaces = math.max( len - n_bar, 0 )
-  local bar = string.rep( '#', n_bar )
-  local spaces = string.rep( '-', n_spaces )
+  local bar = string.rep( opts.on, n_bar )
+  local spaces = string.rep( opts.off, n_spaces )
   return format( '[%s%s]', bar, spaces )
 end
 
@@ -419,16 +441,22 @@ local function redraw()
     mc.hline( mc.COLS - 4 )
 
     advance( 4 )
-    textln( 'core:   %s',
-            progress_bar( mc.COLS - 18, node.core_utilization ) )
-    textln( 'mem:    %s',
-            progress_bar( mc.COLS - 18, node.mem_utilization ) )
-    textln( 'worker: %s', progress_bar( mc.COLS - 18,
-                                        node.remote_worker_utilization ) )
+    textln( 'cpu:    %s',
+            progress_bar( mc.COLS - 18, node.core_utilization ),
+            { on='|', off='.' } )
+    textln( 'worker: %s',
+            progress_bar( mc.COLS - 18,
+                          node.remote_worker_utilization,
+                          { on='o', off='-' } ) )
     if node.local_workers > 0 then
-      textln( 'local:  %s', progress_bar( mc.COLS - 18,
-                                          node.local_worker_utilization ) )
+      textln( 'local:  %s',
+              progress_bar( mc.COLS - 18,
+                            node.local_worker_utilization,
+                            { on='o', off='-' } ) )
     end
+    textln( 'mem:    %s',
+            progress_bar( mc.COLS - 18, node.mem_utilization,
+                          { on='=', off='-' } ) )
 
     advance( 4 )
     local function counter_widget( counter_type )

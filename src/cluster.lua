@@ -98,9 +98,10 @@ local function query_cluster_state( cxn, opts )
     node.mem_percent_used = tonumber(
                                 node_stats.mem_percent_used or 0 )
     node.mem_used_gb = node.mem_total_gb * node.mem_percent_used
-    node.core_count = node_stats.cores_total
+    node.core_count = tonumber( node_stats.cores_total )
     node.cores_percent_used = tonumber(
-                                  node_stats.cores_percent_used )
+                                  node_stats.cores_percent_used or
+                                      0 )
     node.active_core_count = node.core_count *
                                  node.cores_percent_used
     state.core_count = state.core_count + node_stats.cores_total
