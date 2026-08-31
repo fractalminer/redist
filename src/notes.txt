@@ -1,6 +1,26 @@
 # vim: syntax=yaml
 TODO:
 -----------------------------------------------------------------
+  * Queue Manager:
+    There are currently a few different issues:
+      - When a worker dies with a task that task doesn't get
+        reinserted into the queue.
+      - Note that this shouldn't be handled by the node manager
+        since the node manager goes away if the entire node dies.
+      - When there are multiple nodes available for a compile,
+        effectively a random one gets chosen to receive the task,
+        without regard to the strength of the box.
+      - We may end up needing some kind of mechanism whereby com-
+        pile tasks are distributed taking into account how heavy
+        they are. E.g. if we are given a compile task for a very
+        light translation unit then it might be prudent to give
+        it to a lesser box even if a bigger box is available so
+        that we can leave the bigger box for larger compiles. Not
+        certain yet we will do this, but if we do do it then it
+        would need to be handled at a level above the individual
+        nodes.
+    These could both be solved with a queue manager that manages
+    the contents of the queues.
   * Affinity/Node Selection:
     * Need to have a concept of worker node affinity, i.e. when a
       thelio worker is available it should take precedence over
@@ -56,7 +76,8 @@ TODO:
       ble. Then if it can't be fixed in a simple way then we
       should consider putting some logic into the worker to mon-
       itor the presence of its parent process and to stop if it
-      goes away.
+      goes away. Actually this should be done for any process
+      running under the process pool.
   * Worker Death:
     * Deal with timeouts/failures, i.e. when a task never com-
       pletes. This can happen when e.g. a worker that removes the
@@ -74,7 +95,8 @@ TODO:
       worker doesn't abort when a popen times out.
     * A worker should have a flag where it can be given a parent
       pid and if it is given it then it should detect if that pid
-      goes away and if so it should stop.
+      goes away and if so it should stop. This should be done for
+      any process run in the process pool.
   * Need to set TTLs properly on all the keys.
     - When pushing to the queue log, set the expiry on the list.
   * Move the subprocess code into moon.
@@ -102,6 +124,68 @@ TODO:
     file size to make sure it is the same as the key.
   * C-c seems to take a second or two when blocked on a socket...
     see if that can be improved.
+
+Plan for Cluster Manager:
+-----------------------------------------------------------------
+  * Jobs run by Cluster Manager:
+    - Redis Database (?) - not sure yet.
+    - Queue Manager
+    - Power Meter: will determine the power of each node and up-
+      load it as a sorted set to Redis for consumption by the
+      Queue Manager.
+    - Node Controller (once we have node managers running under
+      systemd). This will bring up/down node managers.
+  * There will be a single job, called the cluster manager. The
+    cluster manager can run on any host, but probably best to
+    have it run on the host with the redis server.
+  * It will essentially just run a set of process pools like the
+    node manager.
+  * The first process it will run will be the Queue Manager (see
+    below).
+  * Eventual goals:
+    - It should be able to bring up/down node managers on each
+      node through remote systemd through ssh.
+
+Plan for Queue Manager:
+-----------------------------------------------------------------
+  * There will be a job called the queue manager which will be
+    run as a single instance by the cluster manager.
+  * It will do the following:
+    - It will monitor the compile queue and determine which node
+      to give it to using some strategy. The strategy can be set
+      either using a CLI flag or possible by reading a redis key.
+      The default strategy will be smart assignment based on node
+      power.
+    - For the smart strategy, as soon as a new task appears it
+      will read the total/active worker counts from the nodes and
+      will decide where to assign that task given availability
+      and node power. These node worker counts should probably be
+      cached for efficiency and refreshed on time intervals.
+    - At first node power will be hard-coded, but eventually it
+      can be determined automatically by a separate job called
+      the Power Meter. The power meter could upload its results
+      as a Redis sorted set.
+    - When a task is assigned to a box, it is inserted into that
+      box's queue (the workers will no longer listen to the
+      global compile queue, although that behavior can be
+      flag-controlled).
+    - Then the worker, when it picks it up, it will insert it
+      into a node-specific set to indicate that it is being
+      worked on. It will also set its node/pid on the task ob-
+      ject. to record that it started on it.
+    - Periodically the queue manager will check all the node spe-
+      cific queues and grab their pids from the task objects and
+      then check the worker advertisement to see if that pid is
+      still alive and, if not, it will reclaim the task (just
+      putting it back into the global queue). When it does that
+      it will increase a counter on the task object so that it
+      doesn't do too many retries in case there is something
+      wrong with the task itself that is causing the worker to
+      die. In the event that the retry count is exceeded then it
+      will fail the task by creating the output with a failed
+      status code, that way the message will appear to the
+      builder. Initially, we can set the retry count at zero so
+      that we can get a better sense of worker deaths.
 
 Plan for Monitor:
 -----------------------------------------------------------------
