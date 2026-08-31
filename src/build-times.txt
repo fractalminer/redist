@@ -1,3 +1,4 @@
+# vim: syntax=yaml
 Times
 ------------------------------
 
@@ -92,6 +93,22 @@ redis:   thelio
     clang-22.1.8-lld-libc++-debug-ninja            SUCCESS  108s
     clang-22.1.8-lld-libc++-relwdeb-asan-ninja     SUCCESS  273s
     clang-22.1.8-lld-libc++-relwdeb-ninja          SUCCESS  180s
+
+  full cluster clean:
+
+    Configuration                                  Result   Time
+    gcc-16.2.0-mold-libstdc++-debug-asan-ninja     SUCCESS  251s
+    gcc-16.2.0-mold-libstdc++-debug-ninja          SUCCESS  148s
+    gcc-16.2.0-mold-libstdc++-relwdeb-asan-ninja   SUCCESS  492s
+    gcc-16.2.0-mold-libstdc++-relwdeb-ninja        SUCCESS  246s
+    clang-22.1.8-lld-libstdc++-debug-asan-ninja    SUCCESS  134s
+    clang-22.1.8-lld-libstdc++-debug-ninja         SUCCESS  94s
+    clang-22.1.8-lld-libstdc++-relwdeb-asan-ninja  SUCCESS  214s
+    clang-22.1.8-lld-libstdc++-relwdeb-ninja       SUCCESS  164s
+    clang-22.1.8-lld-libc++-debug-asan-ninja       SUCCESS  124s
+    clang-22.1.8-lld-libc++-debug-ninja            SUCCESS  86s
+    clang-22.1.8-lld-libc++-relwdeb-asan-ninja     SUCCESS  251s
+    clang-22.1.8-lld-libc++-relwdeb-ninja          SUCCESS  268s
 
 builder: darter2
 redis:   thelio
