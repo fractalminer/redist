@@ -146,7 +146,7 @@ local function run( cxn )
       adjust_pool_count( cxn, pool, conf )
       pool:advance()
     end
-    sleep( 1.0 )
+    sleep( config.node_manager.ADVERTISE_INTERVAL_SECS )
   end
 end
 

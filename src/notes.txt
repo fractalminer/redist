@@ -41,6 +41,10 @@ TODO:
       used by the builder on subsequent builds to know which
       queue to put it in (otherwise it just selects adds it to
       the general queue).
+  * Need to go through and minimize the number of redis queries
+    made by the builder and workers because latency can be very
+    high when operating externally. For example, one query can
+    have a latency (round trip) of 1/2 second.
   * Dashboard:
     * The dashboard should go to sleep (increase poll delay after
       a certain amount of time of no utilization), then as soon
