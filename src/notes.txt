@@ -190,6 +190,22 @@ Plan for Queue Manager:
       status code, that way the message will appear to the
       builder. Initially, we can set the retry count at zero so
       that we can get a better sense of worker deaths.
+    - The above alone is not optimal for lua-root.cpp, since for
+      that file we really want it to go to thelio even if thelio
+      happens to be full when it comes up (likely). So the way to
+      solve this is to recognize these large modules (assume we
+      can do that) and then the queue manager will directly add
+      it to the /front/ of thelio's queue (not the back, as it
+      normally would). This is because we want to start on it as
+      soon as possible because those modules tend to determine
+      total build time on their onn. In fact, in the middle of a
+      build, when a new task appears, all of the nodes will be
+      maxed out, and so therefore the queue manager will just end
+      up assigning randomly, and thus would not give us much over
+      the existing strategy during that part of the build (which
+      is effectively random). However, if we can single out large
+      modules as described above, we can get around that by
+      putting them directly onto the front of thelio's queue.
 
 Plan for Monitor:
 -----------------------------------------------------------------
