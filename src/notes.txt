@@ -49,6 +49,14 @@ TODO:
       or if it is better in either the node manager (or actually,
       even better, a separate job; the node manager should just
       be a process pool ideally).
+    * It seems that it is still possible for the node manager to
+      be terminated (e.g. if it is invoked over an ssh connection
+      and the connection somehow drops) but the workers continue
+      running. Should figure out why this happens first if possi-
+      ble. Then if it can't be fixed in a simple way then we
+      should consider putting some logic into the worker to mon-
+      itor the presence of its parent process and to stop if it
+      goes away.
   * Worker Death:
     * Deal with timeouts/failures, i.e. when a task never com-
       pletes. This can happen when e.g. a worker that removes the
