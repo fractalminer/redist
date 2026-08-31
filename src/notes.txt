@@ -152,6 +152,13 @@ Plan for Cluster Manager:
 
 Plan for Queue Manager:
 -----------------------------------------------------------------
+  !!! BEFORE we do this, we should implement that build.ninja
+      reader/rearranger and then just measure if/how it speeds
+      up entirely local builds by removing the tail latency.
+      This is because, if we can't get ninja to give us the
+      heavy TUs early enough, then giving them to a fast node
+      won't be able to make up for that lost time.
+
   * There will be a job called the queue manager which will be
     run as a single instance by the cluster manager.
   * It will do the following:
