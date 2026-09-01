@@ -152,6 +152,9 @@ Plan for Cluster Manager:
 
 Plan for Queue Manager:
 -----------------------------------------------------------------
+  !!! BEFORE we do that, we need to split up the large TUs.
+      Run tools/ninja-log-times.sh to see which.
+
   !!! BEFORE we do this, we should implement that build.ninja
       reader/rearranger and then just measure if/how it speeds
       up entirely local builds by removing the tail latency.
