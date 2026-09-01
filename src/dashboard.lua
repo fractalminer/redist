@@ -117,11 +117,20 @@ local function target_label_down()
   end
 end
 
-local function max_workers_per_type( node_label )
+local function max_workers_per_type( node_label, opts )
   assert( node_label )
+  opts = opts or {}
   local node = assert( find_node( node_label ) )
   local cap = node.cores or 1
-  cap = cap * 2
+  if opts.allow_overdrive then
+    -- This generally produces worse build results and so we
+    -- shouldn't normally go above the +2 default limit, however
+    -- this could be useful if the build happens to be IO bound
+    -- for some reason, e.g. slow redis.
+    cap = cap * 2
+  else
+    cap = cap + 2 -- what ninja does.
+  end
   -- The node manager will impose this limit itself as well for
   -- extra safety, but for a good UX we will impose it here in
   -- the dashboard UI.
@@ -133,8 +142,8 @@ local function increase_target_count( cxn )
   if not INPUT_STATE.node_label then return end
   local worker_count = WorkerCount( cxn, INPUT_STATE.node_label,
                                     INPUT_STATE.counter_type )
-  local max_count =
-      max_workers_per_type( INPUT_STATE.node_label )
+  local max_count = max_workers_per_type( INPUT_STATE.node_label,
+                                          { allow_overdrive=true } )
   local cur_count = worker_count:get()
   if cur_count > max_count then
     worker_count:set( max_count )
@@ -159,12 +168,32 @@ local function clear_target_count( cxn )
   worker_count:set( 0 )
 end
 
+local function clear_all_target_counts( cxn )
+  for _, node in ipairs( g_data.nodes ) do
+    if node.node_label == label then return node end
+    local worker_count = WorkerCount( cxn, node.node_label,
+                                      'both' )
+    worker_count:set( 0 )
+    worker_count = WorkerCount( cxn, node.node_label, 'local' )
+    worker_count:set( 0 )
+  end
+end
+
 local function full_target_count( cxn )
   if not INPUT_STATE.node_label then return end
   local worker_count = WorkerCount( cxn, INPUT_STATE.node_label,
                                     INPUT_STATE.counter_type )
-  local max_count =
-      max_workers_per_type( INPUT_STATE.node_label )
+  local max_count = max_workers_per_type( INPUT_STATE.node_label,
+                                          { allow_overdrive=false } )
+  worker_count:set( max_count )
+end
+
+local function overdrive_target_count( cxn )
+  if not INPUT_STATE.node_label then return end
+  local worker_count = WorkerCount( cxn, INPUT_STATE.node_label,
+                                    INPUT_STATE.counter_type )
+  local max_count = max_workers_per_type( INPUT_STATE.node_label,
+                                          { allow_overdrive=true } )
   worker_count:set( max_count )
 end
 
@@ -532,7 +561,9 @@ local function loop( cxn, pubsub_cxn, pubsub_msgs )
         decrease_target_count( cxn )
       end
       if key == 'x' then clear_target_count( cxn ) end
+      if key == 'X' then clear_all_target_counts( cxn ) end
       if key == 'f' then full_target_count( cxn ) end
+      if key == 'F' then overdrive_target_count( cxn ) end
       g_sub_status = format( 'node=%s,type=%s',
                              INPUT_STATE.node_label,
                              INPUT_STATE.counter_type )

@@ -14,7 +14,7 @@ find_it() {
   for key in $keys; do
     input="$(./redis-cli.sh hget $key description)"
     echo "key:$key|input:$input"
-  done | grep "\/$xunit.cpp" | sort | head -n1
+  done | grep "\/$xunit.cpp" | sort
 }
 
 input_key=$(find_it | sed -rn 's/^key:(.*)\|.*/\1/p')
