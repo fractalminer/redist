@@ -113,7 +113,7 @@ handle_stop_signal( SIGTERM )
 -----------------------------------------------------------------
 local function next_task( cxn )
   local timeout = config.worker.QUEUE_POLL_TIMEOUT_SECS
-  local remote_queue = keys.global_compile_queue()
+  local remote_queue = keys.global_remote_compile_queue()
   local local_queue = keys.local_queue( machine_label() )
   local function result( key, task )
     assert( key, 'task queue key is nil' )
