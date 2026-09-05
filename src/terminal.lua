@@ -1,32 +1,50 @@
----------------------------------------------------------------------
+-----------------------------------------------------------------
 -- terminal.lua
 --
--- Minimal terminal support using POSIX termios + ANSI escape
--- sequences. No curses.
----------------------------------------------------------------------
+-- Minimal TUI terminal support using:
+--
+--   * POSIX termios for keyboard setup.
+--   * ANSI/VT escape sequences for output.
+--   * Buffered, non-blocking keyboard decoding.
+--   * Table-backed output buffers.
+--
+-- No curses.
+-----------------------------------------------------------------
 local M = {}
 
------------------------------------------------------------------
--- Imports.
------------------------------------------------------------------
 local termio = require( 'posix.termio' )
 local unistd = require( 'posix.unistd' )
+local time = require( 'posix.time' )
 
----------------------------------------------------------------------
--- File descriptors.
----------------------------------------------------------------------
-local STDIN = unistd.STDIN_FILENO or 0
-local STDOUT = unistd.STDOUT_FILENO or 1
+-----------------------------------------------------------------
+-- Aliases.
+-----------------------------------------------------------------
+local tcgetattr = assert( termio.tcgetattr )
+local tcsetattr = assert( termio.tcsetattr )
+local tcgetwinsize = assert( termio.tcgetwinsize )
 
----------------------------------------------------------------------
--- State.
----------------------------------------------------------------------
-local original_termios = nil
-local initialized = false
+local read = assert( unistd.read )
+local write = assert( unistd.write )
 
----------------------------------------------------------------------
+local clock_gettime = assert( time.clock_gettime )
+
+local STDIN = assert( unistd.STDIN_FILENO )
+local STDOUT = assert( unistd.STDOUT_FILENO )
+
+-----------------------------------------------------------------
+-- Constants.
+-----------------------------------------------------------------
+local CSI = '\27['
+
+-- How long an ESC byte is held while waiting to see if it begins
+-- an escape sequence. 30 ms should be essentially unnoticeable
+-- for a literal Escape key while being plenty of time for the
+-- remainder of a terminal-generated key sequence to arrive.
+local ESC_TIMEOUT = 0.030
+
+-----------------------------------------------------------------
 -- Helpers.
----------------------------------------------------------------------
+-----------------------------------------------------------------
 local function deep_copy( x )
   if type( x ) ~= 'table' then return x end
 
@@ -35,11 +53,16 @@ local function deep_copy( x )
   return res
 end
 
+local function monotonic_seconds()
+  local t = assert( clock_gettime( time.CLOCK_MONOTONIC ) )
+  return t.tv_sec + t.tv_nsec / 1e9
+end
+
 local function write_all( fd, s )
   local offset = 0
 
   while offset < #s do
-    local n, err = unistd.write( fd, s, #s - offset, offset )
+    local n, err = write( fd, s, #s - offset, offset )
     if not n then return nil, err end
     offset = offset + n
   end
@@ -47,35 +70,33 @@ local function write_all( fd, s )
   return true
 end
 
----------------------------------------------------------------------
+-----------------------------------------------------------------
 -- Terminal mode.
----------------------------------------------------------------------
+-----------------------------------------------------------------
+local original_termios = nil
+local initialized = false
+
 function M.init()
   if initialized then return end
 
-  original_termios = assert( termio.tcgetattr( STDIN ) )
+  original_termios = assert( tcgetattr( STDIN ) )
 
   local t = deep_copy( original_termios )
 
-  -- Non-canonical input:
+  -- Make characters available immediately and prevent the tty
+  -- driver from echoing them to the screen.
   --
-  --   * input becomes available immediately rather than waiting
-  --     for Enter.
-  --
-  -- No echo:
-  --
-  --   * typed characters are not automatically printed.
-  --
-  -- Deliberately leave ISIG enabled so that Ctrl-C, Ctrl-Z, etc.
-  -- retain their normal signal behavior.
+  -- Leave ISIG enabled. Thus Ctrl-C, Ctrl-Z, etc. retain their
+  -- normal signal semantics.
   t.lflag = t.lflag & ~termio.ICANON
   t.lflag = t.lflag & ~termio.ECHO
 
-  -- read() waits for at least one byte.
+  -- A read performed after select() reports readability may re-
+  -- turn as soon as one byte is available.
   t.cc[termio.VMIN] = 1
   t.cc[termio.VTIME] = 0
 
-  assert( termio.tcsetattr( STDIN, termio.TCSANOW, t ) )
+  assert( tcsetattr( STDIN, termio.TCSANOW, t ) )
 
   initialized = true
 end
@@ -83,93 +104,203 @@ end
 function M.restore()
   if not initialized then return end
 
-  assert( termio.tcsetattr( STDIN, termio.TCSANOW,
-                            original_termios ) )
+  assert( tcsetattr( STDIN, termio.TCSANOW, original_termios ) )
 
   initialized = false
 end
 
----------------------------------------------------------------------
+-----------------------------------------------------------------
 -- Terminal size.
----------------------------------------------------------------------
+-----------------------------------------------------------------
 function M.size()
-  local ws = assert( termio.tcgetwinsize( STDOUT ) )
+  local ws = assert( tcgetwinsize( STDOUT ) )
   return ws.row, ws.col
 end
 
----------------------------------------------------------------------
+-----------------------------------------------------------------
 -- Raw output.
----------------------------------------------------------------------
+-----------------------------------------------------------------
 function M.write( s ) return write_all( STDOUT, s ) end
 
----------------------------------------------------------------------
--- ANSI escape sequences.
----------------------------------------------------------------------
-local ESC = '\27['
+-----------------------------------------------------------------
+-- Output buffer.
+-----------------------------------------------------------------
+local Buffer = {}
+Buffer.__index = Buffer
 
-function M.move_to( row, col )
-  -- ANSI coordinates are 1-based.
-  return ESC .. row .. ';' .. col .. 'H'
+function M.buffer() return setmetatable( {}, Buffer ) end
+
+function Buffer:append( s )
+  self[#self + 1] = s
+  return self
 end
 
-function M.move_up( n ) return ESC .. (n or 1) .. 'A' end
-
-function M.move_down( n ) return ESC .. (n or 1) .. 'B' end
-
-function M.move_right( n ) return ESC .. (n or 1) .. 'C' end
-
-function M.move_left( n ) return ESC .. (n or 1) .. 'D' end
-
-function M.clear() return ESC .. '2J' end
-
-function M.clear_to_end() return ESC .. '0J' end
-
-function M.clear_line() return ESC .. '2K' end
-
-function M.clear_to_eol() return ESC .. '0K' end
-
-function M.hide_cursor() return ESC .. '?25l' end
-
-function M.show_cursor() return ESC .. '?25h' end
-
-function M.alt_screen_on() return ESC .. '?1049h' end
-
-function M.alt_screen_off() return ESC .. '?1049l' end
-
-function M.reset() return ESC .. '0m' end
-
-function M.bold() return ESC .. '1m' end
-
-function M.dim() return ESC .. '2m' end
-
-function M.underline() return ESC .. '4m' end
-
-function M.reverse() return ESC .. '7m' end
-
-function M.fg( r, g, b )
-  return ESC .. '38;2;' .. r .. ';' .. g .. ';' .. b .. 'm'
+function Buffer:text( s )
+  self[#self + 1] = s
+  return self
 end
 
-function M.bg( r, g, b )
-  return ESC .. '48;2;' .. r .. ';' .. g .. ';' .. b .. 'm'
+-----------------------------------------------------------------
+-- Cursor movement.
+-----------------------------------------------------------------
+function Buffer:move_to( row, col )
+  self[#self + 1] = CSI .. row .. ';' .. col .. 'H'
+  return self
 end
 
----------------------------------------------------------------------
+function Buffer:move_up( n )
+  self[#self + 1] = CSI .. (n or 1) .. 'A'
+  return self
+end
+
+function Buffer:move_down( n )
+  self[#self + 1] = CSI .. (n or 1) .. 'B'
+  return self
+end
+
+function Buffer:move_right( n )
+  self[#self + 1] = CSI .. (n or 1) .. 'C'
+  return self
+end
+
+function Buffer:move_left( n )
+  self[#self + 1] = CSI .. (n or 1) .. 'D'
+  return self
+end
+
+-----------------------------------------------------------------
+-- Clearing.
+-----------------------------------------------------------------
+function Buffer:clear()
+  self[#self + 1] = CSI .. '2J'
+  return self
+end
+
+function Buffer:clear_to_end()
+  self[#self + 1] = CSI .. '0J'
+  return self
+end
+
+function Buffer:clear_line()
+  self[#self + 1] = CSI .. '2K'
+  return self
+end
+
+function Buffer:clear_to_eol()
+  self[#self + 1] = CSI .. '0K'
+  return self
+end
+
+-----------------------------------------------------------------
+-- Cursor visibility.
+-----------------------------------------------------------------
+function Buffer:hide_cursor()
+  self[#self + 1] = CSI .. '?25l'
+  return self
+end
+
+function Buffer:show_cursor()
+  self[#self + 1] = CSI .. '?25h'
+  return self
+end
+
+-----------------------------------------------------------------
+-- Alternate screen.
+-----------------------------------------------------------------
+function Buffer:alt_screen_on()
+  self[#self + 1] = CSI .. '?1049h'
+  return self
+end
+
+function Buffer:alt_screen_off()
+  self[#self + 1] = CSI .. '?1049l'
+  return self
+end
+
+-----------------------------------------------------------------
+-- Text attributes.
+-----------------------------------------------------------------
+function Buffer:reset()
+  self[#self + 1] = CSI .. '0m'
+  return self
+end
+
+function Buffer:bold()
+  self[#self + 1] = CSI .. '1m'
+  return self
+end
+
+function Buffer:dim()
+  self[#self + 1] = CSI .. '2m'
+  return self
+end
+
+function Buffer:underline()
+  self[#self + 1] = CSI .. '4m'
+  return self
+end
+
+function Buffer:reverse()
+  self[#self + 1] = CSI .. '7m'
+  return self
+end
+
+function Buffer:fg( r, g, b )
+  self[#self + 1] =
+      CSI .. '38;2;' .. r .. ';' .. g .. ';' .. b .. 'm'
+  return self
+end
+
+function Buffer:bg( r, g, b )
+  self[#self + 1] =
+      CSI .. '48;2;' .. r .. ';' .. g .. ';' .. b .. 'm'
+  return self
+end
+
+-----------------------------------------------------------------
 -- Synchronized output.
---
--- Supported by many modern terminal emulators. The terminal holds
--- display updates between these sequences, avoiding partially drawn
--- frames.
----------------------------------------------------------------------
-function M.sync_begin() return ESC .. '?2026h' end
+-----------------------------------------------------------------
+function Buffer:sync_begin()
+  self[#self + 1] = CSI .. '?2026h'
+  return self
+end
 
-function M.sync_end() return ESC .. '?2026l' end
+function Buffer:sync_end()
+  self[#self + 1] = CSI .. '?2026l'
+  return self
+end
 
----------------------------------------------------------------------
--- Input.
----------------------------------------------------------------------
--- Translate the common ANSI escape sequences into the names that
--- minicurses.getkey() returned.
+-----------------------------------------------------------------
+-- Buffer handling.
+-----------------------------------------------------------------
+function Buffer:clear_buffer()
+  for i = #self, 1, -1 do self[i] = nil end
+  return self
+end
+
+function Buffer:string() return table.concat( self ) end
+
+function Buffer:flush()
+  local s = table.concat( self )
+
+  -- Clear before writing so the buffer is also empty if write()
+  -- subsequently throws/returns an error.
+  self:clear_buffer()
+
+  return write_all( STDOUT, s )
+end
+
+-----------------------------------------------------------------
+-- Input buffering.
+-----------------------------------------------------------------
+local input = ''
+
+-- Time at which an incomplete leading ESC was first observed.
+local esc_started = nil
+
+-----------------------------------------------------------------
+-- Known escape sequences.
+-----------------------------------------------------------------
 local escape_keys = {
   ['\27[A']='UP',
   ['\27[B']='DOWN',
@@ -179,85 +310,148 @@ local escape_keys = {
   ['\27[H']='HOME',
   ['\27[F']='END',
 
+  ['\27[1~']='HOME',
   ['\27[2~']='INSERT',
   ['\27[3~']='DELETE',
+  ['\27[4~']='END',
   ['\27[5~']='PAGEUP',
   ['\27[6~']='PAGEDOWN',
+  ['\27[7~']='HOME',
+  ['\27[8~']='END',
+
+  -- Common xterm function-key sequences.
+  ['\27OP']='F1',
+  ['\27OQ']='F2',
+  ['\27OR']='F3',
+  ['\27OS']='F4',
+
+  ['\27[15~']='F5',
+  ['\27[17~']='F6',
+  ['\27[18~']='F7',
+  ['\27[19~']='F8',
+  ['\27[20~']='F9',
+  ['\27[21~']='F10',
+  ['\27[23~']='F11',
+  ['\27[24~']='F12',
 }
 
--- Read one key.
+-----------------------------------------------------------------
+-- Input reading.
+-----------------------------------------------------------------
+-- Call this ONLY after select()/poll() reports stdin as readable.
 --
--- IMPORTANT: the caller should only invoke this after select()/poll()
--- has indicated that stdin is readable.
---
--- For ordinary characters this returns the character.
--- For recognized escape sequences it returns strings such as
--- "UP", "DOWN", etc.
-function M.getkey()
-  local first, err = unistd.read( STDIN, 1 )
-  if not first then return nil, err end
-  if first == '' then return nil end
+-- read() itself is therefore not being used as the readiness
+-- mechanism. It merely consumes a chunk that we already know has
+-- at least one byte available.
+function M.read_input()
+  local s, err = read( STDIN, 4096 )
+  if not s then return nil, err end
+  if s == '' then return false end
 
-  if first ~= '\27' then return first end
+  input = input .. s
 
-  -------------------------------------------------------------------
-  -- Escape sequence.
-  --
-  -- At this point we need to see whether more bytes immediately
-  -- follow ESC. The simplest version blocks for the remainder just
-  -- like minicurses.getkey().
-  --
-  -- This deliberately preserves minicurses' basic behavior for now.
-  -------------------------------------------------------------------
-
-  local second, err = unistd.read( STDIN, 1 )
-  if not second then return nil, err end
-
-  if second ~= '[' then
-    -- Alt-x and similar sequences. For compatibility with minicurses,
-    -- just return the character following ESC.
-    return second
-  end
-
-  local third, err = unistd.read( STDIN, 1 )
-  if not third then return nil, err end
-
-  local seq = '\27[' .. third
-
-  -- Simple 3-byte sequences: ESC [ A, etc.
-  local key = escape_keys[seq]
-  if key then return key end
-
-  -- Tilde-terminated sequences: ESC [ 2 ~, etc.
-  if third:match '%d' then
-    local fourth, err = unistd.read( STDIN, 1 )
-    if not fourth then return nil, err end
-
-    seq = seq .. fourth
-
-    key = escape_keys[seq]
-    if key then return key end
-  end
-
-  -- Unknown escape sequence.
-  return seq
+  return true
 end
 
----------------------------------------------------------------------
+-----------------------------------------------------------------
+-- Input parsing.
+-----------------------------------------------------------------
+local function consume( n )
+  local res = input:sub( 1, n )
+  input = input:sub( n + 1 )
+  return res
+end
+
+local function is_prefix_of_known_sequence( s )
+  for seq in pairs( escape_keys ) do
+    if seq:sub( 1, #s ) == s then return true end
+  end
+
+  return false
+end
+
+-- Return one decoded key if one is currently available.
+--
+-- This function NEVER performs a read and NEVER blocks.
+--
+-- Returns nil if:
+--
+--   * no input is buffered; or
+--   * an ESC prefix might still be receiving more bytes.
+function M.getkey()
+  if #input == 0 then
+    esc_started = nil
+    return nil
+  end
+
+  ---------------------------------------------------------------
+  -- Normal byte.
+  ---------------------------------------------------------------
+  if input:byte( 1 ) ~= 27 then
+    esc_started = nil
+    return consume( 1 )
+  end
+
+  ---------------------------------------------------------------
+  -- ESC.
+  ---------------------------------------------------------------
+  -- First check for a complete known sequence.
+  for seq, key in pairs( escape_keys ) do
+    if input:sub( 1, #seq ) == seq then
+      consume( #seq )
+      esc_started = nil
+      return key
+    end
+  end
+
+  ---------------------------------------------------------------
+  -- Is what we have so far potentially the beginning of one?
+  ---------------------------------------------------------------
+  if is_prefix_of_known_sequence( input ) then
+    if not esc_started then esc_started = monotonic_seconds() end
+
+    if monotonic_seconds() - esc_started < ESC_TIMEOUT then
+      return nil
+    end
+  end
+
+  ---------------------------------------------------------------
+  -- Standalone ESC.
+  ---------------------------------------------------------------
+  consume( 1 )
+  esc_started = nil
+  return 'ESC'
+end
+
+-----------------------------------------------------------------
+-- Queries.
+-----------------------------------------------------------------
+function M.has_input() return #input > 0 end
+
+-----------------------------------------------------------------
 -- Convenience lifecycle.
----------------------------------------------------------------------
+-----------------------------------------------------------------
 function M.enter()
   M.init()
 
-  assert( M.write( M.alt_screen_on() .. M.hide_cursor() ..
-                       M.clear() .. M.move_to( 1, 1 ) ) )
+  local b = M.buffer()
+
+  b:alt_screen_on():hide_cursor():clear():move_to( 1, 1 )
+
+  return b:flush()
 end
 
 function M.leave()
-  -- Restore visible terminal state before restoring termios.
-  M.write( M.reset() .. M.show_cursor() .. M.alt_screen_off() )
+  local b = M.buffer()
+
+  b:reset():show_cursor():alt_screen_off()
+
+  -- Do our best to restore termios even if output restoration fails.
+  local ok, err = b:flush()
 
   M.restore()
+
+  return ok, err
 end
 
 -----------------------------------------------------------------
