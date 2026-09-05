@@ -43,7 +43,7 @@ end
 
 local function queue_task( cxn, hash )
   assert( hash )
-  local key = keys.global_remote_compile_queue()
+  local key = keys.remote_global_queue()
   -- Push on the right, then the worker pops from the left to
   -- create a FIFO (queue).
   cxn:rpush( key, hash )

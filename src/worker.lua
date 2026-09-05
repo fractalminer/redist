@@ -113,18 +113,26 @@ handle_stop_signal( SIGTERM )
 -----------------------------------------------------------------
 local function next_task( cxn )
   local timeout = config.worker.QUEUE_POLL_TIMEOUT_SECS
-  local remote_queue = keys.global_remote_compile_queue()
-  local local_queue = keys.local_queue( machine_label() )
+  local q_remote_global = keys.remote_global_queue()
+  local q_remote_host = keys.remote_host_queue( machine_label() )
+  local q_local = keys.local_queue( machine_label() )
   local function result( key, task )
     assert( key, 'task queue key is nil' )
     assert( task, 'task is nil' )
-    if key == local_queue then
+    if key == q_local then
       cxn:rpush( keys.queue_log(), format(
                      'node %s popped local task %s',
                      machine_label(), task ) )
       return { type='local', hash=task }
     end
-    if key == remote_queue then
+    if key == q_remote_host then
+      cxn:rpush( keys.queue_log(),
+                 format(
+                     'node %s popped host-targeted remote task %s',
+                     machine_label(), task ) )
+      return { type='remote', hash=task }
+    end
+    if key == q_remote_global then
       cxn:rpush( keys.queue_log(), format(
                      'node %s popped remote task %s',
                      machine_label(), task ) )
@@ -134,22 +142,26 @@ local function next_task( cxn )
   end
   local o
   if not args.wait then
+    -- Local queue must come first.
     if args.listen == 'local' or args.listen == 'both' then
-      o = cxn:lpop( local_queue )
-      if o then return result( local_queue, o ) end
+      o = cxn:lpop( q_local )
+      if o then return result( q_local, o ) end
     end
     if args.listen == 'remote' or args.listen == 'both' then
-      o = cxn:lpop( remote_queue )
-      if o then return result( remote_queue, o ) end
+      o = cxn:lpop( q_remote_host )
+      if o then return result( q_remote_global, o ) end
+      o = cxn:lpop( q_remote_global )
+      if o then return result( q_remote_global, o ) end
     end
   else
     if args.listen == 'local' then
-      o = cxn:blpop( local_queue, timeout )
+      o = cxn:blpop( q_local, timeout )
     elseif args.listen == 'remote' then
-      o = cxn:blpop( remote_queue, timeout )
+      o = cxn:blpop( q_remote_host, q_remote_global, timeout )
     else
       -- Local queue must come first.
-      o = cxn:blpop( local_queue, remote_queue, timeout )
+      o = cxn:blpop( q_local, q_remote_host, q_remote_global,
+                     timeout )
     end
     return o and result( o[1], o[2] )
   end

@@ -14,8 +14,7 @@ local NS = 'farm'
 -- Implementation.
 -----------------------------------------------------------------
 local function make( key, elems )
-  assert( type( elems ) == 'table' )
-  return assert( key ):format( unpack( elems ) )
+  return key:format( unpack( elems ) )
 end
 
 function M.ns()
@@ -43,12 +42,21 @@ function M.remote_queue( which )
   return make( key, elems )
 end
 
-function M.global_remote_compile_queue()
-  return M.remote_queue( 'global' )
+function M.remote_global_queue()
+  return M.remote_queue( 'global' ) --
 end
 
-function M.host_remote_compile_queue( label )
-  return M.remote_queue( label )
+function M.remote_distributor_queue()
+  return M.remote_queue( 'distributor' )
+end
+
+function M.remote_host_queue( node )
+  local key = '%s:remote:node:%s'
+  local elems = {
+    M.queue(), --
+    assert( node ), --
+  }
+  return make( key, elems )
 end
 
 function M.local_queue( label )
@@ -103,9 +111,9 @@ function M.nodes()
 end
 
 function M.node( label )
-  local key = '%s:node:%s'
+  local key = '%s:%s'
   local elems = {
-    M.ns(), --
+    M.nodes(), --
     assert( label ), --
   }
   return make( key, elems )
