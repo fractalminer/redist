@@ -3,6 +3,7 @@
 -----------------------------------------------------------------
 local config = require( 'config' )
 local hash = require( 'hash' )
+local keys = require( 'keys' )
 local network = require( 'network' )
 local ru = require( 'redis-util' )
 
@@ -57,7 +58,7 @@ end
 local function set_blob( cxn, body )
   assert( body, 'invalid body' )
   local h = hash.hash( body )
-  local key = format( 'farm:blob:%s', h )
+  local key = keys.blob( h )
   if not cxn:exists( key ) then
     debug( 'uploading blob of size %d', #body )
     local time_taken = timeit( function()
@@ -78,7 +79,7 @@ end
 
 local function download_blob( cxn, blob_hash )
   debug( 'downloading blob: %s', blob_hash )
-  local key = format( 'farm:blob:%s', blob_hash )
+  local key = keys.blob( blob_hash )
   local time_taken, blob = timeit( function()
     return cxn:get( key )
   end )
@@ -94,7 +95,7 @@ local function download_blob( cxn, blob_hash )
 end
 
 local function blob_exists( cxn, blob_hash )
-  local key = format( 'farm:blob:%s', blob_hash )
+  local key = keys.blob( blob_hash )
   return cxn:exists( key )
 end
 
@@ -105,17 +106,15 @@ local function download_blob_to_file( cxn, blob_hash, ofile )
   return true
 end
 
-local function broadcast_presence( cxn, set )
-  local key = 'farm:node:%s:presence:%s'
-  key = key:format( machine_label(), set )
+local function broadcast_worker_presence( cxn, set )
+  local key = keys.worker_presence_set( machine_label(), set )
   assert( cxn:sadd( key, PID ) )
   cxn:expire( key, EXPIRE_ADVERTISE_SECS )
   trace( 'added presence: %s|%s', key, PID )
 end
 
-local function remove_presence( cxn, set )
-  local key = 'farm:node:%s:presence:%s'
-  key = key:format( machine_label(), set )
+local function remove_worker_presence( cxn, set )
+  local key = keys.worker_presence_set( machine_label(), set )
   -- Don't assert here just in case the set no longer exists.
   cxn:srem( key, PID )
   trace( 'removed presence: %s|%s', key, PID )
@@ -128,8 +127,7 @@ local WorkerCount = {}
 WorkerCount.__index = WorkerCount
 
 function WorkerCount:key()
-  return format( 'farm:node:%s:target_count:%s', self._node,
-                 self._label )
+  return keys.node_worker_target_count( self._node, self._label )
 end
 
 function WorkerCount:get()
@@ -164,7 +162,7 @@ return {
   set_blob=set_blob,
   set_blob_from_file=set_blob_from_file,
   download_blob_to_file=download_blob_to_file,
-  broadcast_presence=broadcast_presence,
-  remove_presence=remove_presence,
+  broadcast_worker_presence=broadcast_worker_presence,
+  remove_worker_presence=remove_worker_presence,
   WorkerCount=WorkerCount.new,
 }

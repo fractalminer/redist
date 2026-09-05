@@ -157,7 +157,7 @@ local function watching_dump( cxn )
   --   ----------------------------------------------------------
   --   kind            pmessage
   --   pattern         __keyspace@0__:farm:*
-  --   channel         __keyspace@0__:farm:queue:compile:cpp*
+  --   channel         __keyspace@0__:farm:queue:remote:global*
   --   payload         rpush
   --
   while true do

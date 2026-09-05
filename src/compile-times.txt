@@ -4,6 +4,6 @@ lua-root-6.cpp:
   geekom1: 17.4 seconds
   geekom2: 17.1 seconds
   geekom3: 17.8 seconds
-  meerkat: 18.3 seconds
+  meerkat: 17.9 seconds
   bonobo:  23.0 seconds
   darter2: 24.2 seconds

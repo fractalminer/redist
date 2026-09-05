@@ -3,6 +3,7 @@
 -----------------------------------------------------------------
 local config = require( 'config' )
 local farm = require( 'farm' )
+local keys = require( 'keys' )
 local network = require( 'network' )
 local ru = require( 'redis-util' )
 
@@ -32,7 +33,7 @@ local function post_task( cxn, hash, params )
   assert( params.command )
   assert( params.description )
   if params.cwd then assert( #params.cwd > 0 ) end
-  local key = format( 'farm:local:task:%s:input', hash )
+  local key = keys.task_input( hash )
   set_hash( cxn, key, {
     command=params.command,
     cwd=params.cwd,
@@ -42,11 +43,11 @@ end
 
 local function queue_task( cxn, hash )
   assert( hash )
-  local key = format( 'farm:local:queue:%s', machine_label() )
+  local key = keys.local_queue( machine_label() )
   -- Push on the right, then the worker pops from the left to
   -- create a FIFO (queue).
   cxn:rpush( key, hash )
-  cxn:rpush( 'farm:log:queues', format(
+  cxn:rpush( keys.queue_log(), format(
                  'node %s pushed local task %s', machine_label(),
                  hash ) )
 end
@@ -54,7 +55,7 @@ end
 local function output_of( cxn, hash )
   assert( cxn )
   assert( hash )
-  local key = format( 'farm:local:task:%s:output', hash )
+  local key = keys.task_output( hash )
   if not cxn:exists( key ) then return end
   local output = assert( cxn:hgetall( key ) )
   assert( type( output ) == 'table' )
@@ -64,18 +65,18 @@ end
 local function delete_output( cxn, hash )
   assert( cxn )
   assert( hash )
-  local key = format( 'farm:local:task:%s:output', hash )
+  local key = keys.task_output( hash )
   if not cxn:exists( key ) then return end
   assert( cxn:del( key ) )
 end
 
 local function find( cxn, hash )
-  local key = format( 'farm:local:task:%s:input', hash )
+  local key = keys.task_input( hash )
   return cxn:hgetall( key )
 end
 
 local function set_result( cxn, hash, result )
-  local out_key = format( 'farm:local:task:%s:output', hash )
+  local out_key = keys.task_output( hash )
   local function to_blob( content )
     return set_blob( cxn, content )
   end
@@ -90,7 +91,7 @@ end
 local function publish_event( cxn, task_hash, event )
   assert( task_hash )
   assert( event )
-  local key = format( 'farm:local:task:events' )
+  local key = keys.task_events()
   event = format( '%s:%s', task_hash, event )
   cxn:publish( key, event )
 end
@@ -102,7 +103,7 @@ local function queue_and_wait( cxn, task_hash, fn )
   local pubsub_cxn<close> = assert( ru.connect() )
   local sock = assert( pubsub_cxn.network.socket )
   local messages = pubsub_cxn:pubsub{
-    subscribe='farm:local:task:events',
+    subscribe=keys.task_events(),
   }
 
   local output = output_of( cxn, task_hash )

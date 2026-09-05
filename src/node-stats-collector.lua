@@ -2,6 +2,7 @@
 -- Stats collector that runs on a node and collects host stats.
 -----------------------------------------------------------------
 local config = require( 'config' )
+local keys = require( 'keys' )
 local network = require( 'network' )
 local ru = require( 'redis-util' )
 
@@ -136,7 +137,7 @@ end
 
 local function broadcast_stats(cxn, cores_total, cpu_usage,
                                mem_usage )
-  local key = format( 'farm:node:%s:stats', machine_label() )
+  local key = keys.node_stats( machine_label() )
   local stats = {
     cores_total=assert( cores_total ),
     cores_percent_used=assert( cpu_usage.percent_used ),

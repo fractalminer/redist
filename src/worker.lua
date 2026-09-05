@@ -6,6 +6,7 @@ local compilers = require( 'compilers' )
 local config = require( 'config' )
 local decode = require( 'decode' )
 local farm = require( 'farm' )
+local keys = require( 'keys' )
 -- TODO: consolidate these two modules.
 local ltask, rtask = require( 'local-task' ),
                      require( 'remote-task' )
@@ -32,7 +33,8 @@ local signal = require( 'posix.signal' )
 -- Aliases.
 -----------------------------------------------------------------
 local assertf = assert( merr.assertf )
-local broadcast_presence = assert( farm.broadcast_presence )
+local broadcast_worker_presence = assert(
+                                      farm.broadcast_worker_presence )
 local cencode = assert( decode.cencode )
 local cleanup = assert( mcleanup.cleanup )
 local cround_trip = assert( decode.cround_trip )
@@ -49,7 +51,8 @@ local os_version = assert( os_stat.os_version )
 local popen = assert( subprocess.popen )
 local printfln = assert( printer.printfln )
 local read_file = assert( file.read_file )
-local remove_presence = assert( farm.remove_presence )
+local remove_worker_presence = assert(
+                                   farm.remove_worker_presence )
 local remove_when_done = assert( workarea.remove_when_done )
 local set_hash = assert( ru.set_hash )
 local timeit = assert( time.timeit_micros )
@@ -110,20 +113,19 @@ handle_stop_signal( SIGTERM )
 -----------------------------------------------------------------
 local function next_task( cxn )
   local timeout = config.worker.QUEUE_POLL_TIMEOUT_SECS
-  local remote_queue = 'farm:compile:cpp:queue'
-  local local_queue = format( 'farm:local:queue:%s',
-                              machine_label() )
+  local remote_queue = keys.global_compile_queue()
+  local local_queue = keys.local_queue( machine_label() )
   local function result( key, task )
     assert( key, 'task queue key is nil' )
     assert( task, 'task is nil' )
     if key == local_queue then
-      cxn:rpush( 'farm:log:queues', format(
+      cxn:rpush( keys.queue_log(), format(
                      'node %s popped local task %s',
                      machine_label(), task ) )
       return { type='local', hash=task }
     end
     if key == remote_queue then
-      cxn:rpush( 'farm:log:queues', format(
+      cxn:rpush( keys.queue_log(), format(
                      'node %s popped remote task %s',
                      machine_label(), task ) )
       return { type='remote', hash=task }
@@ -156,18 +158,20 @@ end
 local function advertise( cxn )
   if not args.advertise then return end
   local is_local = (args.listen == 'local')
-  broadcast_presence( cxn, 'workers_count' )
-  if is_local then broadcast_presence( cxn, 'workers_local' ) end
+  broadcast_worker_presence( cxn, 'workers_count' )
+  if is_local then
+    broadcast_worker_presence( cxn, 'workers_local' )
+  end
   if STATE.status ~= 'idle' then
-    broadcast_presence( cxn, 'workers_active' )
+    broadcast_worker_presence( cxn, 'workers_active' )
     if is_local then
-      broadcast_presence( cxn, 'workers_active_local' )
+      broadcast_worker_presence( cxn, 'workers_active_local' )
     end
   else
-    remove_presence( cxn, 'workers_active' )
-    remove_presence( cxn, 'workers_active_local' )
+    remove_worker_presence( cxn, 'workers_active' )
+    remove_worker_presence( cxn, 'workers_active_local' )
   end
-  local key = format( 'farm:worker:%s:%s', machine_label(), PID )
+  local key = keys.worker_advertisement( machine_label(), PID )
   local sock = assert( cxn.network.socket )
   local ip, port, _ = sock:getsockname()
   local worker = {
@@ -194,11 +198,11 @@ end
 local function unadvertise( cxn )
   if not args.advertise then return end
   debug( 'unadvertising %s:%s', machine_label(), PID )
-  remove_presence( cxn, 'workers_count' )
-  remove_presence( cxn, 'workers_local' )
-  remove_presence( cxn, 'workers_active' )
-  remove_presence( cxn, 'workers_active_local' )
-  local key = format( 'farm:worker:%s:%s', machine_label(), PID )
+  remove_worker_presence( cxn, 'workers_count' )
+  remove_worker_presence( cxn, 'workers_local' )
+  remove_worker_presence( cxn, 'workers_active' )
+  remove_worker_presence( cxn, 'workers_active_local' )
+  local key = keys.worker_advertisement( machine_label(), PID )
   cxn:del( key )
 end
 

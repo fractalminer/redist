@@ -4,6 +4,7 @@
 -----------------------------------------------------------------
 local ru = require( 'redis-util' )
 local farm = require( 'farm' )
+local keys = require( 'keys' )
 
 local json = require( 'moon.json' )
 local str = require( 'moon.str' )
@@ -32,7 +33,6 @@ local function query_cluster_state( cxn, opts )
   local state = {}
   local nodes = {}
   state.nodes = nodes
-  local keys
 
   -- First get a list of all nodes just from the node manager ad-
   -- vertisements. This will ensure that nodes with no workers
@@ -40,17 +40,18 @@ local function query_cluster_state( cxn, opts )
   -- but not a manager running (sometimes done during local test-
   -- ing) the node will still get picked up when iterating
   -- through the workers below.
-  keys = cxn:keys( 'farm:node:*:presence:manager' )
-  sort( keys )
-  for _, key in ipairs( keys ) do
+  local node_keys = cxn:keys(
+                        keys.node_manager_advertisement( '*' ) )
+  sort( node_keys )
+  for _, key in ipairs( node_keys ) do
     local _, _, node, _, _ = key:tsplit( ':' )
     nodes[node] = { workers={} }
   end
 
   -- Now get all workers.
-  keys = cxn:keys( 'farm:worker:*' )
-  sort( keys )
-  for _, key in ipairs( keys ) do
+  local worker_keys = keys.worker_advertisement( '*', '*' )
+  sort( worker_keys )
+  for _, key in ipairs( worker_keys ) do
     local _, _, node, pid = key:tsplit( ':' )
     nodes[node] = nodes[node] or {}
     nodes[node].workers = nodes[node].workers or {}
@@ -71,7 +72,7 @@ local function query_cluster_state( cxn, opts )
     ::continue::
   end
   state.preprocess_queue_size = 0
-  local local_queues = cxn:keys( 'farm:local:queue:*' )
+  local local_queues = keys.local_queue( '*' )
   for _, local_queue_key in ipairs( local_queues ) do
     state.preprocess_queue_size =
         state.preprocess_queue_size + cxn:llen( local_queue_key )
@@ -82,7 +83,8 @@ local function query_cluster_state( cxn, opts )
   state.core_count = 0
   state.active_core_count = 0
   state.cores_percent_used = 0
-  state.compile_queue_size = cxn:llen( 'farm:compile:cpp:queue' )
+  state.compile_queue_size = cxn:llen(
+                                 keys.global_remote_compile_queue() )
   state.active_worker_count = 0
   state.local_active_worker_count = 0
   state.worker_count = 0
@@ -94,8 +96,7 @@ local function query_cluster_state( cxn, opts )
     return assert( num, format( 'invalid number: "%s"', from ) )
   end
   for name, node in pairs( nodes ) do
-    local node_stats = cxn:hgetall(
-                           format( 'farm:node:%s:stats', name ) )
+    local node_stats = cxn:hgetall( keys.node_stats( name ) )
     node_stats = node_stats or {}
     node_stats.cores_total = node_stats.cores_total or 1
     node_stats.cores_percent_used =
@@ -117,8 +118,7 @@ local function query_cluster_state( cxn, opts )
     state.mem_total_gb = state.mem_total_gb + node.mem_total_gb
     state.mem_used_gb = state.mem_used_gb + node.mem_used_gb
     local function get_count( label )
-      local key =
-          format( 'farm:node:%s:presence:%s', name, label )
+      local key = keys.worker_presence_set( name, label )
       return number( cxn:scard( key ) or 0 )
     end
     node.worker_count = get_count( 'workers_count' )

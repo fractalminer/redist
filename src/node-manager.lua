@@ -3,6 +3,7 @@
 -----------------------------------------------------------------
 local config = require( 'config' )
 local farm = require( 'farm' )
+local keys = require( 'keys' )
 local network = require( 'network' )
 local process_pool = require( 'process-pool' )
 local ru = require( 'redis-util' )
@@ -30,7 +31,6 @@ local info = assert( logger.info )
 local machine_label = assert( network.machine_label )
 local sleep = assert( time.sleep )
 
-local format = assert( string.format )
 local insert = assert( table.insert )
 
 -----------------------------------------------------------------
@@ -122,8 +122,7 @@ local function adjust_pool_count( cxn, pool, conf )
 end
 
 local function advertise_node( cxn )
-  local key = format( 'farm:node:%s:presence:manager',
-                      machine_label() )
+  local key = keys.node_manager_advertisement( machine_label() )
   cxn:set( key, 1 )
   cxn:expire( key, config.node_manager.EXPIRE_ADVERTISE_SECS )
 end

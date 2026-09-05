@@ -16,6 +16,7 @@ del_pattern() {
 ./redis-cli.sh PING >/dev/null
 
 del_pattern "farm:blob:*"
-del_pattern "farm:compile:*"
-del_pattern "farm:local:*"
+del_pattern "farm:queue:*"
+del_pattern "farm:task:*"
+del_pattern "farm:events:*"
 del_pattern "farm:log:*"
