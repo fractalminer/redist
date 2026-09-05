@@ -1,0 +1,9 @@
+lua-root-6.cpp:
+
+  thelio:  14.3 seconds
+  geekom1: 17.4 seconds
+  geekom2: 17.1 seconds
+  geekom3: 17.8 seconds
+  meerkat: 18.3 seconds
+  bonobo:  23.0 seconds
+  darter2: 24.2 seconds
