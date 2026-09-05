@@ -49,7 +49,8 @@ local function query_cluster_state( cxn, opts )
   end
 
   -- Now get all workers.
-  local worker_keys = keys.worker_advertisement( '*', '*' )
+  local worker_keys = cxn:keys( keys.worker_advertisement( '*',
+                                                           '*' ) )
   sort( worker_keys )
   for _, key in ipairs( worker_keys ) do
     local _, _, node, pid = key:tsplit( ':' )

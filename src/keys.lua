@@ -14,7 +14,8 @@ local NS = 'farm'
 -- Implementation.
 -----------------------------------------------------------------
 local function make( key, elems )
-  return key:format( unpack( elems ) )
+  assert( type( elems ) == 'table' )
+  return assert( key ):format( unpack( elems ) )
 end
 
 function M.ns()
@@ -104,6 +105,7 @@ end
 function M.node( label )
   local key = '%s:node:%s'
   local elems = {
+    M.ns(), --
     assert( label ), --
   }
   return make( key, elems )
