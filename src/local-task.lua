@@ -134,7 +134,6 @@ end
 -----------------------------------------------------------------
 return {
   post_task=post_task,
-  queue_task=queue_task,
   find=find,
   set_result=set_result,
   publish_event=publish_event,
