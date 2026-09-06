@@ -26,8 +26,8 @@ local format = assert( string.format )
 -----------------------------------------------------------------
 -- Implementation.
 -----------------------------------------------------------------
-local function compress_zlib( what )
-  local deflate = zlib.deflate( assert( 1 ) )
+local function compress_zlib( what, level )
+  local deflate = zlib.deflate( assert( level ) )
   return (deflate( what, 'finish' ))
 end
 
@@ -37,8 +37,8 @@ local function decompress_zlib( what )
 end
 
 -- More advanced: faster and better compression.
-local function compress_zstd( what )
-  return zstd.compress( what, 9 )
+local function compress_zstd( what, level )
+  return zstd.compress( what, assert( level ) )
 end
 
 -- More advanced: faster and better compression.
@@ -48,12 +48,13 @@ end
 
 local function compress( what )
   local method = config.general.COMPRESSION_METHOD
+  local level = config.general.COMPRESSION_LEVEL
   local time_taken, compressed =
       timeit( function()
         if method == 'zlib' then
-          return compress_zlib( what )
+          return compress_zlib( what, level )
         elseif method == 'zstd' then
-          return compress_zstd( what )
+          return compress_zstd( what, level )
         else
           error(
               format( 'unrecognized compression type: %s', method ) )
