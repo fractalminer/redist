@@ -71,16 +71,12 @@ local function find_node( label )
 end
 
 local function find_node_index( label )
-  local node_labels = {}
-  on_ordered_kv( g_data.nodes, function( _, o )
-    insert( node_labels, o.node_label )
-  end )
   local i
-  for j, node_label in ipairs( node_labels ) do
+  for j, node_label in ipairs( g_data.node_ordering ) do
     i = i or j
     if node_label == label then i = j end
   end
-  return i, node_labels
+  return i, g_data.node_ordering
 end
 
 local function node_up( label )
@@ -284,6 +280,8 @@ local function update_data( cxn, opts )
                                            state.preprocess_queue_size )
   g_data.stats.compile_queue_size = assert(
                                         state.compile_queue_size )
+  g_data.stats.distributor_queue_size = assert(
+                                            state.distributor_queue_size )
   g_data.stats.hosts_queue_size =
       assert( state.hosts_queue_size )
 
@@ -487,7 +485,9 @@ local function redraw()
   advance()
   center( 'preprocess: %s', g_data.stats.preprocess_queue_size )
   advance()
-  center( 'distributor: %s', g_data.stats.compile_queue_size )
+  center( 'distributor: %s', g_data.stats.distributor_queue_size )
+  advance()
+  center( 'compile: %s', g_data.stats.compile_queue_size )
   advance()
   center( 'hosts: %s', g_data.stats.hosts_queue_size )
   advance()
