@@ -104,7 +104,7 @@ function Stgy.smart( cxn, hash )
     local remote_workers = total_workers - local_workers
     local remote_active_workers =
         active_workers - local_active_workers
-    if remote_active_workers < remote_workers + 2 then
+    if remote_active_workers < remote_workers then
       push_queue( cxn, keys.remote_host_queue( node_label ), hash )
       return true
     end
