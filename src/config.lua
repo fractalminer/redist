@@ -38,6 +38,7 @@ return harden{
   distributor={
     DEFAULT_STGY='smart',
     QUEUE_POLL_TIMEOUT_SECS=5,
+    STGY_SMART_OVERFILL=0,
   },
 
   scripts={

@@ -108,8 +108,11 @@ function Stgy.smart( cxn, hash )
         active_workers - local_active_workers
     local remote_queue_size = assert( node.remote_queue_size )
     local have = remote_active_workers + remote_queue_size
-    local want = math.floor( remote_workers + 2 )
+    local want = math.floor( remote_workers +
+                                 config.distributor
+                                     .STGY_SMART_OVERFILL )
     if have < want then
+      assert( remote_workers > 0 )
       push_queue( cxn, keys.remote_host_queue( node_label ), hash )
       debug( 'distributed task %s to %s: %s<%s', hash,
              node_label:split( '-' )[1], have, want )
