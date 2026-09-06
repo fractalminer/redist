@@ -9,8 +9,8 @@ local ru = require( 'redis-util' )
 
 local logger = require( 'moon.logger' )
 local time = require( 'moon.time' )
+local zstd = require( 'moon.zstd' )
 
-local zlib = require( 'zlib' )
 local posix = require( 'posix' )
 
 -----------------------------------------------------------------
@@ -39,18 +39,15 @@ local PID<const> = assert( posix.getpid().pid )
 -- Implementation.
 -----------------------------------------------------------------
 local function compress( what )
-  local deflate = zlib.deflate( assert( 1 ) )
   local time_taken, compressed =
-      timeit( function() return (deflate( what, 'finish' )) end )
+      timeit( function() return zstd.compress( what, 9 ) end )
   debug( 'compression time: %d us', time_taken )
   return compressed
 end
 
 local function decompress( what )
-  ---@diagnostic disable-next-line: missing-parameter
-  local inflate = zlib.inflate()
   local time_taken, decompressed =
-      timeit( function() return (inflate( what )) end )
+      timeit( function() return zstd.decompress( what ) end )
   debug( 'decompression time: %d us', time_taken )
   return decompressed
 end
