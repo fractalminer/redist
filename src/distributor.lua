@@ -103,15 +103,16 @@ function Stgy.smart( cxn, hash )
     local local_active_workers = assert(
                                      node.local_active_worker_count )
     local remote_workers = total_workers - local_workers
+    if remote_workers == 0 then goto continue end
     local remote_active_workers =
         active_workers - local_active_workers
     local remote_queue_size = assert( node.remote_queue_size )
-    local l = remote_active_workers + remote_queue_size
-    local r = math.floor( remote_workers * 1.5 )
-    if remote_workers > 0 and l < r then
+    local have = remote_active_workers + remote_queue_size
+    local want = math.floor( remote_workers + 2 )
+    if have < want then
       push_queue( cxn, keys.remote_host_queue( node_label ), hash )
       debug( 'distributed task %s to %s: %s<%s', hash,
-             node_label:split( '-' )[1], l, r )
+             node_label:split( '-' )[1], have, want )
       return true
     end
     ::continue::
