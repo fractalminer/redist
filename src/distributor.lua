@@ -110,7 +110,7 @@ function Stgy.smart( cxn, hash )
     end
     ::continue::
   end
-  return true
+  return false
 end
 
 -----------------------------------------------------------------
