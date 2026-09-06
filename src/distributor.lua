@@ -79,6 +79,7 @@ local Stgy = {}
 
 function Stgy.global( cxn, hash )
   push_queue( cxn, keys.remote_global_queue(), hash )
+  debug( 'distributed task %s to GLOBAL', hash )
   return true
 end
 
@@ -106,6 +107,8 @@ function Stgy.smart( cxn, hash )
         active_workers - local_active_workers
     if remote_active_workers < remote_workers then
       push_queue( cxn, keys.remote_host_queue( node_label ), hash )
+      debug( 'distributed task %s to %s', hash,
+             node_label:split( '-' )[1] )
       return true
     end
     ::continue::
