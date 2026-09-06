@@ -32,6 +32,7 @@ local socket_select = assert( socket.select )
 local format = assert( string.format )
 local insert = assert( table.insert )
 local min = assert( math.min )
+local sort = assert( table.sort )
 
 -----------------------------------------------------------------
 -- Constants.
@@ -64,8 +65,8 @@ local g_data = {}
 -- Input processors.
 -----------------------------------------------------------------
 local function find_node( label )
-  for _, node in ipairs( g_data.nodes ) do
-    if node.node_label == label then return node end
+  for node_label, node in pairs( g_data.nodes ) do
+    if node_label == label then return node end
   end
 end
 
@@ -169,8 +170,7 @@ local function clear_target_count( cxn )
 end
 
 local function clear_all_target_counts( cxn )
-  for _, node in ipairs( g_data.nodes ) do
-    if node.node_label == label then return node end
+  for _, node in pairs( g_data.nodes ) do
     local worker_count = WorkerCount( cxn, node.node_label,
                                       'both' )
     worker_count:set( 0 )
@@ -235,6 +235,25 @@ local function percent( n, d )
   return n / d
 end
 
+local function get_node_ordering( nodes, node_rank )
+  local all = {}
+  for label, _ in pairs( nodes ) do all[label] = true end
+  for _, label in ipairs( node_rank ) do all[label] = true end
+  local ordered = {}
+  for k, _ in pairs( all ) do insert( ordered, k ) end
+  sort( ordered )
+  local res = {}
+  for _, label in ipairs( node_rank ) do
+    insert( res, label )
+    all[label] = false
+  end
+  for _, label in ipairs( ordered ) do
+    if all[label] then insert( res, label ) end
+  end
+  assert( #res >= #node_rank )
+  return res
+end
+
 local function update_data( cxn, opts )
   assert( cxn )
   opts = opts or {}
@@ -256,12 +275,17 @@ local function update_data( cxn, opts )
   g_data = {}
   g_data.query_time_micros = query_time
   g_data.stats = {}
+
+  g_data.node_rank = assert( state.node_rank )
+
   local stats = g_data.stats
 
   g_data.stats.preprocess_queue_size = assert(
                                            state.preprocess_queue_size )
   g_data.stats.compile_queue_size = assert(
                                         state.compile_queue_size )
+  g_data.stats.hosts_queue_size =
+      assert( state.hosts_queue_size )
 
   stats.cores = assert( state.core_count )
   stats.active_cores = assert( state.active_core_count )
@@ -276,14 +300,15 @@ local function update_data( cxn, opts )
   stats.total_workers = assert( state.worker_count )
   stats.local_workers = assert( state.local_worker_count )
   stats.active_workers = assert( state.active_worker_count )
+
   g_data.nodes = {}
   local nodes = g_data.nodes
-  on_ordered_kv( state.nodes, function( k, v )
-    local name, machine_id = k:tsplit( '-' )
+  on_ordered_kv( state.nodes, function( node_label, v )
+    local name, machine_id = node_label:tsplit( '-' )
     local node = {}
     node.id = machine_id
     node.name = name
-    node.node_label = k
+    node.node_label = node_label
     node.from_host = 'unknown' -- assert( v.host )
     node.cores = assert( v.core_count )
     node.active_cores = assert( v.active_core_count )
@@ -309,7 +334,9 @@ local function update_data( cxn, opts )
                                         node.local_active_workers,
                                         node.local_workers )
     node.target_count = assert( v.target_count )
-    insert( nodes, node )
+    node.local_queue_size = assert( v.local_queue_size )
+    node.remote_queue_size = assert( v.remote_queue_size )
+    nodes[node_label] = node
   end )
   stats.worker_utilization = percent( stats.active_workers,
                                       stats.total_workers )
@@ -323,6 +350,8 @@ local function update_data( cxn, opts )
   stats.local_worker_utilization = percent(
                                        stats.local_active_workers,
                                        stats.local_workers )
+  g_data.node_ordering = get_node_ordering( g_data.nodes,
+                                            g_data.node_rank )
 end
 
 -----------------------------------------------------------------
@@ -410,7 +439,7 @@ local function redraw()
     move{ x=1, y=y }
   end
 
-  local has_nodes = #g_data.nodes > 0
+  local has_nodes = next( g_data.nodes ) ~= nil
 
   start_box( 'ReDist Build Farm Dashboard' )
   finish_box()
@@ -458,14 +487,20 @@ local function redraw()
   advance()
   center( 'preprocess: %s', g_data.stats.preprocess_queue_size )
   advance()
-  center( 'compile: %s', g_data.stats.compile_queue_size )
+  center( 'distributor: %s', g_data.stats.compile_queue_size )
+  advance()
+  center( 'hosts: %s', g_data.stats.hosts_queue_size )
   advance()
   advance()
   finish_box()
 
   -- Nodes.
   if has_nodes then start_box( 'NODES' ) end
-  for _, node in ipairs( g_data.nodes ) do
+  for _, node_label in ipairs( g_data.node_ordering ) do
+    -- This can happen if there are nodes in the ranking in redis
+    -- but which are not online now.
+    if not g_data.nodes[node_label] then goto continue end
+    local node = assert( g_data.nodes[node_label] )
     advance( 2 )
     textln( 'NODE: %s [%s]', node.name, node.from_host )
     mc.hline( mc.COLS - 4 )
@@ -500,17 +535,23 @@ local function redraw()
     end
     local both_widget = counter_widget( 'both' )
     local local_widget = counter_widget( 'local' )
-    textln( 'core   usage: %2.1fs/%2s (%3.1f%%)    %s',
+    local host_queue = format( 'host  queue: %d',
+                               node.remote_queue_size )
+    local local_queue = format( 'local queue %d',
+                                node.local_queue_size )
+    textln( 'core   usage: %2.1fs/%2s (%3.1f%%)    %s    %s',
             node.active_cores, node.cores,
-            node.core_utilization * 100, both_widget )
-    textln( 'worker usage: %2s/%2s (%3.1f%%)    %s',
+            node.core_utilization * 100, both_widget, host_queue )
+    textln( 'worker usage: %2s/%2s (%3.1f%%)    %s    %s',
             node.remote_active_workers, node.remote_workers,
-            node.remote_worker_utilization * 100, local_widget )
+            node.remote_worker_utilization * 100, local_widget,
+            local_queue )
     if node.local_workers > 0 then
       textln( 'local  usage: %2s/%2s (%3.1f%%)',
               node.local_active_workers, node.local_workers,
               node.local_worker_utilization * 100 )
     end
+    ::continue::
   end
   if has_nodes then
     advance()

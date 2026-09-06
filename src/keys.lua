@@ -51,7 +51,7 @@ function M.remote_distributor_queue()
 end
 
 function M.remote_host_queue( node )
-  local key = '%s:remote:node:%s'
+  local key = '%s:remote:host:%s'
   local elems = {
     M.queue(), --
     assert( node ), --
@@ -120,7 +120,7 @@ function M.node( label )
 end
 
 function M.node_stats( label )
-  local key = '%s:node:stats'
+  local key = '%s:stats'
   local elems = {
     M.node( label ), --
   }
@@ -210,6 +210,19 @@ function M.node_worker_target_count( node, label )
   }
   return make( key, elems )
 end
+
+function M.stgy( which )
+  local key = '%s:stgy:%s'
+  local elems = {
+    M.ns(), --
+    assert( which ), --
+  }
+  return make( key, elems )
+end
+
+function M.distributor_stgy() return M.stgy( 'distributor' ) end
+
+function M.node_rank() return M.node( 'rank' ) end
 
 -----------------------------------------------------------------
 -- Module..

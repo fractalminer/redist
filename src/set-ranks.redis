@@ -1,0 +1,7 @@
+ZADD farm:node:rank 14.3  thelio-a684a28cee8cfbd37c895a6266564755
+ZADD farm:node:rank 17.1 geekom2-55de77073bc7647725ce62096a978bf1
+ZADD farm:node:rank 17.4 geekom1-c2e35a1b5afe33bd6aa9c1d26a977589
+ZADD farm:node:rank 17.8 geekom3-e322c033f3841b7c9dbd9c9a6a9870c1
+ZADD farm:node:rank 17.9 meerkat-794558ad67d03a155ed635a464b2b5e4
+ZADD farm:node:rank 23.0  bonobo-a3a2da568ef6838c1ed2ed9463e5507b
+ZADD farm:node:rank 24.2 darter2-b0db31b5853309832ffb1a156766e000

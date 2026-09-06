@@ -72,12 +72,12 @@ local function query_cluster_state( cxn, opts )
     insert( nodes[node].workers, worker )
     ::continue::
   end
+  state.node_rank =
+      assert( cxn:zrange( keys.node_rank(), 0, -1 ) )
+  state.distributor_queue_size = cxn:llen(
+                                     keys.remote_distributor_queue() )
   state.preprocess_queue_size = 0
-  local local_queues = keys.local_queue( '*' )
-  for _, local_queue_key in ipairs( local_queues ) do
-    state.preprocess_queue_size =
-        state.preprocess_queue_size + cxn:llen( local_queue_key )
-  end
+  state.hosts_queue_size = 0
   state.mem_total_gb = 0
   state.mem_used_gb = 0
   state.mem_percent_used = 0
@@ -146,6 +146,14 @@ local function query_cluster_state( cxn, opts )
     node.target_count.remote = remote_target_count
     node.target_count['local'] = local_target_count
     node.target_count.both = both_target_count
+
+    node.local_queue_size = cxn:llen( keys.local_queue( name ) )
+    node.remote_queue_size = cxn:llen(
+                                 keys.remote_host_queue( name ) )
+    state.preprocess_queue_size =
+        state.preprocess_queue_size + node.local_queue_size
+    state.hosts_queue_size = state.hosts_queue_size +
+                                 node.remote_queue_size
   end
   if state.core_count > 0 then
     state.cores_percent_used = state.active_core_count /
