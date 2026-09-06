@@ -10,6 +10,7 @@ return harden{
     -- HOST='127.0.0.1', -- loopback
     PORT=6379, --
     CONNECT_TIMEOUT_SECS=10,
+    COMPRESSION_METHOD='zlib',
   },
 
   worker={

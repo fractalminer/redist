@@ -1,6 +1,7 @@
 -----------------------------------------------------------------
 -- Implementation.
 -----------------------------------------------------------------
+local compression = require( 'compression' )
 local config = require( 'config' )
 local hash = require( 'hash' )
 local keys = require( 'keys' )
@@ -10,7 +11,6 @@ local ru = require( 'redis-util' )
 local logger = require( 'moon.logger' )
 local time = require( 'moon.time' )
 
-local zlib = require( 'zlib' )
 local posix = require( 'posix' )
 
 -----------------------------------------------------------------
@@ -18,6 +18,8 @@ local posix = require( 'posix' )
 -----------------------------------------------------------------
 local dec_if_positive = assert( ru.dec_if_positive )
 local machine_label = assert( network.machine_label )
+local compress = assert( compression.compress )
+local decompress = assert( compression.decompress )
 
 local debug = assert( logger.debug )
 local timeit = assert( time.timeit_micros )
@@ -38,31 +40,16 @@ local PID<const> = assert( posix.getpid().pid )
 -----------------------------------------------------------------
 -- Implementation.
 -----------------------------------------------------------------
-local function compress( what )
-  local deflate = zlib.deflate( assert( 1 ) )
-  local time_taken, compressed =
-      timeit( function() return (deflate( what, 'finish' )) end )
-  debug( 'compression time: %d us', time_taken )
-  return compressed
-end
-
-local function decompress( what )
-  ---@diagnostic disable-next-line: missing-parameter
-  local inflate = zlib.inflate()
-  local time_taken, decompressed =
-      timeit( function() return (inflate( what )) end )
-  debug( 'decompression time: %d us', time_taken )
-  return decompressed
-end
-
 local function set_blob( cxn, body )
   assert( body, 'invalid body' )
   local h = hash.hash( body )
   local key = keys.blob( h )
   if not cxn:exists( key ) then
     debug( 'uploading blob of size %d', #body )
+    -- NOTE: this will log its own compression time.
+    local compressed = compress( body )
     local time_taken = timeit( function()
-      cxn:set( key, compress( body ) )
+      cxn:set( key, compressed )
     end )
     debug( 'upload time: %d us', time_taken )
   end
@@ -87,6 +74,7 @@ local function download_blob( cxn, blob_hash )
   if not blob then
     error( format( 'blob not found for key %s', key ) )
   end
+  -- NOTE: this will log its own decompression time.
   blob = decompress( blob )
   assert( type( blob ) == 'string',
           format( 'unexpected blob type: %s for key: %s',
