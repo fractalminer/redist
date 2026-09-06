@@ -85,6 +85,7 @@ end
 
 function Stgy.smart( cxn, hash )
   -- TODO: this is probably too slow.
+  -- FIXME: this is probably too slow.
   local query_time, state = timeit_micros( function()
     return query_cluster_state( cxn, {
       exclude_workers=true, --
@@ -92,6 +93,7 @@ function Stgy.smart( cxn, hash )
   end )
   debug( 'queried cluster state: %s us', query_time )
   assert( state )
+  -- TODO: need to automate the population of rank.
   for _, node_label in ipairs( state.node_rank ) do
     -- This can happen if there are nodes in the ranking in redis
     -- but which are not online now.
