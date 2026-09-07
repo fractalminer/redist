@@ -34,6 +34,7 @@ return harden{
   },
 
   stats_collector={
+    COLLECTION_INTERVAL_MILLIS=200, --
     EXPIRE_ADVERTISE_SECS=5, --
   },
 

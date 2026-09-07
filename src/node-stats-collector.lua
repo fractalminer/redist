@@ -24,8 +24,6 @@ local machine_label = assert( network.machine_label )
 local set_hash = assert( ru.set_hash )
 local sleep = assert( time.sleep )
 
-local format = assert( string.format )
-
 -----------------------------------------------------------------
 -- Constants.
 -----------------------------------------------------------------
@@ -164,7 +162,8 @@ local function run( cxn )
     local mem_usage = read_mem_usage()
     broadcast_stats( cxn, sample.cpus, cpu_usage, mem_usage )
     last_sample = sample
-    sleep( 1.0 )
+    sleep( config.stats_collector.COLLECTION_INTERVAL_MILLIS /
+               1000 )
   end
 end
 
