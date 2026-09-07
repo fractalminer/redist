@@ -2,7 +2,7 @@
 set -eo pipefail
 
 # The TU will be compiled this many times to get an avg time.
-export TRIALS=5
+export TRIALS=10
 
 cd ~/dev/revolution-now/.builds/current/
 
@@ -86,21 +86,32 @@ single() {
     -MMD \
     -MT src/ss/lua-root-6.cpp \
     -MF /tmp/lua-root-6.cpp.d \
-    -o /tmp/lua-root-6.cpp.o \
-    -c \
+    -frewrite-includes \
+    -o /tmp/lua-root-6.cpp \
+    -E \
     $HOME/dev/revolution-now/src/ss/lua-root-6.cpp
 }
 export -f single
 
-ten_runs() {
+runs() {
   for (( i=0; i<TRIALS; i++ )); do
-    single
+    local start_time=$(date +%s)
+    single &>/dev/null
+    local end_time=$(date +%s)
+    local elapsed=$((end_time - start_time))
+    # seconds
+    echo "single: $elapsed" 1>&2
   done
 }
-export -f ten_runs
+export -f runs
 
 timeit() {
-  /usr/bin/time 2>&1 --format=%e bash -c ten_runs
+  local start_time=$(date +%s)
+  runs
+  local end_time=$(date +%s)
+  local elapsed=$((end_time - start_time))
+  # seconds
+  echo "$elapsed"
 }
 
 lua -e "print( 'avg time[$TRIALS]:', $(timeit)/$TRIALS )"

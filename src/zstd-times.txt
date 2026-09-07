@@ -1,0 +1,18 @@
+wifi bathroom 10 full compilations:
+
+  zlib.1:  111.1
+  zlib.9:  127.1
+
+  zstd.1:  106.2
+  zstd.9:  110.8
+  zstd.19: 409.6
+
+ethernet 10 full compilations:
+
+  zlib.1:  104.7
+  zlib.9:  112.0
+
+  zstd.1:   93.1
+  zstd.2:   93.6
+  zstd.9:   98.9
+  zstd.19: xxx.x
