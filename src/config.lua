@@ -11,7 +11,7 @@ return harden{
     PORT=6379, --
     CONNECT_TIMEOUT_SECS=10,
     COMPRESSION_METHOD='zstd',
-    COMPRESSION_LEVEL=2,
+    COMPRESSION_LEVEL=1,
   },
 
   worker={
