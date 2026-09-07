@@ -91,7 +91,7 @@ function Stgy.smart( cxn, hash )
       exclude_workers=true, --
     } )
   end )
-  debug( 'queried cluster state: %s us', query_time )
+  debug( 'queried cluster state: %.1f ms', query_time/1000 )
   assert( state )
   -- TODO: need to automate the population of rank.
   for _, node_label in ipairs( state.node_rank ) do
