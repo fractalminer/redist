@@ -44,6 +44,12 @@ return harden{
     STGY_SMART_OVERFILL=0,
   },
 
+  dashboard={
+    POLL_TIMEOUT_SECS=.1,
+    REDIS_UPDATE_INTERVAL_MILLIS=200,
+    REDRAW_INTERVAL_MILLIS=200,
+  },
+
   scripts={
     dec_if_positive='scripts/dec-if-positive.lua', --
   },

@@ -35,13 +35,6 @@ local min = assert( math.min )
 local sort = assert( table.sort )
 
 -----------------------------------------------------------------
--- Constants.
------------------------------------------------------------------
-local POLL_TIMEOUT_SECS = .1
-local REDIS_UPDATE_INTERVAL_MILLIS = 1000
-local REDRAW_INTERVAL_MILLIS = 10
-
------------------------------------------------------------------
 -- Globals.
 -----------------------------------------------------------------
 str.enable_string_injections()
@@ -255,7 +248,8 @@ local function update_data( cxn, opts )
   opts = opts or {}
   local now = now_millis()
   if not opts.force then
-    if now < g_last_update_time + REDIS_UPDATE_INTERVAL_MILLIS then
+    if now < g_last_update_time +
+        config.dashboard.REDIS_UPDATE_INTERVAL_MILLIS then
       return
     end
   end
@@ -401,9 +395,8 @@ end
 
 local function redraw()
   local now = now_millis()
-  if now < g_last_redraw_time + REDRAW_INTERVAL_MILLIS then
-    return
-  end
+  if now < g_last_redraw_time +
+      config.dashboard.REDRAW_INTERVAL_MILLIS then return end
   g_last_redraw_time = now
   g_redraws = g_redraws + 1
   if g_redraws % 20 == 0 then mc.clear() end
@@ -584,8 +577,9 @@ local function loop( cxn, pubsub_cxn, pubsub_msgs )
     update_data( cxn )
     redraw()
     g_loops = g_loops + 1
-    local input = assert( next_event( pubsub_cxn,
-                                      POLL_TIMEOUT_SECS ) )
+    local input = assert(
+                      next_event( pubsub_cxn, config.dashboard
+                                      .POLL_TIMEOUT_SECS ) )
     if input.keyboard then
       local key = mc.getkey()
       if key == 'q' then return true end
@@ -609,12 +603,14 @@ local function loop( cxn, pubsub_cxn, pubsub_msgs )
                              INPUT_STATE.node_label,
                              INPUT_STATE.counter_type )
       update_data( cxn, { force=true } )
+      g_last_redraw_time = 0 -- force redraw.
     end
     if input.redis then
       pubsub_msgs()
       g_status = 'redis message'
       g_events = g_events + 1
       update_data( cxn, { force=true } )
+      g_last_redraw_time = 0 -- force redraw.
     end
   end
 end
