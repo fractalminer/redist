@@ -2,56 +2,48 @@
 TODO:
 -----------------------------------------------------------------
   * Distributor:
-    There are currently a few different issues:
-      - When a worker dies with a task that task doesn't get
-        reinserted into the queue.
+    - Periodically the Distributor will check all the node spe-
+      cific queues and grab their pids from the task objects and
+      then check the worker advertisement to see if that pid is
+      still alive and, if not, it will reclaim the task (just
+      putting it back into the global queue). When it does that
+      it will increase a counter on the task object so that it
+      doesn't do too many retries in case there is something
+      wrong with the task itself that is causing the worker to
+      die. In the event that the retry count is exceeded then it
+      will fail the task by creating the output with a failed
+      status code, that way the message will appear to the
+      builder. Initially, we can set the retry count at zero so
+      that we can get a better sense of worker deaths.
       - Note that this shouldn't be handled by the node manager
         since the node manager goes away if the entire node dies.
-      - When there are multiple nodes available for a compile,
-        effectively a random one gets chosen to receive the task,
-        without regard to the strength of the box.
-      - We may end up needing some kind of mechanism whereby com-
-        pile tasks are distributed taking into account how heavy
-        they are. E.g. if we are given a compile task for a very
-        light translation unit then it might be prudent to give
-        it to a lesser box even if a bigger box is available so
-        that we can leave the bigger box for larger compiles. Not
-        certain yet we will do this, but if we do do it then it
-        would need to be handled at a level above the individual
-        nodes.
-    These could both be solved with a Distributor that manages
-    the contents of the queues.
+    - Each time a compile finishes (maybe on one reference plat-
+      form) a sorted set with the compile time can be maintained.
+      Then, the distributor can look at that to determine if the
+      file is in the top N of heavy TUs and assign it to a desig-
+      nated box's host-specific queue. Moreover, it can put it in
+      the front of that host's queue so that it gets run ASAP.
+      That way we ensure that a slow box never gets stuck han-
+      dling a heavy TU.
+    - Alternatively, we could just have a tool that generates
+      this sorted set from the contents of the ninja log file.
+      But that would be an extra manual step; would be nice to
+      have it be automated.
   * Try doing more to split up the large TUs. Run
     tools/ninja-log-times.sh to see which.
   * Implement the build.ninja reader/rearranger and then just
     measure if/how it speeds up entirely local builds by removing
     the tail latency. This is because, if we can't get ninja to
     give us the heavy TUs early enough, then giving them to a
-    fast node won't be able to make up for that lost time.
-  * Affinity/Node Selection:
-    * Need to have a concept of worker node affinity, i.e. when a
-      thelio worker is available it should take precedence over
-      any other.
-      - Should first create a tool to determine which node
-        processed a given file to see if there is a correlation
-        in run times with e.g. which node processes lua-root.cpp.
-      - Then design an affinity model.
-    * Currently there is only one compile queue, but it may be
-      worth having two, one for fast compiles and another for
-      slow ones (and there can be a third "general" queue for
-      when we don't have info about expected compile time). That
-      way, a beefy node could give priority to the slow queue and
-      vice versa for the non-beefy node. The remote compile
-      workers currently include compile time in the task output,
-      but they should also put that in another hash that is ad-
-      dressable by file basename, that way it can potentially be
-      used by the builder on subsequent builds to know which
-      queue to put it in (otherwise it just selects adds it to
-      the general queue).
+    fast node won't be able to make up for that lost time. Seems
+    appropriate to implement this in python and have it run at
+    the end of the `configure` script when in ninja mode.
   * Need to go through and minimize the number of redis queries
     made by the builder and workers because latency can be very
     high when operating externally. For example, one query can
     have a latency (round trip) of 1/2 second.
+    - Consider putting any multi-step things into server-side lua
+      functions.
   * Dashboard:
     * The dashboard should go to sleep (increase poll delay after
       a certain amount of time of no utilization), then as soon
@@ -154,63 +146,6 @@ Plan for Cluster Manager:
   * Eventual goals:
     - It should be able to bring up/down node managers on each
       node through remote systemd through ssh.
-
-Plan for Distributor:
------------------------------------------------------------------
-  * There will be a job called the Distributor which will be
-    run as a single instance by the cluster manager.
-  * It will do the following:
-    - It will monitor the compile queue and determine which node
-      to give it to using some strategy. The strategy can be set
-      either using a CLI flag or possible by reading a redis key.
-      The default strategy will be smart assignment based on node
-      power.
-    - For the smart strategy, as soon as a new task appears it
-      will read the total/active worker counts from the nodes and
-      will decide where to assign that task given availability
-      and node power. These node worker counts should probably be
-      cached for efficiency and refreshed on time intervals.
-    - At first node power will be hard-coded, but eventually it
-      can be determined automatically by a separate job called
-      the Power Meter. The power meter could upload its results
-      as a Redis sorted set.
-    - When a task is assigned to a box, it is inserted into that
-      box's queue (the workers will no longer listen to the
-      global compile queue, although that behavior can be
-      flag-controlled).
-    - Then the worker, when it picks it up, it will insert it
-      into a node-specific set to indicate that it is being
-      worked on. It will also set its node/pid on the task ob-
-      ject. to record that it started on it.
-    - Periodically the Distributor will check all the node spe-
-      cific queues and grab their pids from the task objects and
-      then check the worker advertisement to see if that pid is
-      still alive and, if not, it will reclaim the task (just
-      putting it back into the global queue). When it does that
-      it will increase a counter on the task object so that it
-      doesn't do too many retries in case there is something
-      wrong with the task itself that is causing the worker to
-      die. In the event that the retry count is exceeded then it
-      will fail the task by creating the output with a failed
-      status code, that way the message will appear to the
-      builder. Initially, we can set the retry count at zero so
-      that we can get a better sense of worker deaths.
-    - The above alone is not optimal for lua-root.cpp, since for
-      that file we really want it to go to thelio even if thelio
-      happens to be full when it comes up (likely). So the way to
-      solve this is to recognize these large modules (assume we
-      can do that) and then the Distributor will directly add it
-      to the /front/ of thelio's queue (not the back, as it nor-
-      mally would). This is because we want to start on it as
-      soon as possible because those modules tend to determine
-      total build time on their onn. In fact, in the middle of a
-      build, when a new task appears, all of the nodes will be
-      maxed out, and so therefore the Distributor will just end
-      up assigning randomly, and thus would not give us much over
-      the existing strategy during that part of the build (which
-      is effectively random). However, if we can single out large
-      modules as described above, we can get around that by
-      putting them directly onto the front of thelio's queue.
 
 Plan for Monitor:
 -----------------------------------------------------------------

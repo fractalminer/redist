@@ -83,12 +83,17 @@ function Stgy.global( cxn, hash )
   return true
 end
 
+-- TODO: consider making this a server-side lua script. This is
+-- not urgent because the distributor will run on the redis host
+-- where latency is low, but still the latency can start to creep
+-- up to a few millis due to the number of queries that are made
+-- below to measure activity stats.
 function Stgy.smart( cxn, hash )
   local query_time, state =
       timeit_micros( distributor_info, cxn )
   debug( 'queried cluster state: %.1f ms', query_time / 1000 )
   assert( state )
-  -- TODO: need to automate the population of rank.
+  assert( #state.node_rank > 0, 'node ranks not present.' )
   for _, node_label in ipairs( state.node_rank ) do
     -- This can happen if there are nodes in the ranking in redis
     -- but which are not online now.
