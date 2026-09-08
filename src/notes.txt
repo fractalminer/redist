@@ -100,6 +100,10 @@ TODO:
       pid and if it is given it then it should detect if that pid
       goes away and if so it should stop. This should be done for
       any process run in the process pool.
+  * For the local workers, when they are uploading their pre-
+    processed output, perhaps we want to adapt the compression
+    level according to the upload bandwidth they have to the
+    redis server, if that can be measured reliably.
   * Need to set TTLs properly on all the keys.
     - When pushing to the queue log, set the expiry on the list.
   * Move the subprocess code into moon.

@@ -39,9 +39,9 @@ local function tcp_reachable( host, port, timeout )
   return sock.sock:connect( host, port ) ~= nil
 end
 
-local function connect()
-  local HOST = assert( config.general.HOST )
-  local PORT = assert( config.general.PORT )
+local function connect_impl( host, port )
+  local HOST = assert( host )
+  local PORT = assert( port )
   -- Test if the server is reachable first because then otherwise
   -- redis.connect can hang for a long period of time, and we
   -- don't want to put a timeout on its underlying socket because
@@ -60,6 +60,18 @@ local function connect()
       self:quit()
     end,
   } )
+end
+
+local function connect()
+  local HOST = assert( config.general.HOST )
+  local PORT = assert( config.general.PORT )
+  return connect_impl( HOST, PORT )
+end
+
+local function connect_local()
+  local HOST = assert( '127.0.0.1' )
+  local PORT = assert( config.general.PORT_LOCAL )
+  return connect_impl( HOST, PORT )
 end
 
 local function set_hash( cxn, key, tbl, expiry )
@@ -121,6 +133,7 @@ end
 -----------------------------------------------------------------
 return {
   connect=connect,
+  connect_local=connect_local,
   set_hash=set_hash,
   redis_script=redis_script,
   run_redis_script=run_redis_script,

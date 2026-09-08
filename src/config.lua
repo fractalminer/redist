@@ -11,6 +11,10 @@ return harden{
     PORT=6379, --
     CONNECT_TIMEOUT_SECS=10,
     COMPRESSION_METHOD='zstd',
+    -- The ideal value of this compression level depends on up-
+    -- load bandwidth to the redis server: lower bandwidths want
+    -- higher compression levels, and vice versa, for optimal
+    -- overall build times.
     COMPRESSION_LEVEL=1,
   },
 
