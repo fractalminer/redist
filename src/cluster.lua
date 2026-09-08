@@ -172,10 +172,65 @@ local function print_cluster_state( opts )
   print( json.tostring_pretty( state ) )
 end
 
+-- Queries the minimum amount needed for the distributor job to
+-- operate.
+local function distributor_info( cxn )
+  assert( cxn )
+
+  local state = {}
+  local nodes = {}
+  state.nodes = nodes
+
+  -- Get the list of nodes from two places: node advertisement
+  -- and worker advertisement. That way we get nodes that have no
+  -- workers and nodes with workers but no node manager.
+  local node_keys = cxn:keys(
+                        keys.node_manager_advertisement( '*' ) )
+  sort( node_keys )
+  for _, key in ipairs( node_keys ) do
+    local _, _, node, _, _ = key:tsplit( ':' )
+    nodes[node] = {}
+  end
+
+  -- Now get all workers.
+  local worker_keys = cxn:keys( keys.worker_advertisement( '*',
+                                                           '*' ) )
+  sort( worker_keys )
+  for _, key in ipairs( worker_keys ) do
+    local _, _, node, _ = key:tsplit( ':' )
+    nodes[node] = nodes[node] or {}
+  end
+  state.node_rank =
+      assert( cxn:zrange( keys.node_rank(), 0, -1 ) )
+  local function number( from )
+    if not from then return 0 end
+    if from == '' then return 0 end
+    local num = tonumber( from )
+    return assert( num, format( 'invalid number: "%s"', from ) )
+  end
+  for name, node in pairs( nodes ) do
+    local node_stats = cxn:hgetall( keys.node_stats( name ) )
+    node_stats = node_stats or {}
+    local function get_count( label )
+      local key = keys.worker_presence_set( name, label )
+      return number( cxn:scard( key ) or 0 )
+    end
+    node.worker_count = get_count( 'workers_count' )
+    node.active_worker_count = get_count( 'workers_active' )
+    node.local_worker_count = get_count( 'workers_local' )
+    node.local_active_worker_count = get_count(
+                                         'workers_active_local' )
+    node.remote_queue_size = cxn:llen(
+                                 keys.remote_host_queue( name ) )
+  end
+  return state
+end
+
 -----------------------------------------------------------------
 -- Finished.
 -----------------------------------------------------------------
 return {
   query_cluster_state=query_cluster_state,
   print_cluster_state=print_cluster_state,
+  distributor_info=distributor_info,
 }

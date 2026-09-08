@@ -16,7 +16,7 @@ local signal = require( 'posix.signal' )
 -----------------------------------------------------------------
 -- Aliases.
 -----------------------------------------------------------------
-local query_cluster_state = assert( cluster.query_cluster_state )
+local distributor_info = assert( cluster.distributor_info )
 
 local debug = assert( logger.debug )
 local info = assert( logger.info )
@@ -84,14 +84,9 @@ function Stgy.global( cxn, hash )
 end
 
 function Stgy.smart( cxn, hash )
-  -- TODO: this is probably too slow.
-  -- FIXME: this is probably too slow.
-  local query_time, state = timeit_micros( function()
-    return query_cluster_state( cxn, {
-      exclude_workers=true, --
-    } )
-  end )
-  debug( 'queried cluster state: %.1f ms', query_time/1000 )
+  local query_time, state =
+      timeit_micros( distributor_info, cxn )
+  debug( 'queried cluster state: %.1f ms', query_time / 1000 )
   assert( state )
   -- TODO: need to automate the population of rank.
   for _, node_label in ipairs( state.node_rank ) do
