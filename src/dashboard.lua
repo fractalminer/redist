@@ -31,6 +31,7 @@ local socket_select = assert( socket.select )
 
 local format = assert( string.format )
 local insert = assert( table.insert )
+local floor = assert( math.floor )
 local min = assert( math.min )
 local sort = assert( table.sort )
 
@@ -374,6 +375,19 @@ local function text( out, ... )
   end
   out:text( txt )
   out:clear_to_eol()
+  return txt
+end
+
+local function textw( out, w, ... )
+  local txt
+  if #{ ... } == 1 then
+    txt = ...
+  else
+    txt = format( ... )
+  end
+  txt = format( format( '%%-%ds', w ), txt )
+  out:text( txt )
+  return txt
 end
 
 local function text_center( out, y, ... )
@@ -385,7 +399,7 @@ local function text_center( out, y, ... )
   end
   local len = #txt
   local _, cols = terminal.size()
-  local left = cols // 2 - len // 2
+  local left = floor( cols / 2 - len / 2 )
   out:move_to{ x=left, y=y }
   out:text( txt )
   out:clear_to_eol()
@@ -394,18 +408,6 @@ end
 -----------------------------------------------------------------
 -- Rendering.
 -----------------------------------------------------------------
-local function progress_bar( len, pc, opts )
-  opts = opts or {}
-  opts.on = opts.on or '|'
-  opts.off = opts.off or '-'
-  len = math.max( len, 2 )
-  local n_bar = math.floor( len * pc )
-  local n_spaces = math.max( len - n_bar, 0 )
-  local bar = string.rep( opts.on, n_bar )
-  local spaces = string.rep( opts.off, n_spaces )
-  return format( '[%s%s]', bar, spaces )
-end
-
 local function redraw( out )
   local now = now_millis()
   if now < g_last_redraw_time +
@@ -417,9 +419,17 @@ local function redraw( out )
 
   local ROWS, COLS = terminal.size()
 
+  local show_mem = false
+  if ROWS >= 90 then show_mem = true end
+
   local y = 0
   local old_x = 2
-  local function move( point ) out:move_to( point ) end
+  local function move( point )
+    local new_x = assert( point.x )
+    local new_y = point.y or y
+    out:move_to{ x=new_x, y=new_y }
+    y = new_y
+  end
   local function advance( x )
     x = x or old_x
     old_x = x
@@ -431,26 +441,70 @@ local function redraw( out )
     text( out, ... )
     advance()
   end
+  local function textwmove( w, ... )
+    assert( type( w ) == 'number', type( w ) )
+    textw( out, w, ... )
+  end
+  local function cpu_progress_bar( w, fraction, opts )
+    opts = opts or {}
+    if fraction <= .05 then
+      opts.fg = { r=0x30, g=0x60, b=0x30 }
+    elseif fraction <= .1 then
+      opts.fg = { r=0x50, g=0x80, b=0x50 }
+    elseif fraction <= .2 then
+      opts.fg = { r=0x8f, g=0xcf, b=0x9f }
+    elseif fraction <= .3 then
+      opts.fg = { r=0xaf, g=0xef, b=0xbf }
+    elseif fraction <= .4 then
+      opts.fg = { r=0xbf, g=0xdf, b=0x9f }
+    elseif fraction <= .5 then
+      opts.fg = { r=0xaf, g=0xaf, b=0x68 }
+    elseif fraction <= .6 then
+      opts.fg = { r=0xaf, g=0x9f, b=0x00 }
+    elseif fraction <= .7 then
+      opts.fg = { r=0xaf, g=0x7f, b=0x00 }
+    elseif fraction <= .8 then
+      opts.fg = { r=0xaf, g=0x58, b=0x00 }
+    elseif fraction <= .9 then
+      opts.fg = { r=0xbf, g=0x40, b=0x00 }
+    elseif fraction <= .95 then
+      opts.fg = { r=0xcf, g=0x30, b=0x00 }
+    else
+      opts.fg = { r=0xff, g=0x20, b=0x20 }
+    end
+
+    opts.bg = { r=0x30, g=0x30, b=0x30 }
+    out:progress( w, fraction, opts )
+    advance()
+  end
+  local function worker_progress_bar( w, fraction, opts )
+    opts = opts or {}
+    opts.fg = { r=0x30, g=0x40, b=0x70 }
+    opts.bg = { r=0x30, g=0x30, b=0x30 }
+    out:progress( w, fraction, opts )
+    advance()
+  end
+  local function mem_progress_bar( w, fraction, opts )
+    opts = opts or {}
+    opts.fg = { r=0x40, g=0x30, b=0x60 }
+    opts.bg = { r=0x30, g=0x30, b=0x30 }
+    out:progress( w, fraction, opts )
+    advance()
+  end
 
   local box_start = nil
   local function start_box( title )
     box_start = y
     advance()
+    out:fg{ r=220, g=70, b=30 }:bold()
     center( title )
+    out:reset()
     advance()
   end
   local function finish_box()
     local box_end = y
-    move{ x=0, y=box_start }
-    out:text( string.rep( '-', COLS ) )
-    for i = box_start + 1, box_end - 1 do
-      move{ x=0, y=i }
-      out:text( '|' )
-      move{ x=COLS - 1, y=i }
-      out:text( '|' )
-    end
-    move{ x=0, y=box_end }
-    out:text( string.rep( '-', COLS ) )
+    out:box( { x=0, y=box_start }, COLS, box_end - box_start + 1,
+             'rounded' )
     move{ x=1, y=y }
   end
 
@@ -463,18 +517,20 @@ local function redraw( out )
   if has_nodes then
     start_box( 'CLUSTER' )
     advance()
-    textln( '%s', progress_bar( COLS - 6,
-                                g_data.stats.core_utilization ) )
+    move{ x=3 }
+    cpu_progress_bar( COLS - 6, g_data.stats.core_utilization )
     center( '(core utilization)' )
     advance()
     advance()
-    textln( '%s', progress_bar( COLS - 6, g_data.stats
-                                    .remote_worker_utilization ) )
+    move{ x=3 }
+    worker_progress_bar( COLS - 6,
+                         g_data.stats.remote_worker_utilization )
     center( '(r-worker utilization)' )
     advance()
     advance()
-    textln( '%s', progress_bar( COLS - 6, g_data.stats
-                                    .local_worker_utilization ) )
+    move{ x=3 }
+    worker_progress_bar( COLS - 6,
+                         g_data.stats.local_worker_utilization )
     center( '(l-worker utilization)' )
     advance()
     advance()
@@ -500,16 +556,49 @@ local function redraw( out )
   -- Queues.
   start_box( 'QUEUES' )
   advance()
-  center( 'preprocess: %s', g_data.stats.preprocess_queue_size )
-  advance()
-  center( 'distributor: %s', g_data.stats.distributor_queue_size )
-  advance()
-  center( 'compile: %s', g_data.stats.compile_queue_size )
-  advance()
-  center( 'hosts: %s', g_data.stats.hosts_queue_size )
+  center( format(
+              'preprocess: %s   distributor: %s   compile: %s   hosts: %s',
+              g_data.stats.preprocess_queue_size,
+              g_data.stats.distributor_queue_size,
+              g_data.stats.compile_queue_size,
+              g_data.stats.hosts_queue_size ) )
   advance()
   advance()
   finish_box()
+
+  if false then
+    advance()
+    advance()
+    textwmove( 5, '0.05' );
+    cpu_progress_bar( COLS - 18, 0.05 )
+    textwmove( 5, '0.10' );
+    cpu_progress_bar( COLS - 18, 0.10 )
+    textwmove( 5, '0.20' );
+    cpu_progress_bar( COLS - 18, 0.20 )
+    textwmove( 5, '0.30' );
+    cpu_progress_bar( COLS - 18, 0.30 )
+    textwmove( 5, '0.40' );
+    cpu_progress_bar( COLS - 18, 0.40 )
+    textwmove( 5, '0.50' );
+    cpu_progress_bar( COLS - 18, 0.50 )
+    textwmove( 5, '0.60' );
+    cpu_progress_bar( COLS - 18, 0.60 )
+    textwmove( 5, '0.70' );
+    cpu_progress_bar( COLS - 18, 0.70 )
+    textwmove( 5, '0.80' );
+    cpu_progress_bar( COLS - 18, 0.80 )
+    textwmove( 5, '0.90' );
+    cpu_progress_bar( COLS - 18, 0.90 )
+    textwmove( 5, '0.95' );
+    cpu_progress_bar( COLS - 18, 0.95 )
+    textwmove( 5, '1.00' );
+    cpu_progress_bar( COLS - 18, 1.00 )
+  end
+
+  if false then
+    out:flush()
+    return
+  end
 
   -- Nodes.
   if has_nodes then start_box( 'NODES' ) end
@@ -520,34 +609,37 @@ local function redraw( out )
     local node = assert( g_data.nodes[node_label] )
     advance( 2 )
     textln( 'NODE: %s [%s]', node.name, node.from_host )
-    out:text( string.rep( '-', COLS - 4 ) )
+    out:hline( { x=2, y=y }, COLS - 4 )
 
     advance( 4 )
-    textln( 'cpu:    %s',
-            progress_bar( COLS - 18, node.core_utilization ),
-            { on='|', off='.' } )
-    textln( 'worker: %s',
-            progress_bar( COLS - 18,
-                          node.remote_worker_utilization,
-                          { on='o', off='-' } ) )
+    text( out, 'cpu:    ' )
+    cpu_progress_bar( COLS - 18, node.core_utilization )
+    move{ x=4 }
+    text( out, 'worker: ' )
+    worker_progress_bar( COLS - 18,
+                         node.remote_worker_utilization )
+    move{ x=4 }
     if node.local_workers > 0 then
-      textln( 'local:  %s',
-              progress_bar( COLS - 18,
-                            node.local_worker_utilization,
-                            { on='o', off='-' } ) )
+      text( out, 'local:  ' )
+      worker_progress_bar( COLS - 18,
+                           node.local_worker_utilization )
+      move{ x=4 }
     end
-    textln( 'mem:    %s',
-            progress_bar( COLS - 18, node.mem_utilization,
-                          { on='=', off='-' } ) )
+    if show_mem then
+      text( out, 'mem:    ' )
+      mem_progress_bar( COLS - 18, node.mem_utilization )
+      move{ x=4 }
+    end
 
-    advance( 4 )
+    advance()
+
     local function counter_widget( counter_type )
       local is_selected = INPUT_STATE.node_label ==
                               node.node_label and
                               INPUT_STATE.counter_type ==
                               counter_type
       local caret = is_selected and '>' or ' '
-      return format( '%s %5s target: %d', caret, counter_type,
+      return format( '%s %-5s target: %d', caret, counter_type,
                      node.target_count[counter_type] )
     end
     local both_widget = counter_widget( 'both' )
@@ -556,17 +648,23 @@ local function redraw( out )
                                node.remote_queue_size )
     local local_queue = format( 'local queue %d',
                                 node.local_queue_size )
-    textln( 'core   usage: %2.1fs/%2s (%3.1f%%)    %s    %s',
-            node.active_cores, node.cores,
-            node.core_utilization * 100, both_widget, host_queue )
-    textln( 'worker usage: %2s/%2s (%3.1f%%)    %s    %s',
-            node.remote_active_workers, node.remote_workers,
-            node.remote_worker_utilization * 100, local_widget,
-            local_queue )
+    textwmove( 32, 'core   usage: %.1fs/%s (%3.1f%%)',
+               node.active_cores, node.cores,
+               node.core_utilization * 100 )
+    textwmove( 26, both_widget )
+    textwmove( 26, host_queue )
+    advance()
+    textwmove( 32, 'worker usage: %s/%s (%3.1f%%)',
+               node.remote_active_workers, node.remote_workers,
+               node.remote_worker_utilization * 100 )
+    textwmove( 26, local_widget )
+    textwmove( 26, local_queue )
+    advance()
     if node.local_workers > 0 then
-      textln( 'local  usage: %2s/%2s (%3.1f%%)',
-              node.local_active_workers, node.local_workers,
-              node.local_worker_utilization * 100 )
+      textwmove( 32, 'local  usage: %s/%s (%3.1f%%)',
+                 node.local_active_workers, node.local_workers,
+                 node.local_worker_utilization * 100 )
+      advance()
     end
     ::continue::
   end
@@ -575,15 +673,23 @@ local function redraw( out )
     finish_box()
   end
 
-  y = ROWS - 8
+  local function make_status_line()
+    out:bg{ r=0, g=50, b=0 }
+    out:clear_line()
+  end
+
+  y = ROWS - 4
+  -- out:hline( { x=0, y=y }, COLS )
   advance( 2 )
   textln( 'status:  %s', g_status )
   textln( 'substat: %s', g_sub_status )
-  textln( 'updates: %s [%.1fms]', g_redis_updates,
-          (g_data.query_time_micros or 0) / 1000 )
-  textln( 'redraws: %s', g_redraws )
-  textln( 'events:  %s', g_events )
-  textln( 'loops:   %s', g_loops )
+  make_status_line()
+  textwmove( 25, 'updates: %s [%.1fms]', g_redis_updates,
+             (g_data.query_time_micros or 0) / 1000 )
+  textwmove( 16, 'redraws: %s', g_redraws )
+  textwmove( 16, 'events: %s', g_events )
+  textwmove( 16, 'loops: %s', g_loops )
+  out:reset()
 
   move{ x=COLS - 1, y=ROWS - 1 }
 

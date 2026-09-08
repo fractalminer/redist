@@ -33,6 +33,9 @@ local STDIN = assert( unistd.STDIN_FILENO )
 local STDOUT = assert( unistd.STDOUT_FILENO )
 
 local concat = assert( table.concat )
+local max = assert( math.max )
+local min = assert( math.min )
+local floor = assert( math.floor )
 
 -----------------------------------------------------------------
 -- Constants.
@@ -266,15 +269,169 @@ function Buffer:reverse()
   return self
 end
 
-function Buffer:fg( r, g, b )
+function Buffer:fg( color )
+  local r = assert( color.r )
+  local g = assert( color.g )
+  local b = assert( color.b )
   self[#self + 1] =
       CSI .. '38;2;' .. r .. ';' .. g .. ';' .. b .. 'm'
   return self
 end
 
-function Buffer:bg( r, g, b )
+function Buffer:bg( color )
+  local r = assert( color.r )
+  local g = assert( color.g )
+  local b = assert( color.b )
   self[#self + 1] =
       CSI .. '48;2;' .. r .. ';' .. g .. ';' .. b .. 'm'
+  return self
+end
+
+---------------------------------------------------------------------
+-- Box drawing characters.
+---------------------------------------------------------------------
+M.box_chars = {
+  standard={
+    h='─',
+    v='│',
+    tl='┌',
+    tr='┐',
+    bl='└',
+    br='┘',
+  },
+
+  rounded={
+    h='─',
+    v='│',
+    tl='╭',
+    tr='╮',
+    bl='╰',
+    br='╯',
+  },
+}
+
+---------------------------------------------------------------------
+-- Lines.
+---------------------------------------------------------------------
+function Buffer:hline( point, width, ch )
+  ch = ch or M.box_chars.standard.h
+
+  self:move_to( point )
+  self[#self + 1] = ch:rep( width )
+
+  return self
+end
+
+function Buffer:vline( point, height, ch )
+  ch = ch or M.box_chars.standard.v
+
+  for i = 0, height - 1 do
+    self:move_to{ x=point.x, y=point.y + i }
+    self[#self + 1] = ch
+  end
+
+  return self
+end
+
+---------------------------------------------------------------------
+-- Box.
+---------------------------------------------------------------------
+function Buffer:box( point, width, height, style )
+  style = style or 'standard'
+
+  local c = assert( M.box_chars[style],
+                    'unknown box style: ' .. tostring( style ) )
+  assert( c )
+
+  assert( width >= 2 )
+  assert( height >= 2 )
+
+  local inner_width = width - 2
+
+  -- Top.
+  self:move_to( point ):text( c.tl )
+      :text( c.h:rep( inner_width ) ):text( c.tr )
+
+  -- Sides.
+  for row = 1, height - 2 do
+    self:move_to{ x=point.x, y=point.y + row }:text( c.v )
+    self:move_to{ x=point.x + width - 1, y=point.y + row }:text(
+        c.v )
+  end
+
+  -- Bottom.
+  self:move_to{ x=point.x, y=point.y + height - 1 }:text( c.bl )
+      :text( c.h:rep( inner_width ) ):text( c.br )
+
+  return self
+end
+
+---------------------------------------------------------------------
+-- Progress bar characters.
+---------------------------------------------------------------------
+M.block = {
+  full='█',
+
+  -- Partial blocks growing left -> right, in eighths.
+  right={
+    [0]=' ',
+    [1]='▏',
+    [2]='▎',
+    [3]='▍',
+    [4]='▌',
+    [5]='▋',
+    [6]='▊',
+    [7]='▉',
+    [8]='█',
+  },
+
+  -- Vertical blocks, useful for graphs.
+  up={
+    [0]=' ',
+    [1]='▁',
+    [2]='▂',
+    [3]='▃',
+    [4]='▄',
+    [5]='▅',
+    [6]='▆',
+    [7]='▇',
+    [8]='█',
+  },
+
+  half_left='▌',
+  half_right='▐',
+  half_upper='▀',
+  half_lower='▄',
+
+  shade_light='░',
+  shade_medium='▒',
+  shade_dark='▓',
+}
+
+function Buffer:progress( width, fraction, opts )
+  opts = opts or {}
+  opts.fg = opts.fg or { r=0xff, g=0xaf, b=0 }
+  opts.bg = opts.bg or { r=0x26, g=0x26, b=0x26 }
+  fraction = max( 0, min( 1, fraction ) )
+
+  local eighths = floor( fraction * width * 8 + .5 )
+  local full = eighths // 8
+  local partial = eighths % 8
+
+  self:fg( opts.fg )
+  self:bg( opts.bg )
+
+  if full > 0 then self:text( M.block.full:rep( full ) ) end
+
+  if partial > 0 and full < width then
+    self:text( M.block.right[partial] )
+    full = full + 1
+  end
+
+  if full < width then self:text( (' '):rep( width - full ) ) end
+
+  self:reset()
+
   return self
 end
 
