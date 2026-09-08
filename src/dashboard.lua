@@ -5,6 +5,7 @@ local config = require( 'config' )
 local ru = require( 'redis-util' )
 local farm = require( 'farm' )
 local cluster = require( 'cluster' )
+local terminal = require( 'terminal' )
 
 local mcleanup = require( 'moon.cleanup' )
 local merr = require( 'moon.err' )
@@ -12,7 +13,6 @@ local str = require( 'moon.str' )
 local time = require( 'moon.time' )
 local tbl = require( 'moon.tbl' )
 
-local mc = require( 'minicurses' )
 local socket = require( 'socket' )
 
 -----------------------------------------------------------------
@@ -64,27 +64,43 @@ local function find_node( label )
 end
 
 local function find_node_index( label )
+  local labels = {}
   local i
   for j, node_label in ipairs( g_data.node_ordering ) do
-    i = i or j
-    if node_label == label then i = j end
+    if g_data.nodes[node_label] then
+      insert( labels, node_label )
+      i = i or j
+      if node_label == label then i = #labels end
+    end
   end
-  return i, g_data.node_ordering
+  return i, labels
 end
 
 local function node_up( label )
   local i, node_labels = find_node_index( label )
   if not i then return end
-  i = i - 1
-  if i < 1 then i = #node_labels end
+  assert( node_labels )
+  assert( node_labels[i] )
+  if not g_data.nodes[node_labels[i]] then return end
+  if label then
+    -- Not the first time we are moving.
+    i = i - 1
+    if i < 1 then i = #node_labels end
+  end
   return assert( node_labels[i] )
 end
 
 local function node_down( label )
   local i, node_labels = find_node_index( label )
   if not i then return end
-  i = i + 1
-  if i > #node_labels then i = 1 end
+  assert( node_labels )
+  assert( node_labels[i] )
+  if not g_data.nodes[node_labels[i]] then return end
+  if label then
+    -- Not the first time we are moving.
+    i = i + 1
+    if i > #node_labels then i = 1 end
+  end
   return assert( node_labels[i] )
 end
 
@@ -202,9 +218,9 @@ local function next_event( pubsub_cxn, timeout )
   local events = {}
   for _, sock in ipairs( readable ) do
     if sock == stdin_sock then
-      -- Should call mc.getkey() to get the key. Note that
-      -- calling getch() isn't sufficient because it doesn't
-      -- handle the multi-byte keys like arrow keys.
+      -- Should call getkey() to get the key. Note that calling
+      -- getch() isn't sufficient because it doesn't handle the
+      -- multi-byte keys like arrow keys.
       events.keyboard = true
     elseif sock == redis_sock then
       -- Should call the pub/sub iterator to read the data.
@@ -349,22 +365,18 @@ end
 -----------------------------------------------------------------
 -- Curses helpers.
 -----------------------------------------------------------------
-local function move( point )
-  mc.move( assert( point.y ), assert( point.x ) )
-end
-
-local function text( ... )
+local function text( out, ... )
   local txt
   if #{ ... } == 1 then
     txt = ...
   else
     txt = format( ... )
   end
-  mc.addstr( txt )
-  mc.clrtoeol()
+  out:text( txt )
+  out:clear_to_eol()
 end
 
-local function text_center( y, ... )
+local function text_center( out, y, ... )
   local txt
   if #{ ... } == 1 then
     txt = ...
@@ -372,10 +384,11 @@ local function text_center( y, ... )
     txt = format( ... )
   end
   local len = #txt
-  local left = mc.COLS // 2 - len // 2
-  move{ x=left, y=y }
-  mc.addstr( txt )
-  mc.clrtoeol()
+  local _, cols = terminal.size()
+  local left = cols // 2 - len // 2
+  out:move_to{ x=left, y=y }
+  out:text( txt )
+  out:clear_to_eol()
 end
 
 -----------------------------------------------------------------
@@ -393,26 +406,29 @@ local function progress_bar( len, pc, opts )
   return format( '[%s%s]', bar, spaces )
 end
 
-local function redraw()
+local function redraw( out )
   local now = now_millis()
   if now < g_last_redraw_time +
       config.dashboard.REDRAW_INTERVAL_MILLIS then return end
   g_last_redraw_time = now
   g_redraws = g_redraws + 1
-  if g_redraws % 20 == 0 then mc.clear() end
-  -- mc.clear()
+  if g_redraws % 20 == 0 then out:clear() end
+  -- out:clear()
+
+  local ROWS, COLS = terminal.size()
 
   local y = 0
   local old_x = 2
+  local function move( point ) out:move_to( point ) end
   local function advance( x )
     x = x or old_x
     old_x = x
     y = y + 1
     move{ x=x, y=y }
   end
-  local function center( ... ) text_center( y, ... ) end
+  local function center( ... ) text_center( out, y, ... ) end
   local function textln( ... )
-    text( ... )
+    text( out, ... )
     advance()
   end
 
@@ -425,8 +441,16 @@ local function redraw()
   end
   local function finish_box()
     local box_end = y
-    mc.mvbox( box_start, 0, box_end, mc.COLS - 1 )
-    -- advance()
+    move{ x=0, y=box_start }
+    out:text( string.rep( '-', COLS ) )
+    for i = box_start + 1, box_end - 1 do
+      move{ x=0, y=i }
+      out:text( '|' )
+      move{ x=COLS - 1, y=i }
+      out:text( '|' )
+    end
+    move{ x=0, y=box_end }
+    out:text( string.rep( '-', COLS ) )
     move{ x=1, y=y }
   end
 
@@ -439,17 +463,17 @@ local function redraw()
   if has_nodes then
     start_box( 'CLUSTER' )
     advance()
-    textln( '%s', progress_bar( mc.COLS - 6,
+    textln( '%s', progress_bar( COLS - 6,
                                 g_data.stats.core_utilization ) )
     center( '(core utilization)' )
     advance()
     advance()
-    textln( '%s', progress_bar( mc.COLS - 6, g_data.stats
+    textln( '%s', progress_bar( COLS - 6, g_data.stats
                                     .remote_worker_utilization ) )
     center( '(r-worker utilization)' )
     advance()
     advance()
-    textln( '%s', progress_bar( mc.COLS - 6, g_data.stats
+    textln( '%s', progress_bar( COLS - 6, g_data.stats
                                     .local_worker_utilization ) )
     center( '(l-worker utilization)' )
     advance()
@@ -496,24 +520,24 @@ local function redraw()
     local node = assert( g_data.nodes[node_label] )
     advance( 2 )
     textln( 'NODE: %s [%s]', node.name, node.from_host )
-    mc.hline( mc.COLS - 4 )
+    out:text( string.rep( '-', COLS - 4 ) )
 
     advance( 4 )
     textln( 'cpu:    %s',
-            progress_bar( mc.COLS - 18, node.core_utilization ),
+            progress_bar( COLS - 18, node.core_utilization ),
             { on='|', off='.' } )
     textln( 'worker: %s',
-            progress_bar( mc.COLS - 18,
+            progress_bar( COLS - 18,
                           node.remote_worker_utilization,
                           { on='o', off='-' } ) )
     if node.local_workers > 0 then
       textln( 'local:  %s',
-              progress_bar( mc.COLS - 18,
+              progress_bar( COLS - 18,
                             node.local_worker_utilization,
                             { on='o', off='-' } ) )
     end
     textln( 'mem:    %s',
-            progress_bar( mc.COLS - 18, node.mem_utilization,
+            progress_bar( COLS - 18, node.mem_utilization,
                           { on='=', off='-' } ) )
 
     advance( 4 )
@@ -551,7 +575,7 @@ local function redraw()
     finish_box()
   end
 
-  y = mc.LINES - 8
+  y = ROWS - 8
   advance( 2 )
   textln( 'status:  %s', g_status )
   textln( 'substat: %s', g_sub_status )
@@ -561,9 +585,9 @@ local function redraw()
   textln( 'events:  %s', g_events )
   textln( 'loops:   %s', g_loops )
 
-  move{ x=mc.COLS - 1, y=mc.LINES - 1 }
+  move{ x=COLS - 1, y=ROWS - 1 }
 
-  mc.refresh()
+  out:flush()
 end
 
 -----------------------------------------------------------------
@@ -573,37 +597,44 @@ local function loop( cxn, pubsub_cxn, pubsub_msgs )
   assert( cxn )
   assert( pubsub_cxn )
   assert( pubsub_msgs )
+  local out = terminal.buffer()
   while true do
     update_data( cxn )
-    redraw()
+    redraw( out )
     g_loops = g_loops + 1
     local input = assert(
                       next_event( pubsub_cxn, config.dashboard
                                       .POLL_TIMEOUT_SECS ) )
     if input.keyboard then
-      local key = mc.getkey()
-      if key == 'q' then return true end
-      g_status = 'key=' .. key
-      g_events = g_events + 1
-      if key == 'j' or key == 'DOWN' then
-        target_label_down()
+      assert( terminal.read_input() )
+      while terminal.has_input() do
+        local key = terminal.getkey()
+        if not key then break end
+        if key == 'q' then return true end
+        g_status = 'key=' .. key
+        g_events = g_events + 1
+        if key == 'j' or key == 'DOWN' then
+          target_label_down()
+        end
+        if key == 'k' or key == 'UP' then
+          target_label_up()
+        end
+        if key == 'l' or key == 'RIGHT' then
+          increase_target_count( cxn )
+        end
+        if key == 'h' or key == 'LEFT' then
+          decrease_target_count( cxn )
+        end
+        if key == 'x' then clear_target_count( cxn ) end
+        if key == 'X' then clear_all_target_counts( cxn ) end
+        if key == 'f' then full_target_count( cxn ) end
+        if key == 'F' then overdrive_target_count( cxn ) end
+        g_sub_status = format( 'node=%s,type=%s',
+                               INPUT_STATE.node_label,
+                               INPUT_STATE.counter_type )
+        update_data( cxn, { force=true } )
+        g_last_redraw_time = 0 -- force redraw.
       end
-      if key == 'k' or key == 'UP' then target_label_up() end
-      if key == 'l' or key == 'RIGHT' then
-        increase_target_count( cxn )
-      end
-      if key == 'h' or key == 'LEFT' then
-        decrease_target_count( cxn )
-      end
-      if key == 'x' then clear_target_count( cxn ) end
-      if key == 'X' then clear_all_target_counts( cxn ) end
-      if key == 'f' then full_target_count( cxn ) end
-      if key == 'F' then overdrive_target_count( cxn ) end
-      g_sub_status = format( 'node=%s,type=%s',
-                             INPUT_STATE.node_label,
-                             INPUT_STATE.counter_type )
-      update_data( cxn, { force=true } )
-      g_last_redraw_time = 0 -- force redraw.
     end
     if input.redis then
       pubsub_msgs()
@@ -625,9 +656,9 @@ local function main()
   local pubsub_msgs = pubsub_cxn:pubsub{ psubscribe='farm:*' }
   pubsub_msgs()
 
-  -- Init curses.
-  mc.initscr()
-  local _<close> = cleanup( mc.endwin )
+  -- Init rendering.
+  terminal.enter()
+  local _<close> = cleanup( terminal.leave )
 
   -- Start main loop.
   return loop( cxn, pubsub_cxn, pubsub_msgs ) and 0 or 1

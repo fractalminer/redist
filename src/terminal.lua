@@ -12,6 +12,8 @@
 -----------------------------------------------------------------
 local M = {}
 
+local cterm = require( 'moon.cterm' )
+
 local termio = require( 'posix.termio' )
 local unistd = require( 'posix.unistd' )
 local time = require( 'posix.time' )
@@ -21,7 +23,6 @@ local time = require( 'posix.time' )
 -----------------------------------------------------------------
 local tcgetattr = assert( termio.tcgetattr )
 local tcsetattr = assert( termio.tcsetattr )
-local tcgetwinsize = assert( termio.tcgetwinsize )
 
 local read = assert( unistd.read )
 local write = assert( unistd.write )
@@ -31,10 +32,15 @@ local clock_gettime = assert( time.clock_gettime )
 local STDIN = assert( unistd.STDIN_FILENO )
 local STDOUT = assert( unistd.STDOUT_FILENO )
 
+local concat = assert( table.concat )
+
 -----------------------------------------------------------------
 -- Constants.
 -----------------------------------------------------------------
 local CSI = '\27['
+
+local SYNC_BEGIN = CSI .. '?2026h'
+local SYNC_END = CSI .. '?2026l'
 
 -- How long an ESC byte is held while waiting to see if it begins
 -- an escape sequence. 30 ms should be essentially unnoticeable
@@ -113,8 +119,10 @@ end
 -- Terminal size.
 -----------------------------------------------------------------
 function M.size()
-  local ws = assert( tcgetwinsize( STDOUT ) )
-  return ws.row, ws.col
+  local rows, cols = cterm.size()
+  assert( rows )
+  assert( cols )
+  return rows, cols
 end
 
 -----------------------------------------------------------------
@@ -128,7 +136,11 @@ function M.write( s ) return write_all( STDOUT, s ) end
 local Buffer = {}
 Buffer.__index = Buffer
 
-function M.buffer() return setmetatable( {}, Buffer ) end
+function M.buffer()
+  local o = setmetatable( {}, Buffer )
+  o:clear_buffer() -- adds the SYNC_BEGIN.
+  return o
+end
 
 function Buffer:append( s )
   self[#self + 1] = s
@@ -143,7 +155,12 @@ end
 -----------------------------------------------------------------
 -- Cursor movement.
 -----------------------------------------------------------------
-function Buffer:move_to( row, col )
+function Buffer:move_to( point )
+  local row = assert( point.y )
+  local col = assert( point.x )
+  -- Make coordinates 0-based.
+  row = row + 1
+  col = col + 1
   self[#self + 1] = CSI .. row .. ';' .. col .. 'H'
   return self
 end
@@ -171,21 +188,25 @@ end
 -----------------------------------------------------------------
 -- Clearing.
 -----------------------------------------------------------------
+-- Clears the entire screen.
 function Buffer:clear()
   self[#self + 1] = CSI .. '2J'
   return self
 end
 
+-- Clears from the cursor to the end of the SCREEN.
 function Buffer:clear_to_end()
   self[#self + 1] = CSI .. '0J'
   return self
 end
 
+-- Clears the entire current line.
 function Buffer:clear_line()
   self[#self + 1] = CSI .. '2K'
   return self
 end
 
+-- Clears from the cursor to the end of the current line.
 function Buffer:clear_to_eol()
   self[#self + 1] = CSI .. '0K'
   return self
@@ -258,33 +279,23 @@ function Buffer:bg( r, g, b )
 end
 
 -----------------------------------------------------------------
--- Synchronized output.
------------------------------------------------------------------
-function Buffer:sync_begin()
-  self[#self + 1] = CSI .. '?2026h'
-  return self
-end
-
-function Buffer:sync_end()
-  self[#self + 1] = CSI .. '?2026l'
-  return self
-end
-
------------------------------------------------------------------
 -- Buffer handling.
 -----------------------------------------------------------------
 function Buffer:clear_buffer()
   for i = #self, 1, -1 do self[i] = nil end
+  self[1] = SYNC_BEGIN
   return self
 end
 
-function Buffer:string() return table.concat( self ) end
+function Buffer:string() return concat( self ) end
 
 function Buffer:flush()
-  local s = table.concat( self )
+  -- The SYNC_BEGIN should have been added automatically when
+  -- creating the buffer.
+  self[#self + 1] = SYNC_END
 
-  -- Clear before writing so the buffer is also empty if write()
-  -- subsequently throws/returns an error.
+  local s = concat( self )
+
   self:clear_buffer()
 
   return write_all( STDOUT, s )
@@ -436,7 +447,7 @@ function M.enter()
 
   local b = M.buffer()
 
-  b:alt_screen_on():hide_cursor():clear():move_to( 1, 1 )
+  b:alt_screen_on():hide_cursor():clear():move_to{ x=1, y=1 }
 
   return b:flush()
 end
