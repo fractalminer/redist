@@ -47,9 +47,6 @@ local function queue_task( cxn, hash )
   -- Push on the right, then the worker pops from the left to
   -- create a FIFO (queue).
   cxn:rpush( key, hash )
-  cxn:rpush( keys.queue_log(), format(
-                 'node %s pushed remote task %s',
-                 machine_label(), hash ) )
 end
 
 local function output_of( cxn, hash )

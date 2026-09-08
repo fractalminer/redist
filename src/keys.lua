@@ -68,22 +68,6 @@ function M.local_queue( label )
   return make( key, elems )
 end
 
-function M.logs()
-  local key = '%s:log'
-  local elems = {
-    M.ns(), --
-  }
-  return make( key, elems )
-end
-
-function M.queue_log()
-  local key = '%s:queues'
-  local elems = {
-    M.logs(), --
-  }
-  return make( key, elems )
-end
-
 function M.workers()
   local key = '%s:worker'
   local elems = {

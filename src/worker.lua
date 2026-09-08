@@ -111,7 +111,7 @@ handle_stop_signal( SIGTERM )
 -----------------------------------------------------------------
 -- Implementation.
 -----------------------------------------------------------------
-local function next_task( cxn )
+local function next_task( cxn, l_cxn )
   local timeout = config.worker.QUEUE_POLL_TIMEOUT_SECS
   local q_remote_global = keys.remote_global_queue()
   local q_remote_host = keys.remote_host_queue( machine_label() )
@@ -119,23 +119,11 @@ local function next_task( cxn )
   local function result( key, task )
     assert( key, 'task queue key is nil' )
     assert( task, 'task is nil' )
-    if key == q_local then
-      cxn:rpush( keys.queue_log(), format(
-                     'node %s popped local task %s',
-                     machine_label(), task ) )
-      return { type='local', hash=task }
-    end
+    if key == q_local then return { type='local', hash=task } end
     if key == q_remote_host then
-      cxn:rpush( keys.queue_log(),
-                 format(
-                     'node %s popped host-targeted remote task %s',
-                     machine_label(), task ) )
       return { type='remote', hash=task }
     end
     if key == q_remote_global then
-      cxn:rpush( keys.queue_log(), format(
-                     'node %s popped remote task %s',
-                     machine_label(), task ) )
       return { type='remote', hash=task }
     end
     error( 'popped from unexpected key: ' .. key )
@@ -144,7 +132,7 @@ local function next_task( cxn )
   if not args.wait then
     -- Local queue must come first.
     if args.listen == 'local' or args.listen == 'both' then
-      o = cxn:lpop( q_local )
+      o = l_cxn:lpop( q_local )
       if o then return result( q_local, o ) end
     end
     if args.listen == 'remote' or args.listen == 'both' then
@@ -155,7 +143,7 @@ local function next_task( cxn )
     end
   else
     if args.listen == 'local' then
-      o = cxn:blpop( q_local, timeout )
+      o = l_cxn:blpop( q_local, timeout )
     elseif args.listen == 'remote' then
       o = cxn:blpop( q_remote_host, q_remote_global, timeout )
     else
@@ -416,20 +404,20 @@ local function process_task(cxn, task, perform, set_result,
   end
 end
 
-local function process_next_task( cxn )
+local function process_next_task( cxn, l_cxn )
   local task
   repeat
     STATE.status = 'idle'
     STATE.task = nil
     advertise_throttled( cxn ) -- does its own throttling.
     trace( 'checking for task...' )
-    task = next_task( cxn )
+    task = next_task( cxn, l_cxn )
     if not task and not args.wait then return false end
     if STOP then return false end
   until task
   assert( task.type )
   if task.type == 'local' then
-    process_task( cxn, task, run_local_task, ltask.set_result,
+    process_task( l_cxn, task, run_local_task, ltask.set_result,
                   ltask.publish_event )
   elseif task.type == 'remote' then
     process_task( cxn, task, run_remote_task, rtask.set_result,
@@ -439,10 +427,6 @@ local function process_next_task( cxn )
     return false
   end
   return true
-end
-
-local function ping( cxn )
-  assert( cxn:ping(), 'lost connection to redis server' )
 end
 
 -----------------------------------------------------------------
@@ -496,15 +480,16 @@ local function main()
   assert( os_version(), 'cannot determine os version tag' )
 
   local cxn<close> = assert( ru.connect() )
+  -- local l_cxn<close> = assert( ru.connect_local() )
+  local l_cxn = cxn
 
   info( 'listen: %s', args.listen )
 
   local _<close> = cleanup( function() unadvertise( cxn ) end )
 
   while not STOP do
-    local did_task = process_next_task( cxn )
+    local did_task = process_next_task( cxn, l_cxn )
     if not did_task and args.mode ~= 'drain' then break end
-    ping( cxn )
   end
 end
 

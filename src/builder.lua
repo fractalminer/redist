@@ -202,21 +202,21 @@ local function create_remote_compile_task( analyzed, ii_hash )
   }
 end
 
-local function run_preprocess( cxn, analyzed )
+local function run_preprocess( cxn, l_cxn, analyzed )
   local task = create_local_preprocess_task( analyzed )
   ltask.delete_output( cxn, task.hash )
-  ltask.post_task( cxn, task.hash, {
+  ltask.post_task( l_cxn, task.hash, {
     command=assert( task.command ),
     cwd=assert( task.cwd ),
     description=assert( task.description ),
   } )
   info( 'queueing for task %s...', task.hash )
-  local task_output = ltask.queue_and_wait( cxn, task.hash )
+  local task_output = ltask.queue_and_wait( l_cxn, task.hash )
   -- Whatever happens we need to forward the stderr of the pre-
   -- processor so that it can appear in the console.
   local task_stderr_hash = assert( task_output.stderr )
-  assert( io.stderr ):write(
-      download_blob( cxn, task_stderr_hash ) )
+  assert( io.stderr ):write( download_blob( l_cxn,
+                                            task_stderr_hash ) )
   local status = assert( task_output.status )
   if tonumber( status ) ~= 0 then
     err( 'preprocess command return non-zero status: %s', status )
@@ -275,16 +275,15 @@ local function run_compile( cxn, analyzed, ii_hash )
     log( 'compile command returned non-zero status: %s', status )
     return false
   end
-  assert( blob_exists( cxn, task_output.output ), format(
-              'blob does not exist for %s', task_output.output ) )
   local output_hash = assert( task_output.output )
   local output_file = analyzed.decoded.special_flags.o
   assert( download_blob_to_file( cxn, output_hash, output_file ) )
   return true
 end
 
-local function run( cxn, analyzed )
-  local ii_hash = assert( run_preprocess( cxn, analyzed ) )
+local function run( cxn, l_cxn, analyzed )
+  local ii_hash =
+      assert( run_preprocess( cxn, l_cxn, analyzed ) )
   if not ii_hash then return false end
   return run_compile( cxn, analyzed, ii_hash )
 end
@@ -297,10 +296,12 @@ local function main()
   assert( os_version(), 'cannot determine os version tag' )
 
   local cxn<close> = assert( ru.connect() )
+  -- local l_cxn<close> = assert( ru.connect_local() )
+  local l_cxn = cxn
 
   local command = assert( arg )
   local analyzed = assert( analyze_command( command ) )
-  local ok = run( cxn, analyzed )
+  local ok = run( cxn, l_cxn, analyzed )
   if ok then return 0 end
   return 1
 end

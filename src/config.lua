@@ -9,6 +9,7 @@ return harden{
     -- HOST='192.168.1.98', -- bonobo
     -- HOST='127.0.0.1', -- loopback
     PORT=6379, --
+    PORT_LOCAL=6380, --
     CONNECT_TIMEOUT_SECS=10,
     COMPRESSION_METHOD='zstd',
     -- The ideal value of this compression level depends on up-
