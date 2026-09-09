@@ -6,4 +6,9 @@ cd "$this_dir"
 
 source cxn.sh
 
-ssh "$(redist_host)" -t 'fish -c farm'
+ssh "$(redist_host)" -t '
+  fish -c "
+    cd /home/dsicilia/dev/redist/src
+    lua dashboard.lua
+  "
+'
