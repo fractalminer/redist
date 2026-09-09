@@ -22,6 +22,7 @@ local signal = require( 'posix.signal' )
 -----------------------------------------------------------------
 local ProcessPool = assert( process_pool.ProcessPool )
 local WorkerCount = assert( farm.WorkerCount )
+local set_hash = assert( ru.set_hash )
 
 local chain = assert( mcleanup.chain )
 local clamp = assert( mmath.clamp )
@@ -123,8 +124,14 @@ end
 
 local function advertise_node( cxn )
   local key = keys.node_manager_advertisement( machine_label() )
-  cxn:set( key, 1 )
-  cxn:expire( key, config.node_manager.EXPIRE_ADVERTISE_SECS )
+  local sock = assert( cxn.network.socket )
+  local ip, port, _ = sock:getsockname()
+  local tbl = {
+    ip=ip, --
+    port=port, --
+  }
+  set_hash( cxn, key, tbl,
+            config.node_manager.EXPIRE_ADVERTISE_SECS )
 end
 
 -----------------------------------------------------------------
