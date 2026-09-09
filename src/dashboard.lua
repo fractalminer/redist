@@ -794,7 +794,11 @@ local function redraw( out )
   textwmove( 6, g_data.stats.hosts_queue_size )
   advance()
   advance()
-  finish_box{ t_top=true, t_bottom=true }
+  if has_nodes then
+    finish_box{ t_top=true, t_bottom=true }
+  else
+    finish_box{ t_top=true, t_bottom=false }
+  end
 
   if false then
     advance()
