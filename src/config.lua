@@ -50,9 +50,10 @@ return harden{
   },
 
   dashboard={
-    POLL_TIMEOUT_SECS=.1,
-    REDIS_UPDATE_INTERVAL_MILLIS=200,
-    REDRAW_INTERVAL_MILLIS=200,
+    -- 60 fps
+    POLL_TIMEOUT_SECS=.01666,
+    REDIS_UPDATE_INTERVAL_MILLIS=16.66,
+    REDRAW_INTERVAL_MILLIS=16.66,
   },
 
   scripts={

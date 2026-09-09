@@ -13,6 +13,7 @@
 local M = {}
 
 local cterm = require( 'moon.cterm' )
+local freeze = require( 'moon.freeze' )
 
 local termio = require( 'posix.termio' )
 local unistd = require( 'posix.unistd' )
@@ -21,6 +22,8 @@ local time = require( 'posix.time' )
 -----------------------------------------------------------------
 -- Aliases.
 -----------------------------------------------------------------
+local harden = assert( freeze.harden )
+
 local tcgetattr = assert( termio.tcgetattr )
 local tcsetattr = assert( termio.tcsetattr )
 
@@ -288,27 +291,91 @@ function Buffer:bg( color )
 end
 
 ---------------------------------------------------------------------
--- Box drawing characters.
+-- Gruvbox colors.
 ---------------------------------------------------------------------
-M.box_chars = {
-  standard={
-    h='─',
-    v='│',
-    tl='┌',
-    tr='┐',
-    bl='└',
-    br='┘',
-  },
+-- LuaFormatter off
+M.gruvbox = harden{
+  -- Backgrounds / foregrounds.
+  dark0_hard    = { r=29,  g=32,  b=33  }, -- #1d2021
+  dark0         = { r=40,  g=40,  b=40  }, -- #282828
+  dark0_soft    = { r=50,  g=48,  b=47  }, -- #32302f
+  dark1         = { r=60,  g=56,  b=54  }, -- #3c3836
+  dark2         = { r=80,  g=73,  b=69  }, -- #504945
+  dark3         = { r=102, g=92,  b=84  }, -- #665c54
+  dark4         = { r=124, g=111, b=100 }, -- #7c6f64
 
-  rounded={
-    h='─',
-    v='│',
-    tl='╭',
-    tr='╮',
-    bl='╰',
-    br='╯',
-  },
+  gray          = { r=146, g=131, b=116 }, -- #928374
+
+  light0_hard   = { r=249, g=245, b=215 }, -- #f9f5d7
+  light0        = { r=251, g=241, b=199 }, -- #fbf1c7
+  light0_soft   = { r=242, g=229, b=188 }, -- #f2e5bc
+  light1        = { r=235, g=219, b=178 }, -- #ebdbb2
+  light2        = { r=213, g=196, b=161 }, -- #d5c4a1
+  light3        = { r=189, g=174, b=147 }, -- #bdae93
+  light4        = { r=168, g=153, b=132 }, -- #a89984
+
+  -- Neutral colors.
+  red           = { r=204, g=36,  b=29  }, -- #cc241d
+  green         = { r=152, g=151, b=26  }, -- #98971a
+  yellow        = { r=215, g=153, b=33  }, -- #d79921
+  blue          = { r=69,  g=133, b=136 }, -- #458588
+  purple        = { r=177, g=98,  b=134 }, -- #b16286
+  aqua          = { r=104, g=157, b=106 }, -- #689d6a
+  orange        = { r=214, g=93,  b=14  }, -- #d65d0e
+
+  -- Bright colors.
+  bright_red    = { r=251, g=73,  b=52  }, -- #fb4934
+  bright_green  = { r=184, g=187, b=38  }, -- #b8bb26
+  bright_yellow = { r=250, g=189, b=47  }, -- #fabd2f
+  bright_blue   = { r=131, g=165, b=152 }, -- #83a598
+  bright_purple = { r=211, g=134, b=155 }, -- #d3869b
+  bright_aqua   = { r=142, g=192, b=124 }, -- #8ec07c
+  bright_orange = { r=254, g=128, b=25  }, -- #fe8019
 }
+-- LuaFormatter on
+
+-----------------------------------------------------------------
+-- Other characters.
+-----------------------------------------------------------------
+-- LuaFormatter off
+M.symbol = harden{
+  -- Status.
+  check       = '✓',
+  cross       = '✗',
+  warning     = '⚠',
+  bullet      = '•',
+  circle      = '●',
+  circle_open = '○',
+
+  -- Arrows.
+  left        = '←',
+  right       = '→',
+  up          = '↑',
+  down        = '↓',
+
+  -- Triangles.
+  tri_right   = '▶',
+  tri_left    = '◀',
+  tri_up      = '▲',
+  tri_down    = '▼',
+
+  -- Misc.
+  star        = '★',
+  diamond     = '◆',
+
+  -- Blocks.
+  full        = '█',
+  half_left   = '▌',
+  half_right  = '▐',
+  upper_half  = '▀',
+  lower_half  = '▄',
+
+  -- Shades.
+  light       = '░',
+  medium      = '▒',
+  dark        = '▓',
+}
+-- LuaFormatter on
 
 ---------------------------------------------------------------------
 -- Lines.
@@ -336,6 +403,33 @@ end
 ---------------------------------------------------------------------
 -- Box.
 ---------------------------------------------------------------------
+M.box_chars = {
+  standard={
+    h='─',
+    v='│',
+    tl='┌',
+    tr='┐',
+    bl='└',
+    br='┘',
+  },
+
+  rounded={
+    h='─',
+    v='│',
+    tl='╭',
+    tr='╮',
+    bl='╰',
+    br='╯',
+  },
+
+  tee_left='├',
+  tee_right='┤',
+  tee_down='┬',
+  tee_up='┴',
+
+  cross='┼',
+}
+
 function Buffer:box( point, width, height, style )
   style = style or 'standard'
 

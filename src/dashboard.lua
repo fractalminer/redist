@@ -9,6 +9,7 @@ local terminal = require( 'terminal' )
 
 local mcleanup = require( 'moon.cleanup' )
 local merr = require( 'moon.err' )
+local mmath = require( 'moon.math' )
 local str = require( 'moon.str' )
 local time = require( 'moon.time' )
 local tbl = require( 'moon.tbl' )
@@ -22,18 +23,21 @@ local query_cluster_state = assert( cluster.query_cluster_state )
 local WorkerCount = assert( farm.WorkerCount )
 
 local catch_control_c = assert( merr.catch_control_c )
+local clamp = assert( mmath.clamp )
 local cleanup = assert( mcleanup.cleanup )
-local on_ordered_kv = assert( tbl.on_ordered_kv )
 local now_millis = assert( time.now_millis )
+local now_micros = assert( time.now_micros )
+local on_ordered_kv = assert( tbl.on_ordered_kv )
 local timeit_micros = assert( time.timeit_micros )
 
 local socket_select = assert( socket.select )
 
 local format = assert( string.format )
 local insert = assert( table.insert )
+local sort = assert( table.sort )
 local floor = assert( math.floor )
 local min = assert( math.min )
-local sort = assert( table.sort )
+local abs = assert( math.abs )
 
 -----------------------------------------------------------------
 -- Globals.
@@ -54,6 +58,80 @@ local g_redis_updates = 0
 local INPUT_STATE = { node_label=nil, counter_type=nil }
 
 local g_data = {}
+
+local g_needs_clear = true
+local g_compact_view = false
+local g_show_node_mem_histerisis = {}
+local g_seen_with_local_workers = {}
+
+local g_node_cpu_smoothed = {}
+
+local function reset_cached_rendering_data()
+  g_last_update_time = 0
+  g_last_redraw_time = 0
+
+  g_status = ''
+  g_sub_status = '(reset)'
+
+  INPUT_STATE = { node_label=nil, counter_type=nil }
+
+  g_needs_clear = true
+  g_node_cpu_smoothed = {}
+end
+
+-----------------------------------------------------------------
+-- CPU utilization smoothing.
+-----------------------------------------------------------------
+local function advance_cpu( node_label, core_utilization )
+  local smoothed = g_node_cpu_smoothed
+  smoothed[node_label] = smoothed[node_label] or {
+    current=core_utilization, --
+    velocity=0.0, --
+    last_update_time=now_micros(), --
+  }
+  local o = smoothed[node_label]
+
+  local now = now_micros()
+
+  local dt = now - assert( o.last_update_time )
+  o.last_update_time = now
+
+  dt = dt / 20000
+
+  local delta = core_utilization - o.current
+  local force = delta
+  local accel = 1.0 * force
+  o.velocity = o.velocity + accel * dt
+  o.velocity = clamp( o.velocity, -.01, .01 )
+
+  local NOISE_LEVEL = .1
+  if abs( o.current - core_utilization ) < NOISE_LEVEL then
+    dt = dt / 10
+  end
+  if abs( o.current - core_utilization ) < NOISE_LEVEL / 3 then
+    dt = dt / 3
+  end
+  if abs( o.current - core_utilization ) < NOISE_LEVEL / 10 then
+    dt = dt / 3
+  end
+
+  local old_current = o.current
+
+  o.current = o.current + o.velocity * dt
+
+  if old_current < core_utilization and o.current >=
+      core_utilization then
+    o.current = core_utilization
+    o.velocity = 0
+  elseif old_current > core_utilization and o.current <=
+      core_utilization then
+    o.current = core_utilization
+    o.velocity = 0
+  end
+
+  o.current = clamp( o.current, 0.0, 1.0 )
+  return o.current < .05 and 0 or o.current
+end
 
 -----------------------------------------------------------------
 -- Input processors.
@@ -201,6 +279,11 @@ local function overdrive_target_count( cxn )
   local max_count = max_workers_per_type( INPUT_STATE.node_label,
                                           { allow_overdrive=true } )
   worker_count:set( max_count )
+end
+
+local function toggle_compact_view()
+  g_compact_view = not g_compact_view
+  g_needs_clear = true
 end
 
 -----------------------------------------------------------------
@@ -374,7 +457,7 @@ local function text( out, ... )
     txt = format( ... )
   end
   out:text( txt )
-  out:clear_to_eol()
+  -- out:clear_to_eol()
   return txt
 end
 
@@ -385,7 +468,10 @@ local function textw( out, w, ... )
   else
     txt = format( ... )
   end
-  txt = format( format( '%%-%ds', w ), txt )
+
+  local width = utf8.len( txt )
+  if width < w then txt = txt .. (' '):rep( w - width ) end
+
   out:text( txt )
   return txt
 end
@@ -405,22 +491,70 @@ local function text_center( out, y, ... )
   out:clear_to_eol()
 end
 
+function box_T( out, point, width, height, style, t )
+  assert( t )
+  assert( t.t_top ~= nil )
+  assert( t.t_bottom ~= nil )
+
+  local c = assert( terminal.box_chars[style],
+                    'unknown box style: ' .. tostring( style ) )
+  assert( c )
+
+  assert( width >= 2 )
+  assert( height >= 2 )
+
+  local inner_width = width - 2
+
+  -- Top.
+  local nw = t.t_top and terminal.box_chars.tee_left or c.tl
+  local ne = t.t_top and terminal.box_chars.tee_right or c.tr
+  out:move_to( point ):text( nw ):text( c.h:rep( inner_width ) )
+      :text( ne )
+
+  -- Sides.
+  for row = 1, height - 2 do
+    out:move_to{ x=point.x, y=point.y + row }:text( c.v )
+    out:move_to{ x=point.x + width - 1, y=point.y + row }:text(
+        c.v )
+  end
+
+  -- Bottom.
+  local sw = t.t_bottom and terminal.box_chars.tee_left or c.bl
+  local se = t.t_bottom and terminal.box_chars.tee_right or c.br
+  out:move_to{ x=point.x, y=point.y + height - 1 }:text( sw )
+      :text( c.h:rep( inner_width ) ):text( se )
+
+  return out
+end
+
 -----------------------------------------------------------------
 -- Rendering.
 -----------------------------------------------------------------
 local function redraw( out )
+  -- Check time for redraw.
   local now = now_millis()
   if now < g_last_redraw_time +
       config.dashboard.REDRAW_INTERVAL_MILLIS then return end
   g_last_redraw_time = now
   g_redraws = g_redraws + 1
-  if g_redraws % 20 == 0 then out:clear() end
-  -- out:clear()
+
+  -- If we need to clear then do it.
+  if g_needs_clear then
+    out:clear()
+    g_needs_clear = false
+  end
+  out:move_to{ x=0, y=0 }
 
   local ROWS, COLS = terminal.size()
 
-  local show_mem = false
-  if ROWS >= 90 then show_mem = true end
+  local function compact() return g_compact_view == true end
+
+  local TITLE_COLOR = terminal.gruvbox.bright_red
+  local LABEL_COLOR = terminal.gruvbox.bright_yellow
+  local SUB_TITLE_COLOR = terminal.gruvbox.aqua
+  local BOX_COLOR = terminal.gruvbox.yellow
+  local STATUS_LINE_COLOR = { r=60, g=82, b=16 }
+  local DARK_LABEL = terminal.gruvbox.light4
 
   local y = 0
   local old_x = 2
@@ -454,9 +588,9 @@ local function redraw( out )
     elseif fraction <= .2 then
       opts.fg = { r=0x8f, g=0xcf, b=0x9f }
     elseif fraction <= .3 then
-      opts.fg = { r=0xaf, g=0xef, b=0xbf }
+      opts.fg = { r=0xa8, g=0xe8, b=0x9f }
     elseif fraction <= .4 then
-      opts.fg = { r=0xbf, g=0xdf, b=0x9f }
+      opts.fg = { r=0xbf, g=0xcf, b=0x8f }
     elseif fraction <= .5 then
       opts.fg = { r=0xaf, g=0xaf, b=0x68 }
     elseif fraction <= .6 then
@@ -470,7 +604,7 @@ local function redraw( out )
     elseif fraction <= .95 then
       opts.fg = { r=0xcf, g=0x30, b=0x00 }
     else
-      opts.fg = { r=0xff, g=0x20, b=0x20 }
+      opts.fg = { r=0xef, g=0x18, b=0x18 }
     end
 
     opts.bg = { r=0x30, g=0x30, b=0x30 }
@@ -484,9 +618,19 @@ local function redraw( out )
     out:progress( w, fraction, opts )
     advance()
   end
+  local function local_worker_progress_bar( w, fraction, opts )
+    opts = opts or {}
+    opts.fg = { r=0x40, g=0x52, b=0x7a }
+    opts.bg = { r=0x30, g=0x30, b=0x30 }
+    out:progress( w, fraction, opts )
+    advance()
+  end
   local function mem_progress_bar( w, fraction, opts )
     opts = opts or {}
-    opts.fg = { r=0x40, g=0x30, b=0x60 }
+    opts.fg = terminal.gruvbox.blue
+    if fraction >= .9 then
+      opts.fg = terminal.gruvbox.bright_yellow
+    end
     opts.bg = { r=0x30, g=0x30, b=0x30 }
     out:progress( w, fraction, opts )
     advance()
@@ -496,42 +640,53 @@ local function redraw( out )
   local function start_box( title )
     box_start = y
     advance()
-    out:fg{ r=220, g=70, b=30 }:bold()
+    out:fg( TITLE_COLOR ):bold()
     center( title )
     out:reset()
     advance()
   end
-  local function finish_box()
+  local function finish_box( t )
+    t = t or { t_top=false, t_bottom=false }
     local box_end = y
-    out:box( { x=0, y=box_start }, COLS, box_end - box_start + 1,
-             'rounded' )
+    out:fg( BOX_COLOR )
+    box_T( out, { x=0, y=box_start }, COLS,
+           box_end - box_start + 1, 'rounded', t )
+    out:reset()
     move{ x=1, y=y }
   end
 
   local has_nodes = next( g_data.nodes ) ~= nil
 
   start_box( 'ReDist Build Farm Dashboard' )
-  finish_box()
+  finish_box{ t_top=false, t_bottom=true }
 
   -- Cluster.
   if has_nodes then
     start_box( 'CLUSTER' )
     advance()
     move{ x=3 }
-    cpu_progress_bar( COLS - 6, g_data.stats.core_utilization )
+    local smoothed_cpu = advance_cpu( 'global', g_data.stats
+                                          .core_utilization )
+    cpu_progress_bar( COLS - 6, smoothed_cpu )
+    out:fg( terminal.gruvbox.blue )
     center( '(core utilization)' )
+    out:reset()
     advance()
     advance()
     move{ x=3 }
     worker_progress_bar( COLS - 6,
                          g_data.stats.remote_worker_utilization )
+    out:fg( terminal.gruvbox.blue )
     center( '(r-worker utilization)' )
+    out:reset()
     advance()
     advance()
     move{ x=3 }
     worker_progress_bar( COLS - 6,
                          g_data.stats.local_worker_utilization )
+    out:fg( terminal.gruvbox.blue )
     center( '(l-worker utilization)' )
+    out:reset()
     advance()
     advance()
     center( 'core usage: %.1f/%s (%.1f%%)',
@@ -550,7 +705,7 @@ local function redraw( out )
             g_data.stats.local_worker_utilization * 100 )
     advance()
     advance()
-    finish_box()
+    finish_box{ t_top=true, t_bottom=true }
   end
 
   -- Queues.
@@ -564,7 +719,7 @@ local function redraw( out )
               g_data.stats.hosts_queue_size ) )
   advance()
   advance()
-  finish_box()
+  finish_box{ t_top=true, t_bottom=true }
 
   if false then
     advance()
@@ -593,9 +748,6 @@ local function redraw( out )
     cpu_progress_bar( COLS - 18, 0.95 )
     textwmove( 5, '1.00' );
     cpu_progress_bar( COLS - 18, 1.00 )
-  end
-
-  if false then
     out:flush()
     return
   end
@@ -607,79 +759,154 @@ local function redraw( out )
     -- but which are not online now.
     if not g_data.nodes[node_label] then goto continue end
     local node = assert( g_data.nodes[node_label] )
+    advance( 3 )
+    out:fg( SUB_TITLE_COLOR )
+    out:text( 'NODE' )
+    out:reset()
+    text( out, ': %s', node.name )
+    out:fg{ r=0x70, g=0x70, b=0x70 }
+    text( out, ' [%s]', node.from_host )
+    out:reset()
     advance( 2 )
-    textln( 'NODE: %s [%s]', node.name, node.from_host )
-    out:hline( { x=2, y=y }, COLS - 4 )
+    out:fg( SUB_TITLE_COLOR )
+    out:hline( { x=3, y=y }, COLS - 5 )
+    out:hline( { x=2, y=y }, 1, terminal.box_chars.rounded.tl )
+    out:hline( { x=COLS - 3, y=y }, 1,
+               terminal.box_chars.rounded.tr )
+    out:reset()
 
+    local smoothed_cpu = advance_cpu( node_label,
+                                      node.core_utilization )
     advance( 4 )
+    out:fg( LABEL_COLOR )
     text( out, 'cpu:    ' )
-    cpu_progress_bar( COLS - 18, node.core_utilization )
+    out:reset()
+    cpu_progress_bar( COLS - 16, smoothed_cpu )
     move{ x=4 }
+    out:fg( LABEL_COLOR )
     text( out, 'worker: ' )
-    worker_progress_bar( COLS - 18,
+    out:reset()
+    worker_progress_bar( COLS - 16,
                          node.remote_worker_utilization )
     move{ x=4 }
     if node.local_workers > 0 then
+      out:fg( LABEL_COLOR )
       text( out, 'local:  ' )
-      worker_progress_bar( COLS - 18,
-                           node.local_worker_utilization )
+      out:reset()
+      local_worker_progress_bar( COLS - 16,
+                                 node.local_worker_utilization )
       move{ x=4 }
     end
-    if show_mem then
-      text( out, 'mem:    ' )
-      mem_progress_bar( COLS - 18, node.mem_utilization )
-      move{ x=4 }
+    -- Most of the time we don't care about memory... we only
+    -- care about it if it goes too high.
+    if g_show_node_mem_histerisis[node.name] == nil then
+      g_show_node_mem_histerisis[node.name] = false
     end
-
-    advance()
+    if not compact() then
+      if not g_show_node_mem_histerisis[node.name] and
+          node.mem_utilization > .8 then
+        g_show_node_mem_histerisis[node.name] = true
+        g_needs_clear = true
+      elseif g_show_node_mem_histerisis[node.name] and
+          node.mem_utilization < .6 then
+        g_show_node_mem_histerisis[node.name] = false
+        g_needs_clear = true
+      end
+      if g_show_node_mem_histerisis[node.name] then
+        move{ x=4 }
+        out:fg( LABEL_COLOR )
+        if node.mem_utilization > .8 then
+          out:bold()
+          text( out, 'mem (%s):', terminal.symbol.warning )
+          out:reset()
+        else
+          text( out, 'mem:    ' )
+        end
+        mem_progress_bar( COLS - 16, node.mem_utilization )
+        move{ x=4 }
+      end
+    end
 
     local function counter_widget( counter_type )
       local is_selected = INPUT_STATE.node_label ==
                               node.node_label and
                               INPUT_STATE.counter_type ==
                               counter_type
-      local caret = is_selected and '>' or ' '
-      return format( '%s %-5s target: %d', caret, counter_type,
-                     node.target_count[counter_type] )
+      local caret = is_selected and terminal.symbol.circle or ' '
+      local txt = format( ' %s %-5s target: %d', caret,
+                          counter_type,
+                          node.target_count[counter_type] )
+      return is_selected, txt
     end
-    local both_widget = counter_widget( 'both' )
-    local local_widget = counter_widget( 'local' )
-    local host_queue = format( 'host  queue: %d',
-                               node.remote_queue_size )
-    local local_queue = format( 'local queue %d',
-                                node.local_queue_size )
-    textwmove( 32, 'core   usage: %.1fs/%s (%3.1f%%)',
-               node.active_cores, node.cores,
-               node.core_utilization * 100 )
-    textwmove( 26, both_widget )
-    textwmove( 26, host_queue )
-    advance()
-    textwmove( 32, 'worker usage: %s/%s (%3.1f%%)',
-               node.remote_active_workers, node.remote_workers,
-               node.remote_worker_utilization * 100 )
-    textwmove( 26, local_widget )
-    textwmove( 26, local_queue )
-    advance()
-    if node.local_workers > 0 then
-      textwmove( 32, 'local  usage: %s/%s (%3.1f%%)',
-                 node.local_active_workers, node.local_workers,
-                 node.local_worker_utilization * 100 )
+    local function text_widget( w, is_selected, txt )
+      if is_selected then
+        out:bg( terminal.gruvbox.yellow ):fg(
+            terminal.gruvbox.dark0 )
+      end
+      textwmove( w, txt )
+      if is_selected then out:reset() end
+    end
+    if not compact() then
       advance()
+      out:fg( DARK_LABEL )
+      text( out, 'core   usage: ' )
+      out:reset()
+      textwmove( 17, '%.1fs/%s (%3.1f%%)', node.active_cores,
+                 node.cores, node.core_utilization * 100 )
+      text_widget( 22, counter_widget( 'both' ) )
+      textwmove( 3, '' )
+      out:fg( DARK_LABEL )
+      textwmove( 13, 'host  queue: ' )
+      out:reset()
+      textwmove( 4, '%d', node.remote_queue_size )
+
+      advance()
+      out:fg( DARK_LABEL )
+      text( out, 'worker usage: ' )
+      out:reset()
+      textwmove( 17, '%s/%s (%3.1f%%)',
+                 node.remote_active_workers, node.remote_workers,
+                 node.remote_worker_utilization * 100 )
+      text_widget( 22, counter_widget( 'local' ) )
+      textwmove( 3, '' )
+      out:fg( DARK_LABEL )
+      textwmove( 13, 'local queue: ' )
+      out:reset()
+      textwmove( 4, '%d', node.local_queue_size )
+
+      advance()
+      if node.local_workers > 0 then
+        if not g_seen_with_local_workers[node_label] then
+          g_seen_with_local_workers[node_label] = true
+          g_needs_clear = true
+        end
+        out:fg( DARK_LABEL )
+        text( out, 'local  usage: ' )
+        out:reset()
+        textwmove( 17, '%s/%s (%3.1f%%)',
+                   node.local_active_workers, node.local_workers,
+                   node.local_worker_utilization * 100 )
+        advance()
+      else
+        if g_seen_with_local_workers[node_label] then
+          g_seen_with_local_workers[node_label] = false
+          g_needs_clear = true
+        end
+      end
     end
     ::continue::
   end
   if has_nodes then
     advance()
-    finish_box()
+    finish_box{ t_top=true, t_bottom=false }
   end
 
   local function make_status_line()
-    out:bg{ r=0, g=50, b=0 }
+    out:bg( STATUS_LINE_COLOR )
     out:clear_line()
   end
 
   y = ROWS - 4
-  -- out:hline( { x=0, y=y }, COLS )
   advance( 2 )
   textln( 'status:  %s', g_status )
   textln( 'substat: %s', g_sub_status )
@@ -735,9 +962,11 @@ local function loop( cxn, pubsub_cxn, pubsub_msgs )
         if key == 'X' then clear_all_target_counts( cxn ) end
         if key == 'f' then full_target_count( cxn ) end
         if key == 'F' then overdrive_target_count( cxn ) end
+        if key == 'c' then toggle_compact_view() end
         g_sub_status = format( 'node=%s,type=%s',
                                INPUT_STATE.node_label,
                                INPUT_STATE.counter_type )
+        if key == 'r' then reset_cached_rendering_data() end
         update_data( cxn, { force=true } )
         g_last_redraw_time = 0 -- force redraw.
       end
