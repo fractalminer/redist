@@ -404,7 +404,7 @@ local function update_data( cxn, opts )
     node.id = machine_id
     node.name = name
     node.node_label = node_label
-    node.from_host = assert( v.host.ip )
+    node.from_host = assert( v.host.ip, 'node ip disppeared' )
     node.cores = assert( v.core_count )
     node.active_cores = assert( v.active_core_count )
     node.core_utilization = percent( node.active_cores,
