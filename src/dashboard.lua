@@ -828,7 +828,7 @@ local function redraw( out )
   end
 
   -- Nodes.
-  if has_nodes then start_box( 'NODE' ) end
+  if has_nodes then start_box( ' NODES' ) end
   for _, node_label in ipairs( g_data.node_ordering ) do
     -- This can happen if there are nodes in the ranking in redis
     -- but which are not online now.
@@ -1007,8 +1007,11 @@ local function redraw( out )
 
   y = ROWS - 5
   advance( 2 )
+  out:clear_line()
   textln( 'status:  %s', g_status )
+  out:clear_line()
   textln( 'substat: %s', g_sub_status )
+  out:clear_line()
   textln( 'dimensions: rows=%d, columns=%d | view=%d', ROWS,
           COLS, g_compact_view )
   make_status_line()
