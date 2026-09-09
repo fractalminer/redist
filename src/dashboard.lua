@@ -60,11 +60,13 @@ local INPUT_STATE = { node_label=nil, counter_type=nil }
 local g_data = {}
 
 local g_needs_clear = true
-local g_compact_view = false
+local g_compact_view = 0
 local g_show_node_mem_histerisis = {}
 local g_seen_with_local_workers = {}
 
 local g_node_cpu_smoothed = {}
+
+local g_last_term_size = {}
 
 local function reset_cached_rendering_data()
   g_last_update_time = 0
@@ -281,8 +283,9 @@ local function overdrive_target_count( cxn )
   worker_count:set( max_count )
 end
 
-local function toggle_compact_view()
-  g_compact_view = not g_compact_view
+local function cycle_compact_view()
+  g_compact_view = g_compact_view + 1
+  g_compact_view = g_compact_view % 3
   g_needs_clear = true
 end
 
@@ -401,7 +404,7 @@ local function update_data( cxn, opts )
     node.id = machine_id
     node.name = name
     node.node_label = node_label
-    node.from_host = 'unknown' -- assert( v.host )
+    node.from_host = assert( v.host.ip )
     node.cores = assert( v.core_count )
     node.active_cores = assert( v.active_core_count )
     node.core_utilization = percent( node.active_cores,
@@ -491,7 +494,7 @@ local function text_center( out, y, ... )
   out:clear_to_eol()
 end
 
-function box_T( out, point, width, height, style, t )
+function box_T( out, point, width, height, style, t, color )
   assert( t )
   assert( t.t_top ~= nil )
   assert( t.t_bottom ~= nil )
@@ -505,24 +508,56 @@ function box_T( out, point, width, height, style, t )
 
   local inner_width = width - 2
 
+  out:fg( color )
+
   -- Top.
-  local nw = t.t_top and terminal.box_chars.tee_left or c.tl
-  local ne = t.t_top and terminal.box_chars.tee_right or c.tr
+  local nw = c.tl
+  local ne = c.tr
   out:move_to( point ):text( nw ):text( c.h:rep( inner_width ) )
       :text( ne )
 
   -- Sides.
-  for row = 1, height - 2 do
+  for row = 1, height - 4 do
     out:move_to{ x=point.x, y=point.y + row }:text( c.v )
     out:move_to{ x=point.x + width - 1, y=point.y + row }:text(
         c.v )
   end
 
+  -- Last (non-bottom) side row, dimmed.
+  local dimmed = color
+  if t.t_bottom then
+    for row = height - 3, height - 2 do
+      if row > 0 then
+        dimmed = {
+          r=dimmed.r * 2 // 3,
+          g=dimmed.g * 2 // 3,
+          b=dimmed.b * 2 // 3,
+        }
+        out:fg( dimmed )
+        out:move_to{ x=point.x, y=point.y + row }:text( c.v )
+        out:move_to{ x=point.x + width - 1, y=point.y + row }
+            :text( c.v )
+      end
+    end
+  else
+    for row = height - 3, height - 2 do
+      if row > 0 then
+        out:move_to{ x=point.x, y=point.y + row }:text( c.v )
+        out:move_to{ x=point.x + width - 1, y=point.y + row }
+            :text( c.v )
+      end
+    end
+  end
+
   -- Bottom.
-  local sw = t.t_bottom and terminal.box_chars.tee_left or c.bl
-  local se = t.t_bottom and terminal.box_chars.tee_right or c.br
-  out:move_to{ x=point.x, y=point.y + height - 1 }:text( sw )
-      :text( c.h:rep( inner_width ) ):text( se )
+  if not t.t_bottom then
+    local sw = c.bl
+    local se = c.br
+    out:move_to{ x=point.x, y=point.y + height - 1 }:text( sw )
+        :text( c.h:rep( inner_width ) ):text( se )
+  end
+
+  out:reset()
 
   return out
 end
@@ -538,6 +573,22 @@ local function redraw( out )
   g_last_redraw_time = now
   g_redraws = g_redraws + 1
 
+  local ROWS, COLS = terminal.size()
+  if g_last_term_size.rows ~= ROWS or g_last_term_size.cols ~=
+      COLS then
+    g_needs_clear = true
+    g_last_term_size.rows = ROWS
+    g_last_term_size.cols = COLS
+  end
+
+  if COLS < 80 then
+    out:clear()
+    text_center( out, ROWS // 2, 'terminal width' )
+    text_center( out, ROWS // 2 + 1, 'too small' )
+    out:flush()
+    return
+  end
+
   -- If we need to clear then do it.
   if g_needs_clear then
     out:clear()
@@ -545,9 +596,7 @@ local function redraw( out )
   end
   out:move_to{ x=0, y=0 }
 
-  local ROWS, COLS = terminal.size()
-
-  local function compact() return g_compact_view == true end
+  local function compact() return g_compact_view end
 
   local TITLE_COLOR = terminal.gruvbox.bright_red
   local LABEL_COLOR = terminal.gruvbox.bright_yellow
@@ -648,10 +697,8 @@ local function redraw( out )
   local function finish_box( t )
     t = t or { t_top=false, t_bottom=false }
     local box_end = y
-    out:fg( BOX_COLOR )
     box_T( out, { x=0, y=box_start }, COLS,
-           box_end - box_start + 1, 'rounded', t )
-    out:reset()
+           box_end - box_start + 1, 'rounded', t, BOX_COLOR )
     move{ x=1, y=y }
   end
 
@@ -689,20 +736,37 @@ local function redraw( out )
     out:reset()
     advance()
     advance()
-    center( 'core usage: %.1f/%s (%.1f%%)',
-            g_data.stats.active_cores, g_data.stats.cores,
-            g_data.stats.core_utilization * 100 )
+    out:clear_line()
+    move{ x=COLS // 2 - 8 }
+    out:fg( DARK_LABEL )
+    text( out, 'cores: ' )
+    out:reset()
+    textwmove( 3, '%3d', floor( g_data.stats.active_cores ) )
+    textwmove( 5, '/%s', g_data.stats.cores )
+    text( out, ' (%.1f%%)', g_data.stats.core_utilization * 100 )
     advance()
-    center( 'r-worker usage: %s/%s (%.1f%%)', g_data.stats
-                .active_workers -
-                g_data.stats.local_active_workers, g_data.stats
-                .total_workers - g_data.stats.local_workers,
-            g_data.stats.remote_worker_utilization * 100 )
+    out:clear_line()
+    move{ x=COLS // 2 - 12 }
+    out:fg( DARK_LABEL )
+    text( out, 'r-workers: ' )
+    out:reset()
+    textwmove( 3, '%3s', g_data.stats.active_workers -
+                   g_data.stats.local_active_workers )
+    textwmove( 5, '/%s', g_data.stats.total_workers -
+                   g_data.stats.local_workers )
+    text( out, ' (%.1f%%)',
+          g_data.stats.remote_worker_utilization * 100 )
     advance()
-    center( 'l-worker usage: %s/%s (%.1f%%)',
-            g_data.stats.local_active_workers,
-            g_data.stats.local_workers,
-            g_data.stats.local_worker_utilization * 100 )
+    out:clear_line()
+    move{ x=COLS // 2 - 12 }
+    out:fg( DARK_LABEL )
+    text( out, 'l-workers: ' )
+    out:reset()
+    out:reset()
+    textwmove( 3, '%3s', g_data.stats.local_active_workers )
+    textwmove( 5, '/%s', g_data.stats.local_workers )
+    text( out, ' (%.1f%%)',
+          g_data.stats.local_worker_utilization * 100 )
     advance()
     advance()
     finish_box{ t_top=true, t_bottom=true }
@@ -711,12 +775,23 @@ local function redraw( out )
   -- Queues.
   start_box( 'QUEUES' )
   advance()
-  center( format(
-              'preprocess: %s   distributor: %s   compile: %s   hosts: %s',
-              g_data.stats.preprocess_queue_size,
-              g_data.stats.distributor_queue_size,
-              g_data.stats.compile_queue_size,
-              g_data.stats.hosts_queue_size ) )
+  move{ x=COLS // 2 - 31 }
+  out:fg( DARK_LABEL )
+  text( out, 'preprocess: ' )
+  out:reset()
+  textwmove( 6, g_data.stats.preprocess_queue_size )
+  out:fg( DARK_LABEL )
+  text( out, 'distributor: ' )
+  out:reset()
+  textwmove( 6, g_data.stats.distributor_queue_size )
+  out:fg( DARK_LABEL )
+  text( out, 'compile: ' )
+  out:reset()
+  textwmove( 6, g_data.stats.compile_queue_size )
+  out:fg( DARK_LABEL )
+  text( out, 'hosts: ' )
+  out:reset()
+  textwmove( 6, g_data.stats.hosts_queue_size )
   advance()
   advance()
   finish_box{ t_top=true, t_bottom=true }
@@ -753,7 +828,7 @@ local function redraw( out )
   end
 
   -- Nodes.
-  if has_nodes then start_box( 'NODES' ) end
+  if has_nodes then start_box( 'NODE' ) end
   for _, node_label in ipairs( g_data.node_ordering ) do
     -- This can happen if there are nodes in the ranking in redis
     -- but which are not online now.
@@ -761,19 +836,20 @@ local function redraw( out )
     local node = assert( g_data.nodes[node_label] )
     advance( 3 )
     out:fg( SUB_TITLE_COLOR )
+    out:hline( { x=3, y=y }, COLS - 5 )
+    out:hline( { x=2, y=y }, 1, terminal.box_chars.rounded.tl )
+    out:hline( { x=COLS - 3, y=y }, 1,
+               terminal.box_chars.rounded.tr )
+    out:reset()
+    advance( 4 )
+    out:fg( SUB_TITLE_COLOR )
     out:text( 'NODE' )
     out:reset()
     text( out, ': %s', node.name )
     out:fg{ r=0x70, g=0x70, b=0x70 }
     text( out, ' [%s]', node.from_host )
     out:reset()
-    advance( 2 )
-    out:fg( SUB_TITLE_COLOR )
-    out:hline( { x=3, y=y }, COLS - 5 )
-    out:hline( { x=2, y=y }, 1, terminal.box_chars.rounded.tl )
-    out:hline( { x=COLS - 3, y=y }, 1,
-               terminal.box_chars.rounded.tr )
-    out:reset()
+    advance( 3 )
 
     local smoothed_cpu = advance_cpu( node_label,
                                       node.core_utilization )
@@ -782,27 +858,29 @@ local function redraw( out )
     text( out, 'cpu:    ' )
     out:reset()
     cpu_progress_bar( COLS - 16, smoothed_cpu )
-    move{ x=4 }
-    out:fg( LABEL_COLOR )
-    text( out, 'worker: ' )
-    out:reset()
-    worker_progress_bar( COLS - 16,
-                         node.remote_worker_utilization )
-    move{ x=4 }
-    if node.local_workers > 0 then
-      out:fg( LABEL_COLOR )
-      text( out, 'local:  ' )
-      out:reset()
-      local_worker_progress_bar( COLS - 16,
-                                 node.local_worker_utilization )
+    if compact() < 2 then
       move{ x=4 }
+      out:fg( LABEL_COLOR )
+      text( out, 'worker: ' )
+      out:reset()
+      worker_progress_bar( COLS - 16,
+                           node.remote_worker_utilization )
+      move{ x=4 }
+      if node.local_workers > 0 then
+        out:fg( LABEL_COLOR )
+        text( out, 'local:  ' )
+        out:reset()
+        local_worker_progress_bar( COLS - 16,
+                                   node.local_worker_utilization )
+        move{ x=4 }
+      end
     end
     -- Most of the time we don't care about memory... we only
     -- care about it if it goes too high.
     if g_show_node_mem_histerisis[node.name] == nil then
       g_show_node_mem_histerisis[node.name] = false
     end
-    if not compact() then
+    if compact() < 1 then
       if not g_show_node_mem_histerisis[node.name] and
           node.mem_utilization > .8 then
         g_show_node_mem_histerisis[node.name] = true
@@ -817,7 +895,7 @@ local function redraw( out )
         out:fg( LABEL_COLOR )
         if node.mem_utilization > .8 then
           out:bold()
-          text( out, 'mem (%s):', terminal.symbol.warning )
+          text( out, 'mem(!!):' )
           out:reset()
         else
           text( out, 'mem:    ' )
@@ -833,30 +911,51 @@ local function redraw( out )
                               INPUT_STATE.counter_type ==
                               counter_type
       local caret = is_selected and terminal.symbol.circle or ' '
-      local txt = format( ' %s %-5s target: %d', caret,
-                          counter_type,
-                          node.target_count[counter_type] )
-      return is_selected, txt
+      local value = node.target_count[counter_type]
+      return is_selected, caret, counter_type, value
     end
-    local function text_widget( w, is_selected, txt )
+    local function text_widget(w, is_selected, caret,
+                               counter_type, value )
       if is_selected then
+        out:fg( terminal.gruvbox.yellow ):bg(
+            terminal.gruvbox.dark0 )
+        out:text( terminal.symbol.left_round )
         out:bg( terminal.gruvbox.yellow ):fg(
             terminal.gruvbox.dark0 )
+        local txt = format( '%s %5s target: %2d', caret,
+                            counter_type,
+                            node.target_count[counter_type] )
+        out:bold()
+        textwmove( w, txt )
+        out:reset()
+      else
+        out:text( ' ' )
+        out:fg( DARK_LABEL ):text(
+            format( '  %5s target: ', counter_type ) )
+        out:reset()
+        out:text( format( '%2d', value ) )
       end
-      textwmove( w, txt )
-      if is_selected then out:reset() end
+
+      if is_selected then
+        out:fg( terminal.gruvbox.yellow ):bg(
+            terminal.gruvbox.dark0 )
+        out:text( terminal.symbol.right_round )
+        out:reset()
+      else
+        out:text( ' ' )
+      end
     end
-    if not compact() then
+    if compact() < 1 then
       advance()
       out:fg( DARK_LABEL )
       text( out, 'core   usage: ' )
       out:reset()
-      textwmove( 17, '%.1fs/%s (%3.1f%%)', node.active_cores,
+      textwmove( 20, '%.1fs/%s (%3.1f%%)', node.active_cores,
                  node.cores, node.core_utilization * 100 )
-      text_widget( 22, counter_widget( 'both' ) )
+      text_widget( 18, counter_widget( 'both' ) )
       textwmove( 3, '' )
       out:fg( DARK_LABEL )
-      textwmove( 13, 'host  queue: ' )
+      textwmove( 13, ' host queue: ' )
       out:reset()
       textwmove( 4, '%d', node.remote_queue_size )
 
@@ -864,10 +963,10 @@ local function redraw( out )
       out:fg( DARK_LABEL )
       text( out, 'worker usage: ' )
       out:reset()
-      textwmove( 17, '%s/%s (%3.1f%%)',
+      textwmove( 20, '%s/%s (%3.1f%%)',
                  node.remote_active_workers, node.remote_workers,
                  node.remote_worker_utilization * 100 )
-      text_widget( 22, counter_widget( 'local' ) )
+      text_widget( 18, counter_widget( 'local' ) )
       textwmove( 3, '' )
       out:fg( DARK_LABEL )
       textwmove( 13, 'local queue: ' )
@@ -906,10 +1005,12 @@ local function redraw( out )
     out:clear_line()
   end
 
-  y = ROWS - 4
+  y = ROWS - 5
   advance( 2 )
   textln( 'status:  %s', g_status )
   textln( 'substat: %s', g_sub_status )
+  textln( 'dimensions: rows=%d, columns=%d | view=%d', ROWS,
+          COLS, g_compact_view )
   make_status_line()
   textwmove( 25, 'updates: %s [%.1fms]', g_redis_updates,
              (g_data.query_time_micros or 0) / 1000 )
@@ -962,7 +1063,7 @@ local function loop( cxn, pubsub_cxn, pubsub_msgs )
         if key == 'X' then clear_all_target_counts( cxn ) end
         if key == 'f' then full_target_count( cxn ) end
         if key == 'F' then overdrive_target_count( cxn ) end
-        if key == 'c' then toggle_compact_view() end
+        if key == 'c' then cycle_compact_view() end
         g_sub_status = format( 'node=%s,type=%s',
                                INPUT_STATE.node_label,
                                INPUT_STATE.counter_type )

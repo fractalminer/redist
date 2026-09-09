@@ -374,6 +374,41 @@ M.symbol = harden{
   light       = '░',
   medium      = '▒',
   dark        = '▓',
+
+  -- NERD font glyphs (requires NERD font in terminal).
+  left_round  = '',
+  right_round = '',
+}
+-- LuaFormatter on
+
+-- LuaFormatter off
+M.icon = {
+  -- Resources.
+  cpu       = '',
+  memory    = '󰍛',
+
+  -- Network / distributed work.
+  server    = '󰒋',
+  network   = '󰛳',
+  upload    = '󰕒',
+  download  = '󰇚',
+
+  -- State.
+  check     = '󰄬',
+  warning   = '󰀪',
+  error     = '󰅚',
+  info      = '󰋼',
+
+  -- Actions/state.
+  play      = '󰐊',
+  pause     = '󰏤',
+  stop      = '󰓛',
+  refresh   = '󰑐',
+
+  -- Misc.
+  clock     = '󰥔',
+  queue     = '󰅒',
+  database  = '󰆼',
 }
 -- LuaFormatter on
 

@@ -45,7 +45,8 @@ local function query_cluster_state( cxn, opts )
   sort( node_keys )
   for _, key in ipairs( node_keys ) do
     local _, _, node, _, _ = key:tsplit( ':' )
-    nodes[node] = { workers={} }
+    nodes[node] = { workers={},
+                    host=assert( cxn:hgetall( key ) ) }
   end
 
   -- Now get all workers.
