@@ -16,7 +16,7 @@ return harden{
     -- load bandwidth to the redis server: lower bandwidths want
     -- higher compression levels, and vice versa, for optimal
     -- overall build times.
-    COMPRESSION_LEVEL=9,
+    COMPRESSION_LEVEL=1,
     USE_F_REWRITE_INCLUDES=false,
   },
 
