@@ -186,7 +186,8 @@ local function pp_style( compiler_type )
     x_pp='c++',
     x_compile='c++-cpp-output',
   }
-  if compiler_type:match( 'clang' ) then
+  -- NOTE: disabled
+  if false and compiler_type:match( 'clang' ) then
     -- For clang there is an issue where it will give noisier er-
     -- rors when it is given the preprocessed output directly (in
     -- particular, it warns about things inside of macros that
