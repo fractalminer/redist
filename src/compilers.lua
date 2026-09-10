@@ -2,6 +2,7 @@
 -----------------------------------------------------------------
 -- Imports.
 -----------------------------------------------------------------
+local config = require( 'config' )
 local os_stat = require( 'os-stat' )
 
 local posix = require( 'posix' )
@@ -187,7 +188,8 @@ local function pp_style( compiler_type )
     x_compile='c++-cpp-output',
   }
   -- NOTE: disabled
-  if false and compiler_type:match( 'clang' ) then
+  if config.general.USE_F_REWRITE_INCLUDES and
+      compiler_type:match( 'clang' ) then
     -- For clang there is an issue where it will give noisier er-
     -- rors when it is given the preprocessed output directly (in
     -- particular, it warns about things inside of macros that

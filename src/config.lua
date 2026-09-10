@@ -17,6 +17,7 @@ return harden{
     -- higher compression levels, and vice versa, for optimal
     -- overall build times.
     COMPRESSION_LEVEL=9,
+    USE_F_REWRITE_INCLUDES=false,
   },
 
   worker={
