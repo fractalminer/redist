@@ -147,10 +147,10 @@ end
 local function find_node_index( label )
   local labels = {}
   local i
-  for j, node_label in ipairs( g_data.node_ordering ) do
+  for _, node_label in ipairs( g_data.node_ordering ) do
     if g_data.nodes[node_label] then
       insert( labels, node_label )
-      i = i or j
+      i = i or 1
       if node_label == label then i = #labels end
     end
   end
