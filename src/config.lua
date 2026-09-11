@@ -31,8 +31,24 @@ return harden{
   builder={
     EXPIRE_LOCAL_TASK=3600, --
     EXPIRE_REMOTE_TASK=3600, --
-    ADD_REMOTE_COMPILE_FLAGS={
-      '-Wno-parenthesis-equality', --
+    REMOTE_FLAGS={
+      ADD={
+        CLANG={
+          -- The Lua source code, which is full of macros, causes
+          -- a lot of these when clang compiles the preprocessed
+          -- source, but they are harmless.
+          '-Wno-parentheses-equality', --
+        },
+        GCC={},
+      },
+      DEL={
+        CLANG={
+          -- clang warns about this one if we include it and it
+          -- is compiling the already-preprocessed file.
+          '-stdlib=libc++',
+        },
+        GCC={},
+      },
     },
   },
 

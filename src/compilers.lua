@@ -7,6 +7,7 @@ local os_stat = require( 'os-stat' )
 
 local posix = require( 'posix' )
 
+local set = require( 'moon.set' )
 local str = require( 'moon.str' )
 
 -----------------------------------------------------------------
@@ -20,6 +21,8 @@ local realpath = assert( posix.stdlib.realpath )
 local stat = assert( posix.sys.stat.stat )
 
 local format = string.format
+local insert = table.insert
+local remove = assert( table.remove )
 
 -----------------------------------------------------------------
 -- Globals.
@@ -213,6 +216,28 @@ local function pp_style( compiler_type )
   return style
 end
 
+local function filter_final_compile_flags( compiler_type, flags )
+  local add, del
+  if compiler_type:match( 'clang' ) then
+    add = config.builder.REMOTE_FLAGS.ADD.CLANG
+    del = set( config.builder.REMOTE_FLAGS.DEL.CLANG )
+  elseif compiler_type:match( 'g++' ) then
+    add = config.builder.REMOTE_FLAGS.ADD.GCC
+    del = set( config.builder.REMOTE_FLAGS.DEL.GCC )
+  else
+    return
+  end
+  assert( add )
+  assert( del )
+  for _, flag in ipairs( add ) do insert( flags, flag ) end
+  -- Iterate backwards so that we can remove stuff from the table
+  -- without messing up iterating.
+  for i = #flags, 1, -1 do
+    local flag = assert( flags[i] )
+    if del:contains( flag ) then remove( flags, i ) end
+  end
+end
+
 -----------------------------------------------------------------
 -- Module.
 -----------------------------------------------------------------
@@ -220,4 +245,5 @@ return {
   match_compiler=match_compiler,
   locate=locate,
   pp_style=pp_style,
+  filter_final_compile_flags=filter_final_compile_flags,
 }

@@ -2,7 +2,6 @@
 -----------------------------------------------------------------
 -- Imports.
 -----------------------------------------------------------------
-local config = require( 'config' )
 local ccache = require( 'ccache-helper' )
 local compilers = require( 'compilers' )
 local decode = require( 'decode' )
@@ -30,6 +29,8 @@ local cround_trip = assert( decode.cround_trip )
 local download_blob = assert( farm.download_blob )
 local download_blob_to_file =
     assert( farm.download_blob_to_file )
+local filter_final_compile_flags = assert(
+                                       compilers.filter_final_compile_flags )
 local hash = assert( mhash.hash )
 local log_command = assert( ccache.log_command )
 local machine_id = assert( network.machine_id )
@@ -161,16 +162,14 @@ local function create_remote_compile_task( analyzed, ii_hash )
   -- which we use for clang. See the comments around the pp_style
   -- method for more info.
   decoded.includes = {}
-  local flags = unwords( cencode( decoded ) )
+  local flags = cencode( decoded )
+  filter_final_compile_flags( compiler.compiler_type, flags )
+  local flags_str = unwords( flags )
 
   local os = assert( os_version() )
   local compiler_type = assert( compiler.compiler_type )
   local compiler_version = assert( compiler.compiler_version )
-  local compiler_flags = assert( flags )
-  local extra_flags = config.builder.ADD_REMOTE_COMPILE_FLAGS
-  for _, flag in ipairs( extra_flags ) do
-    insert( compiler_flags, flag )
-  end
+  local compiler_flags = assert( flags_str )
   local description = format( 'compiling %s',
                               decoded.input_c_cpp_file )
   -- Ideally we'd include the source itself in the hash instead
