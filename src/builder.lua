@@ -2,6 +2,7 @@
 -----------------------------------------------------------------
 -- Imports.
 -----------------------------------------------------------------
+local config = require( 'config' )
 local ccache = require( 'ccache-helper' )
 local compilers = require( 'compilers' )
 local decode = require( 'decode' )
@@ -166,6 +167,10 @@ local function create_remote_compile_task( analyzed, ii_hash )
   local compiler_type = assert( compiler.compiler_type )
   local compiler_version = assert( compiler.compiler_version )
   local compiler_flags = assert( flags )
+  local extra_flags = config.builder.ADD_REMOTE_COMPILE_FLAGS
+  for _, flag in ipairs( extra_flags ) do
+    insert( compiler_flags, flag )
+  end
   local description = format( 'compiling %s',
                               decoded.input_c_cpp_file )
   -- Ideally we'd include the source itself in the hash instead

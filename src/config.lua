@@ -31,6 +31,9 @@ return harden{
   builder={
     EXPIRE_LOCAL_TASK=3600, --
     EXPIRE_REMOTE_TASK=3600, --
+    ADD_REMOTE_COMPILE_FLAGS={
+      '-Wno-parenthesis-equality', --
+    },
   },
 
   node_manager={
