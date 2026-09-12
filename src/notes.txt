@@ -1,6 +1,17 @@
 # vim: syntax=yaml
 TODO:
 -----------------------------------------------------------------
+  * Port ninja changes to new version.
+    - This should speed things up by 10-15% by putting large TUs
+      first. This still requires having the .ninja_log, but
+      that's probably not an issue because it doesn't go away on
+      ninja clean, so we'd only ever lose it if we delete the
+      .builds folder outright, which is rare.
+  * Multiplexing:
+    - There will be multiple channels to the redis server.
+    - Need to attempt multiplexing with ssh -b.
+    - Workers should have an id and we should multiplex based
+      on bandwidth in each channel.
   * Distributor:
     - Periodically the Distributor will check all the node spe-
       cific queues and grab their pids from the task objects and
@@ -31,13 +42,6 @@ TODO:
       have it be automated.
   * Try doing more to split up the large TUs. Run
     tools/ninja-log-times.sh to see which.
-  * Implement the build.ninja reader/rearranger and then just
-    measure if/how it speeds up entirely local builds by removing
-    the tail latency. This is because, if we can't get ninja to
-    give us the heavy TUs early enough, then giving them to a
-    fast node won't be able to make up for that lost time. Seems
-    appropriate to implement this in python and have it run at
-    the end of the `configure` script when in ninja mode.
   * Need to go through and minimize the number of redis queries
     made by the builder and workers because latency can be very
     high when operating externally. For example, one query can
@@ -48,13 +52,11 @@ TODO:
     * The dashboard should go to sleep (increase poll delay after
       a certain amount of time of no utilization), then as soon
       as something happens it should go back to frequent updates.
-    * Currently it can't visually scale to many more nodes. We
-      need to create a right panel with node detail and keep the
-      left pane more compact.
-    * Nodes should be sorted by total cores.
-    * Add color.
-    * Ideally we'd have a way to see the logs of the workers, but
-      not sure yet how that will be done.
+    * The dashboard can't scale to many more vertical nodes, and
+      can't even show all nodes when the full view is enabled. So
+      we need to add a new view mode where only the interactive
+      widgets are shown, and also have it skip the larger layouts
+      when screen rows are not large enough.
   * Node Manager:
     * Should keep track of the number of unexpected worker
       deaths.
@@ -64,14 +66,6 @@ TODO:
     * The pool needs to have these settings:
       - Delay before bringing back a failed process.
       - Max failed processes before stopping.
-    * Should restore a task to the queue if the worker that was
-      working on it died. However, each time this is done, a
-      counter on the task should be incremented so that it
-      doesn't get retried more than a certain number of times.
-      Not sure yet if we want to have the worker try to do this
-      or if it is better in either the node manager (or actually,
-      even better, a separate job; the node manager should just
-      be a process pool ideally).
     * It seems that it is still possible for the node manager to
       be terminated (e.g. if it is invoked over an ssh connection
       and the connection somehow drops) but the workers continue
@@ -111,24 +105,15 @@ TODO:
     far on a translation unit so that the dashboard can query the
     top n of them and show them along with their times and their
     hosts, almost giving a ninja-like output.
-  * We need to somehow find a way to have a script run make for
-    the remote builds, that way it can time the entire build and
-    log it to redis as a "job". That way we have the configura-
-    tion and timing.
-  * CI listener: we could also have a special process running on
-    one host that listens to a queue of jobs and does a checkout
-    and build of all platforms like a CI, then communicates re-
-    sults. That way if we commit some changes and want to test
-    the all-platforms build, we can do that without using all the
-    local cores for preprocessing.
-  * We may want to reconsider caching the output (i.e. stderr) of
-    a compile command when it fails... because then if it fails
-    e.g. due to some lua issue in redist then that will be
-    cached.
+  * We may want to reconsider caching the task output (i.e.
+    stderr) of a compile command when it fails... because then if
+    it fails e.g. due to some lua issue in redist then that will
+    be cached.
   * After writing a file from the contents of a blob, stat the
     file size to make sure it is the same as the key.
   * C-c seems to take a second or two when blocked on a socket...
     see if that can be improved.
+
 
 Plan for Cluster Manager:
 -----------------------------------------------------------------
@@ -150,99 +135,3 @@ Plan for Cluster Manager:
   * Eventual goals:
     - It should be able to bring up/down node managers on each
       node through remote systemd through ssh.
-
-Plan for Monitor:
------------------------------------------------------------------
-  * Create a stdin table wrapper around fd 0 and give that object
-    to socket.select to wait on input along with any redis sockets.
-      local stdin = {
-        function getfd() {
-          return 0
-        },
-        function dirty() {
-          return false
-        },
-      }
-  * Will need to have the lua script set non-canonical mode on
-    the tty first:
-      stty -icanon -echo
-    then restore it before exiting:
-      stty ...  # <-- taken from `stty -g`
-  * Then in order to prevent against the tool exiting without
-    restoring the tty, the tool can be run under:
-      script -q /dev/null ...
-
-Plan for Pub/Sub:
------------------------------------------------------------------
-  * First create a dedicated connection and extract/store the
-    socket.
-  * Do NOT set a timeout on the socket, as that may not play
-    nicely with the redis-lua library (could cause some data loss
-    if the timeout happens just as a packet is coming in).
-  * Then subscribe.
-  * Then use the socket.select (with a timeout) to wait for mes-
-    sages. It will return then there is data to read.
-  * Then use the usual redis-lua api to read it.
-  * Then you can have a coroutine that is suspended and resumed
-    when new messages arrive (if that happens to be useful, which
-    it may not be).
-
-
-Plan for ccache:
------------------------------------------------------------------
-  * We will set ccache to depend_mode=true which will cause it to
-    do a more efficient type of hashing that does not require
-    running the preprocessor and so should speed things up.
-  * We will inject the shim via CCACHE_PREFIX which will point to
-    a script in the redist repo. That way, nothing in the com-
-    piled repo needs to change or be added.
-  * The Makefile will detect the presence of a REMOTE= variable
-    and will set the CCACHE_PREFIX as well as invoke a script in
-    the redist repo to query the number of available workers and
-    will set the -j argument accordingly.
-  * ccache, on a cache miss, will give the original command to
-    the shim which will then automatically distribute it uncondi-
-    tionally, since CMake should not arrange for ccache to be
-    called on anything other than compile commands (i.e. not
-    linking).
-  * Then the builder will look at the command and ensure that it
-    can recognize it and fail if it can't or if it is a
-    non-distributable command (though that shouldn't happen).
-  * Assuming it is a compile command, the builder will need to
-    run the preprocessor and simultaneously emit the dep file,
-    which entails:
-      - Detecting the presence of the -M* flags:
-          * If -MT is there then it should be preserved, other-
-            wise it needs to be added with the final object file.
-          * -MF presence/absence/value should be preserved.
-          * -MMD needs to be added if it is not there.
-      - Detecting the presence of the -x ... flag. If it's here
-        then it ideally needs to replace it with the
-        post-preprocessed version before compiling, but hopefully
-        we won't have to deal with that.
-      - Adding the -E flag.
-      - Changing the output to xxx.cpp.ii
-      - The resulting command is then added to the local job
-        queue for the host to be picked up (preferentially) by
-        the workers running on this host (such local workers are
-        required to be running therefore).
-      - The builder will wait for the preprocess to be complete,
-        after which the .ii file will be stored in redis (and
-        therefore will not have to be re-uploaded when it is sub-
-        sequently given to the distributed compile step). If this
-        step fails then stdout/stderr/status are emitted and the
-        process stops.
-  * Once preprocessing finishes then the .ii file will already be
-    in redis. So now we construct the compile task and upload it,
-    and then wait for that task to be performed. The compile com-
-    mand should have the following changes:
-      * -M* flags removed.
-      * -x c++-cpp-output (or analogous post-preprocessor form of
-        the flag if it was already there). Though this is not
-        needed if the extension of the input file is .ii, which
-        it will be.
-      * Remove the -c and -o.
-      * Make sure there is no -E.
-      * The worker that takes it will append .ii to the input ex-
-        tension and will upload the output back to redis.
-  * Once the compile is done then we return.
