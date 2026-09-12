@@ -1,6 +1,10 @@
 # vim: syntax=yaml
 TODO:
 -----------------------------------------------------------------
+  * Need to switch to Fios. 5Gig plan.  $100/mo.
+  * There needs to be a way through redis to tell a node to
+    restart. Then we can add a command on the dashboard for this
+    to restart either a node or the entire cluster.
   * Port ninja changes to new version.
     - This should speed things up by 10-15% by putting large TUs
       first. This still requires having the .ninja_log, but

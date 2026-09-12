@@ -3,7 +3,7 @@ set -euo pipefail
 
 HOST="${HOST:-127.0.0.1}"
 PORT="${PORT:-6379}"
-SIZE_MIB="${SIZE_MIB:-100}"
+SIZE_MIB="${SIZE_MIB:-50}"
 KEY="bandwidth-test-$$"
 
 BYTES=$((SIZE_MIB * 1024 * 1024))
