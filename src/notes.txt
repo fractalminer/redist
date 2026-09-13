@@ -5,15 +5,8 @@ TODO:
   * There needs to be a way through redis to tell a node to
     restart. Then we can add a command on the dashboard for this
     to restart either a node or the entire cluster.
-  * Port ninja changes to new version.
-    - This should speed things up by 10-15% by putting large TUs
-      first. This still requires having the .ninja_log, but
-      that's probably not an issue because it doesn't go away on
-      ninja clean, so we'd only ever lose it if we delete the
-      .builds folder outright, which is rare.
   * Multiplexing:
     - There will be multiple channels to the redis server.
-    - Need to attempt multiplexing with ssh -b.
     - Workers should have an id and we should multiplex based
       on bandwidth in each channel.
   * Distributor:
