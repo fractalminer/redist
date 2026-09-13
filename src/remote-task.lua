@@ -4,7 +4,6 @@
 local config = require( 'config' )
 local farm = require( 'farm' )
 local keys = require( 'keys' )
-local network = require( 'network' )
 local ru = require( 'redis-util' )
 
 local logger = require( 'moon.logger' )
@@ -16,7 +15,6 @@ local socket = require( 'socket' )
 -----------------------------------------------------------------
 local set_hash = assert( ru.set_hash )
 local set_blob = assert( farm.set_blob )
-local machine_label = assert( network.machine_label )
 
 local info = assert( logger.info )
 
@@ -56,6 +54,9 @@ local function output_of( cxn, hash )
   if not cxn:exists( key ) then return end
   local output = assert( cxn:hgetall( key ) )
   assert( type( output ) == 'table' )
+  assert( output.has_stderr == 'true' or output.has_stderr ==
+              'false' )
+  output.has_stderr = (output.has_stderr == 'true')
   return output
 end
 
@@ -81,11 +82,13 @@ local function set_result( cxn, hash, result )
   if result.output and #result.output > 0 then
     output = to_blob( result.output )
   end
+  local stderr = result.stderr:trim()
   set_hash( cxn, out_key, {
     status=assert( result.status ),
     output=output,
     stdout=to_blob( result.stdout ),
-    stderr=to_blob( result.stderr ),
+    stderr=to_blob( stderr ),
+    has_stderr=(#stderr > 0),
     time_micros=assert( result.time_micros ),
   } )
 end

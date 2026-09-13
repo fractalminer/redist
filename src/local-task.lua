@@ -56,6 +56,9 @@ local function output_of( cxn, hash )
   if not cxn:exists( key ) then return end
   local output = assert( cxn:hgetall( key ) )
   assert( type( output ) == 'table' )
+  assert( output.has_stderr == 'true' or output.has_stderr ==
+              'false' )
+  output.has_stderr = (output.has_stderr == 'true')
   return output
 end
 
@@ -77,10 +80,12 @@ local function set_result( cxn, hash, result )
   local function to_blob( content )
     return set_blob( cxn, content )
   end
+  local stderr = result.stderr:trim()
   set_hash( cxn, out_key, {
     status=assert( result.status ),
     stdout=to_blob( result.stdout ),
-    stderr=to_blob( result.stderr ),
+    stderr=to_blob( stderr ),
+    has_stderr=(#stderr > 0),
     time_micros=assert( result.time_micros ),
   } )
 end
@@ -103,8 +108,16 @@ local function queue_and_wait( cxn, task_hash, fn )
     subscribe=keys.task_events(),
   }
 
-  local output = output_of( cxn, task_hash )
-  if output then return output end
+  -- NOTE: unlike with the remote task, we don't first check if
+  -- the task output is already cached because for our pre-
+  -- processor tasks the input task hash does not include the
+  -- hash of all the input files (that would be impractical), so
+  -- we need to unconditionally rerun the local task. This is ok
+  -- because if the resulting preprocessed file has been seen be-
+  -- fore precisely then ccache will have detected that and in-
+  -- tercepted us; we should only be here if either we have no
+  -- ccache hit or we have genuinely new inputs.
+  local output
 
   queue_task( cxn, task_hash )
 

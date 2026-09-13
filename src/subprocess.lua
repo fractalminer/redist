@@ -21,8 +21,6 @@ local poll = assert( posix.poll.poll )
 local posix_exit = assert( posix.unistd._exit )
 local chdir = assert( posix.unistd.chdir )
 
--- local format_table = assert( printer.format_kv_table )
-
 local concat = assert( table.concat )
 local insert = assert( table.insert )
 local format = assert( string.format )

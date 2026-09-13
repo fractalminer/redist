@@ -5,6 +5,8 @@ TODO:
   * There needs to be a way through redis to tell a node to
     restart. Then we can add a command on the dashboard for this
     to restart either a node or the entire cluster.
+  * Check that the cpp file name is correctly reported if there
+    is a compile error in it.
   * Multiplexing:
     - There will be multiple channels to the redis server.
     - Workers should have an id and we should multiplex based
@@ -72,29 +74,46 @@ TODO:
       itor the presence of its parent process and to stop if it
       goes away. Actually this should be done for any process
       running under the process pool.
-  * Worker Death:
-    * Deal with timeouts/failures, i.e. when a task never com-
-      pletes. This can happen when e.g. a worker that removes the
-      task from the queue dies before finishing it. The builder
-      should monitor the worker that is working on the task (when
-      a worker starts working on a task they should mark that
-      task with their identity) and if the worker disappears then
-      the task needs to be re-queued.
-    * There is currently a cleanup function that will unadvertise
-      the worker if it exits on error, though even if it termi-
-      nates suddenly, the advertisement should expire within one
-      minute.
-    * Currently there is a timeout for a running command; make
-      sure that is adjusted properly and make sure that the
-      worker doesn't abort when a popen times out.
     * A worker should have a flag where it can be given a parent
       pid and if it is given it then it should detect if that pid
       goes away and if so it should stop. This should be done for
       any process run in the process pool.
+  * Worker Death:
+    * Currently there are a few ways a worker can fail, and in
+      most cases, the worker will be able to communicate the
+      error back to the builder:
+      - The preprocess or compile command returns an error code.
+         => this will be cleanly returned via redis.
+      - The preprocess or compile command times out.
+         => this will be cleanly returned via redis.
+      - A lua exception happens when processing the task.
+         => Most of the relevant code is wrapped in a pcall
+            and the worker will communicate an error via
+            redis before exiting.
+      - The node manager can SIGTERM the worker.
+         => When this happens, if there is a task running, then
+            the associated subprocess will also receive the
+            signal (via process group) and it will terminate
+            with an error code that will be propagated.
+      - The worker can suddenly disappear after having taken a
+        a task, for unknown reasons.
+         => Not handled.
+      The last case is not handled, but it doesn't ever seem to
+      happen. There are ways that it could be dealt with, e.g. a
+      worker could register its PID to indicate that it has
+      started working on a task, then the distributor could mon-
+      itor and find tasks that have pids that are no longer ad-
+      vertised, then reclaim that task. It would then increment a
+      failure counter for that ask, and, assuming retries haven't
+      been exceeded, it can put it back onto the front of the
+      global queue so it gets retried. But that seems like it is
+      not worth the effort since this doesn't seem to happen.
   * For the local workers, when they are uploading their pre-
     processed output, perhaps we want to adapt the compression
     level according to the upload bandwidth they have to the
     redis server, if that can be measured reliably.
+  * Make sure to use xpcall( ..., debug.traceback ) to get a
+    traceback instead of regular pcall.
   * Need to set TTLs properly on all the keys.
     - When pushing to the queue log, set the expiry on the list.
   * Move the subprocess code into moon.
@@ -102,10 +121,6 @@ TODO:
     far on a translation unit so that the dashboard can query the
     top n of them and show them along with their times and their
     hosts, almost giving a ninja-like output.
-  * We may want to reconsider caching the task output (i.e.
-    stderr) of a compile command when it fails... because then if
-    it fails e.g. due to some lua issue in redist then that will
-    be cached.
   * After writing a file from the contents of a blob, stat the
     file size to make sure it is the same as the key.
   * C-c seems to take a second or two when blocked on a socket...

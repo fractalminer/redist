@@ -17,6 +17,7 @@ local subprocess = require( 'subprocess' )
 local workarea = require( 'workarea' )
 
 local mcleanup = require( 'moon.cleanup' )
+local color = require( 'moon.colors' )
 local file = require( 'moon.file' )
 local logger = require( 'moon.logger' )
 local merr = require( 'moon.err' )
@@ -74,6 +75,9 @@ local CANCEL_PROCESS = assert( subprocess.CANCEL_PROCESS )
 
 local SIGINT = assert( signal.SIGINT )
 local SIGTERM = assert( signal.SIGTERM )
+
+local RED = assert( color.ANSI_RED )
+local NORMAL = assert( color.ANSI_NORMAL )
 
 -----------------------------------------------------------------
 -- Globals.
@@ -230,10 +234,11 @@ local function make_poller( cxn, desc )
   return on_poll
 end
 
-local function compile(cxn, task_hash, compiler, compiler_type,
+local function compile(cxn, task_info, compiler, compiler_type,
                        flags, body )
   local pp_style = compilers.pp_style( compiler_type )
   local ext = assert( pp_style.ext )
+  local task_hash = assert( task_info.hash )
   local tmp_input = format( '%s/farm.task.compiler.%s.cpp%s',
                             args.workarea, task_hash, ext )
   local tmp_output = format( '%s/farm.task.compiler.%s.o',
@@ -269,24 +274,34 @@ local function compile(cxn, task_hash, compiler, compiler_type,
   local time_taken, ran = timeit( function()
     return popen( compiler, cmd_args, opts )
   end )
-  if ran.reason == 'cancelled' then
-    err( 'compilation cancelled: %s', ran.reason )
-    return { status=1, stdout=ran.stdout, stderr=ran.stderr }
+  local output = ''
+  if ran.status == 0 then
+    output = read_file( tmp_output )
+  elseif ran.reason == 'cancelled' then
+    err( 'compilation timed out' )
+    local stderr = ran.stderr
+    stderr = format(
+                 '%serror%s: compilation timed out [timeout=%d seconds]: %s',
+                 RED, NORMAL, config.worker.POPEN_TIMEOUT_SECS,
+                 task_info.description or 'unknown task' )
+    if #ran.stderr > 0 then
+      stderr = format( '%s: %s', stderr, ran.stderr )
+    end
+    ran.stderr = stderr
   end
-  local output = (ran.status == 0) and read_file( tmp_output ) or
-                     ''
   return {
     status=ran.status,
-    output=output,
     stdout=ran.stdout,
     stderr=ran.stderr,
     time_micros=time_taken,
+    output=output,
   }
 end
 
 local function run_remote_task( cxn, task_hash )
   info( 'performing remote task: %s', task_hash )
   local task_info = rtask.find( cxn, task_hash )
+  task_info.hash = task_hash
   assertf( task_info.input, 'cannot find remote task: %s',
            task_hash )
   local input_hash = assert( task_info.input )
@@ -299,7 +314,7 @@ local function run_remote_task( cxn, task_hash )
            format_table( task_info ) )
   info( 'task description: %s', task_info.description )
   local compile_output = assert(
-                             compile( cxn, task_hash, compiler,
+                             compile( cxn, task_info, compiler,
                                       task_info.compiler_type,
                                       task_info.compiler_flags,
                                       body ) )
@@ -319,6 +334,7 @@ end
 local function run_local_task( cxn, task_hash )
   info( 'performing local task: %s', task_hash )
   local task_info = ltask.find( cxn, task_hash )
+  task_info.hash = task_hash
   assertf( task_info.command, 'cannot find local task: %s',
            task_hash )
   local command_line = assert( task_info.command )
@@ -382,7 +398,7 @@ local function process_task(cxn, task, perform, set_result,
                format( 'finished:error:%d', result.status ) )
     end
   else
-    local reason = tostring( result ) or 'unknown error'
+    local reason = tostring( result or 'unknown error' )
     err( '%s', reason )
     -- In this case we threw an error while trying to execute the
     -- task so we don't even have the stdout/stderr of the task
@@ -410,10 +426,19 @@ local function process_next_task( cxn, l_cxn )
     STATE.status = 'idle'
     STATE.task = nil
     advertise_throttled( cxn ) -- does its own throttling.
+    -- Check for stop just before taking the next task so that we
+    -- don't risk taking a task and then exiting. That doesn't
+    -- necessarily mean that we will be able to complete the
+    -- task, because e.g. when a worker is killed by the process
+    -- pool it will send a SIGTERM to its process group which
+    -- will include any compile commands that are running, thus
+    -- those might get interrupted. But if that happens then the
+    -- compile will return an error and so the build will fail
+    -- instead of hanging, which is a satisfactory outcome.
+    if STOP then return false end
     trace( 'checking for task...' )
     task = next_task( cxn, l_cxn )
     if not task and not args.wait then return false end
-    if STOP then return false end
   until task
   assert( task.type )
   if task.type == 'local' then
@@ -448,7 +473,7 @@ local function main()
 
   parser:option( '-m --mode' )
         :choices{ 'one', 'drain' }
-        :default( 'one' )
+        :default( 'drain' )
         :description( 'how many tasks to process' )
 
   parser:option( '--listen' )
@@ -457,11 +482,11 @@ local function main()
         :description( 'whether to listen for local or remote tasks' )
 
   parser:flag( '-w --wait' )
-        :default( false )
+        :default( true )
         :description( 'whether to wait for new tasks' )
 
   parser:flag( '--fail-on-meta-error' )
-        :default( false )
+        :default( true )
         :description( 'exit when an error happens that prevents a command from running at all' )
 
   parser:option( '--advertise' )

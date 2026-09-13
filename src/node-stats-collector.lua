@@ -17,9 +17,9 @@ local signal = require( 'posix.signal' )
 -----------------------------------------------------------------
 -- Aliases.
 -----------------------------------------------------------------
-local debug = assert( logger.debug )
 local format_table = assert( printer.format_table )
 local info = assert( logger.info )
+local debug = assert( logger.debug )
 local machine_label = assert( network.machine_label )
 local set_hash = assert( ru.set_hash )
 local sleep = assert( time.sleep )
@@ -142,7 +142,7 @@ local function broadcast_stats(cxn, cores_total, cpu_usage,
     mem_total_gb=assert( mem_usage.total_gb ),
     mem_percent_used=assert( mem_usage.percent_used ),
   }
-  info( 'broadcasting stats: %s', format_table( stats ) )
+  debug( 'broadcasting stats: %s', format_table( stats ) )
   set_hash( cxn, key, stats,
             config.stats_collector.EXPIRE_ADVERTISE_SECS )
 end

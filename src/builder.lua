@@ -208,7 +208,11 @@ end
 
 local function run_preprocess( cxn, l_cxn, analyzed )
   local task = create_local_preprocess_task( analyzed )
-  ltask.delete_output( cxn, task.hash )
+  -- NOTE: preprocessing tasks always get rerun when they are re-
+  -- ceived, so we won't be checking for a pre-existing cached
+  -- output (since we don't know if the contents of the various
+  -- input files have changed) and thus we don't need to waste a
+  -- request deleting the existing output before posting.
   ltask.post_task( l_cxn, task.hash, {
     command=assert( task.command ),
     cwd=assert( task.cwd ),
@@ -219,10 +223,24 @@ local function run_preprocess( cxn, l_cxn, analyzed )
   -- Whatever happens we need to forward the stderr of the pre-
   -- processor so that it can appear in the console.
   local task_stderr_hash = assert( task_output.stderr )
-  assert( io.stderr ):write( download_blob( l_cxn,
-                                            task_stderr_hash ) )
+  -- The task output has a dedicated flag to tell us whether
+  -- there is stderr otherwise we'd have to hit the server to
+  -- download it to know, which is wasteful because typically
+  -- there won't be anything on stderr.
+  if task_output.has_stderr then
+    local stderr = download_blob( l_cxn, task_stderr_hash )
+    assert( #stderr:trim() > 0 )
+    assert( stderr == stderr:trim() )
+    if stderr:sub( -1 ) ~= '\n' then stderr = stderr .. '\n' end
+    assert( io.stderr ):write( stderr )
+  end
   local status = assert( task_output.status )
   if tonumber( status ) ~= 0 then
+    -- Do not cache the output task when it fails, since whatever
+    -- caused the error might have a fix that is environmental
+    -- and which therefore we can't detect to know when to inval-
+    -- idate the cache.
+    ltask.delete_output( l_cxn, task.hash )
     err( 'preprocess command return non-zero status: %s', status )
     return nil
   end
@@ -264,18 +282,29 @@ local function run_compile( cxn, analyzed, ii_hash )
   assert( task_output )
   -- Whatever happens we need to forward the stderr of the pre-
   -- processor so that it can appear in the console.
-  local task_stderr_hash = assert( task_output.stderr )
-  local stderr_blob = download_blob( cxn, task_stderr_hash )
-  assert( io.stderr ):write( stderr_blob )
+  local stderr = ''
+  if task_output.has_stderr then
+    local task_stderr_hash = assert( task_output.stderr )
+    stderr = download_blob( cxn, task_stderr_hash )
+    assert( #stderr:trim() > 0 )
+    assert( stderr == stderr:trim() )
+    if stderr:sub( -1 ) ~= '\n' then stderr = stderr .. '\n' end
+    assert( io.stderr ):write( stderr )
+  end
   local status = assert( task_output.status )
   if tonumber( status ) ~= 0 then
+    -- Do not cache the output task when it fails, since whatever
+    -- caused the error might have a fix that is environmental
+    -- and which therefore we can't detect to know when to inval-
+    -- idate the cache.
+    rtask.delete_output( cxn, task.hash )
     local log = debug
     -- When the compile fails it typically will have emitted an
     -- error to stderr which we will have printed above, and that
     -- is usually sufficient. However, in the event that it
     -- didn't emit anything, let's emit an error line so that we
     -- know what is going on.
-    if #stderr_blob:trim() == 0 then log = err end
+    if #stderr:trim() == 0 then log = err end
     log( 'compile command returned non-zero status: %s', status )
     return false
   end
@@ -286,8 +315,7 @@ local function run_compile( cxn, analyzed, ii_hash )
 end
 
 local function run( cxn, l_cxn, analyzed )
-  local ii_hash =
-      assert( run_preprocess( cxn, l_cxn, analyzed ) )
+  local ii_hash = run_preprocess( cxn, l_cxn, analyzed )
   if not ii_hash then return false end
   return run_compile( cxn, analyzed, ii_hash )
 end

@@ -14,7 +14,4 @@ mkdir -p "$workarea"
 waiter lua worker.lua    \
   --workarea="$workarea" \
   --verbosity=debug      \
-  --fail-on-meta-error   \
-  --listen="$listen"     \
-  --mode=drain           \
-  --wait
+  --listen="$listen"
