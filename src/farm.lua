@@ -42,12 +42,12 @@ local PID<const> = assert( posix.getpid().pid )
 -----------------------------------------------------------------
 local function set_blob( cxn, body )
   assert( body, 'invalid body' )
-  local h = hash.hash( body )
+  -- NOTE: this will log its own compression time.
+  local compressed = compress( body )
+  local h = hash.hash( compressed )
   local key = keys.blob( h )
   if not cxn:exists( key ) then
     debug( 'uploading blob of size %d', #body )
-    -- NOTE: this will log its own compression time.
-    local compressed = compress( body )
     local time_taken = timeit( function()
       cxn:set( key, compressed )
     end )
@@ -64,6 +64,7 @@ local function set_blob_from_file( cxn, fname )
   return set_blob( cxn, body )
 end
 
+-- Reports errors via return value.
 local function download_blob( cxn, blob_hash )
   debug( 'downloading blob: %s', blob_hash )
   local key = keys.blob( blob_hash )
@@ -72,14 +73,15 @@ local function download_blob( cxn, blob_hash )
   end )
   debug( 'download time: %d us', time_taken )
   if not blob then
-    error( format( 'blob not found for key %s', key ) )
+    -- This could happen if the blob got evicted.
+    return false,
+           format( 'non-existent blob for hash %s', blob_hash )
   end
-  -- NOTE: this will log its own decompression time.
-  blob = decompress( blob )
   assert( type( blob ) == 'string',
           format( 'unexpected blob type: %s for key: %s',
                   type( blob ), key ) )
-  return blob
+  -- NOTE: this will log its own decompression time.
+  return decompress( blob )
 end
 
 local function blob_exists( cxn, blob_hash )
@@ -87,8 +89,13 @@ local function blob_exists( cxn, blob_hash )
   return cxn:exists( key )
 end
 
+-- Reports errors via return value.
 local function download_blob_to_file( cxn, blob_hash, ofile )
-  local blob = assert( download_blob( cxn, blob_hash ) )
+  -- This could fail due to an eviction, which we want to allow
+  -- for. But if we fail to open the file below then we throw an
+  -- error since the latter is not supposed to happen.
+  local blob, reason = download_blob( cxn, blob_hash )
+  if not blob then return false, reason end
   local f<close> = assert( io.open( ofile, 'w' ) )
   f:write( blob )
   return true

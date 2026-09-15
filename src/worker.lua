@@ -305,8 +305,7 @@ local function run_remote_task( cxn, task_hash )
   assertf( task_info.input, 'cannot find remote task: %s',
            task_hash )
   local input_hash = assert( task_info.input )
-  local body = download_blob( cxn, input_hash )
-  assertf( body, 'cannot find body for input %s', input_hash )
+  local body = assert( download_blob( cxn, input_hash ) )
   debug( 'body is %d bytes', #body )
   local compiler = find_compiler( task_info.compiler_type,
                                   task_info.compiler_version )

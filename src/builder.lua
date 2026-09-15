@@ -3,6 +3,7 @@
 -- Imports.
 -----------------------------------------------------------------
 local ccache = require( 'ccache-helper' )
+local color = require( 'moon.colors' )
 local compilers = require( 'compilers' )
 local decode = require( 'decode' )
 local farm = require( 'farm' )
@@ -50,6 +51,12 @@ local basename = assert( posix.libgen.basename )
 
 local format = assert( string.format )
 local insert = assert( table.insert )
+
+-----------------------------------------------------------------
+-- Constants.
+-----------------------------------------------------------------
+local RED = assert( color.ANSI_RED )
+local NORMAL = assert( color.ANSI_NORMAL )
 
 -----------------------------------------------------------------
 -- Globals.
@@ -206,6 +213,18 @@ local function create_remote_compile_task( analyzed, ii_hash )
   }
 end
 
+-- This should only be called when the task output has the
+-- has_stderr flag set. In that case, the stderr, if it hasn't
+-- been evicted, is expected to be a non-empty string.
+local function download_stderr( cxn, stderr_hash )
+  local stderr, reason = download_blob( cxn, stderr_hash )
+  if not stderr then return nil, reason end
+  assert( #stderr:trim() > 0, 'stderr blob empty' )
+  assert( stderr == stderr:trim(), 'stderr not trimmed' )
+  if stderr:sub( -1 ) ~= '\n' then stderr = stderr .. '\n' end
+  return stderr
+end
+
 local function run_preprocess( cxn, l_cxn, analyzed )
   local task = create_local_preprocess_task( analyzed )
   -- NOTE: preprocessing tasks always get rerun when they are re-
@@ -228,10 +247,8 @@ local function run_preprocess( cxn, l_cxn, analyzed )
   -- download it to know, which is wasteful because typically
   -- there won't be anything on stderr.
   if task_output.has_stderr then
-    local stderr = download_blob( l_cxn, task_stderr_hash )
-    assert( #stderr:trim() > 0 )
-    assert( stderr == stderr:trim() )
-    if stderr:sub( -1 ) ~= '\n' then stderr = stderr .. '\n' end
+    local stderr = assert( download_stderr( l_cxn,
+                                            task_stderr_hash ) )
     assert( io.stderr ):write( stderr )
   end
   local status = assert( task_output.status )
@@ -245,24 +262,87 @@ local function run_preprocess( cxn, l_cxn, analyzed )
     return nil
   end
   local output_file = assert( task.output_file )
+  -- Note that it is possible that the compile won't need to
+  -- happen if the compile results are already cached. In that
+  -- case it is very likely that the preprocessed output will
+  -- still be cached as well, and in that case this won't reu-
+  -- pload the blob, so it should be fairly efficient in that
+  -- case (it will still compress it though).
   local ii_hash = set_blob_from_file( cxn, output_file )
   return ii_hash
+end
+
+local function fetch_cached_compile(cxn, analyzed, task_hash,
+                                    task_output )
+  assert( task_output )
+  local status = assert( tonumber( task_output.status ),
+                         'invalid status' )
+  local stderr = ''
+  assert(
+      task_output.has_stderr == true or task_output.has_stderr ==
+          false )
+  if task_output.has_stderr then
+    assert( task_output.stderr, 'missing stderr hash' )
+    local blob, reason =
+        download_stderr( cxn, task_output.stderr )
+    if blob then
+      stderr = blob
+    else
+      -- Probably the stderr blob was evicted.
+      stderr = assert( reason )
+      status = 1
+    end
+    assert( #stderr:trim() > 0, 'unexpected empty stderr' )
+  end
+  -- When the compile fails it typically will have emitted an
+  -- error to stderr which we will have printed above, and that
+  -- is usually sufficient. However, in the event that it didn't
+  -- emit anything, let's create an error line so that we know
+  -- what is going on.
+  if status ~= 0 and #stderr:trim() == 0 then
+    stderr = format( '%s%s%s: %s, status=%s', RED, 'error',
+                     NORMAL, 'when processing compile command',
+                     status )
+  end
+  if status == 0 then
+    assert( task_output.output )
+    local output_file =
+        assert( analyzed.decoded.special_flags.o )
+    local ok, reason = download_blob_to_file( cxn,
+                                              task_output.output,
+                                              output_file )
+    if ok then return 0, stderr end
+    status = 1
+    stderr = tostring( assert( reason ) )
+  end
+  -- The compile has either failed or it previously succeeded but
+  -- some of the blobs have been evicted. In either case clean it
+  -- out since we shouldn't be caching failed tasks or incomplete
+  -- tasks (we don't cache failed tasks, since whatever caused
+  -- the error might have a fix that is environmental and which
+  -- therefore we can't detect to know when to invalidate the
+  -- cache).
+  rtask.delete_output( cxn, task_hash )
+  return status, stderr
 end
 
 local function run_compile( cxn, analyzed, ii_hash )
   assert( analyzed )
   assert( ii_hash )
+  local status, stderr
   local task = create_remote_compile_task( analyzed, ii_hash )
   local task_output = rtask.output_of( cxn, task.hash )
-  local succeeded_but_output_gone = task_output and
-                                        task_output.status == '0' and
-                                        not blob_exists( cxn,
-                                                         task_output.output )
-  if not task_output or task_output.status == nil or
-      not blob_exists( cxn, task_output.stderr ) or
-      not blob_exists( cxn, task_output.stdout ) or
-      succeeded_but_output_gone then
-    rtask.delete_output( cxn, task.hash )
+  if task_output then
+    -- Given that the task output exists in Redis then we should
+    -- be able to try to fetch its contents, since 1) hash fields
+    -- won't expire individually, and 2) we wouldn't have cached
+    -- it if it had failed. That said, the blobs that it refers
+    -- to could have expired, so it may fail to fetch anyway, in
+    -- which case we will retry below.
+    status, stderr = fetch_cached_compile( cxn, analyzed,
+                                           task.hash, task_output )
+  end
+  if status ~= 0 then
     rtask.post_task( cxn, task.hash, {
       os=assert( task.os ),
       compiler_type=assert( task.compiler_type ),
@@ -272,51 +352,23 @@ local function run_compile( cxn, analyzed, ii_hash )
       description=assert( task.description ),
     } )
     info( 'queueing for task %s...', task.hash )
-    task_output = rtask.queue_and_wait( cxn, task.hash )
-  else
-    assert( task_output )
-    if task_output.status == 0 then
-      assert( blob_exists( cxn, task_output.output ) )
-    end
+    task_output =
+        assert( rtask.queue_and_wait( cxn, task.hash ) )
+    status, stderr = fetch_cached_compile( cxn, analyzed,
+                                           task.hash, task_output )
   end
-  assert( task_output )
-  -- Whatever happens we need to forward the stderr of the pre-
-  -- processor so that it can appear in the console.
-  local stderr = ''
-  if task_output.has_stderr then
-    local task_stderr_hash = assert( task_output.stderr )
-    stderr = download_blob( cxn, task_stderr_hash )
-    assert( #stderr:trim() > 0 )
-    assert( stderr == stderr:trim() )
-    if stderr:sub( -1 ) ~= '\n' then stderr = stderr .. '\n' end
-    assert( io.stderr ):write( stderr )
-  end
-  local status = assert( task_output.status )
-  if tonumber( status ) ~= 0 then
-    -- Do not cache the output task when it fails, since whatever
-    -- caused the error might have a fix that is environmental
-    -- and which therefore we can't detect to know when to inval-
-    -- idate the cache.
-    rtask.delete_output( cxn, task.hash )
-    local log = debug
-    -- When the compile fails it typically will have emitted an
-    -- error to stderr which we will have printed above, and that
-    -- is usually sufficient. However, in the event that it
-    -- didn't emit anything, let's emit an error line so that we
-    -- know what is going on.
-    if #stderr:trim() == 0 then log = err end
-    log( 'compile command returned non-zero status: %s', status )
-    return false
-  end
-  local output_hash = assert( task_output.output )
-  local output_file = analyzed.decoded.special_flags.o
-  assert( download_blob_to_file( cxn, output_hash, output_file ) )
-  return true
+  assert( status ) -- could be 0 (success) or otherwise.
+  assert( stderr )
+  -- There could be stderr to emit even if we were successful,
+  -- e.g. there could be warnings emitted.
+  assert( io.stderr ):write( stderr )
+  return status
 end
 
+-- This should yield an "exit code" style result.
 local function run( cxn, l_cxn, analyzed )
   local ii_hash = run_preprocess( cxn, l_cxn, analyzed )
-  if not ii_hash then return false end
+  if not ii_hash then return 1 end
   return run_compile( cxn, analyzed, ii_hash )
 end
 
@@ -333,9 +385,8 @@ local function main()
 
   local command = assert( arg )
   local analyzed = assert( analyze_command( command ) )
-  local ok = run( cxn, l_cxn, analyzed )
-  if ok then return 0 end
-  return 1
+  -- This should yield the exit code from the compiler.
+  return assert( run( cxn, l_cxn, analyzed ) )
 end
 
 -----------------------------------------------------------------
