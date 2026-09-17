@@ -1009,15 +1009,20 @@ local function redraw( out )
     out:clear_line()
   end
 
-  y = ROWS - 5
-  advance( 2 )
-  out:clear_line()
-  textln( 'status:  %s', g_status )
-  out:clear_line()
-  textln( 'substat: %s', g_sub_status )
-  out:clear_line()
-  textln( 'dimensions: rows=%d, columns=%d | view=%d', ROWS,
-          COLS, g_compact_view )
+  if true then
+    y = ROWS - 1
+    advance( 2 )
+  else
+    y = ROWS - 5
+    advance( 2 )
+    out:clear_line()
+    textln( 'status:  %s', g_status )
+    out:clear_line()
+    textln( 'substat: %s', g_sub_status )
+    out:clear_line()
+    textln( 'dimensions: rows=%d, columns=%d | view=%d', ROWS,
+            COLS, g_compact_view )
+  end
   make_status_line()
   textwmove( 25, 'updates: %s [%.1fms]', g_redis_updates,
              (g_data.query_time_micros or 0) / 1000 )
@@ -1025,8 +1030,6 @@ local function redraw( out )
   textwmove( 16, 'events: %s', g_events )
   textwmove( 16, 'loops: %s', g_loops )
   out:reset()
-
-  move{ x=COLS - 1, y=ROWS - 1 }
 
   out:flush()
 end
