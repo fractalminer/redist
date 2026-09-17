@@ -230,8 +230,7 @@ local function run_preprocess( cxn, l_cxn, analyzed )
   -- NOTE: preprocessing tasks always get rerun when they are re-
   -- ceived, so we won't be checking for a pre-existing cached
   -- output (since we don't know if the contents of the various
-  -- input files have changed) and thus we don't need to waste a
-  -- request deleting the existing output before posting.
+  -- input files have changed).
   ltask.post_task( l_cxn, task.hash, {
     command=assert( task.command ),
     cwd=assert( task.cwd ),

@@ -121,6 +121,8 @@ local function queue_and_wait( cxn, task_hash, fn )
   -- fore precisely then ccache will have detected that and in-
   -- tercepted us; we should only be here if either we have no
   -- ccache hit or we have genuinely new inputs.
+  delete_output( cxn, task_hash )
+
   local output
 
   queue_task( cxn, task_hash )
