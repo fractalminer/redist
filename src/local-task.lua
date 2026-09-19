@@ -131,7 +131,6 @@ local function queue_and_wait( cxn, task_hash, fn )
   while not output do
     info( 'waiting for local task...' )
     fn()
-    assert( cxn:ping(), 'lost connection (primary)' )
     if socket_select( { sock }, {}, 1 )[sock] then
       local message, abort = messages()
       if not message then break end

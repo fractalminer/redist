@@ -1,8 +1,32 @@
 -----------------------------------------------------------------
 -- ReDist Config.
 -----------------------------------------------------------------
-local harden = assert( require( 'moon.freeze' ).harden )
+local freeze = require( 'moon.freeze' )
 
+-----------------------------------------------------------------
+-- Aliases.
+-----------------------------------------------------------------
+local harden = assert( freeze.harden )
+local format = assert( string.format )
+
+-----------------------------------------------------------------
+-- Helpers.
+-----------------------------------------------------------------
+local function HOME( rel_path )
+  assert( rel_path )
+  local home = assert( os.getenv( 'HOME' ),
+                       'HOME variable not set' )
+  return format( '%s/%s', home, rel_path )
+end
+
+local function REDIST( rel_path )
+  local redist = 'dev/redist'
+  return HOME( format( '%s/%s', redist, rel_path ) )
+end
+
+-----------------------------------------------------------------
+-- Config.
+-----------------------------------------------------------------
 return harden{
   general={
     HOST='192.168.1.214', -- thelio/ethernet
@@ -20,6 +44,11 @@ return harden{
     USE_F_REWRITE_INCLUDES=false,
   },
 
+  local_cache={
+    LOCATION=REDIST( 'cache/cache.db' ),
+    MAX_SIZE_BYTES=48 * 1024 * 1024 * 1024,
+  },
+
   worker={
     QUEUE_POLL_TIMEOUT_SECS=5,
     ADVERTISE_INTERVAL_SECS=10,
@@ -29,8 +58,8 @@ return harden{
   },
 
   builder={
-    EXPIRE_LOCAL_TASK=3600, --
-    EXPIRE_REMOTE_TASK=3600, --
+    EXPIRE_LOCAL_TASK=3600,
+    EXPIRE_REMOTE_TASK=3600,
     REMOTE_FLAGS={
       ADD={
         CLANG={
