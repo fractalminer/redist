@@ -69,9 +69,13 @@ local function connect()
 end
 
 local function connect_local()
-  local HOST = assert( '127.0.0.1' )
-  local PORT = assert( config.general.PORT_LOCAL )
-  return connect_impl( HOST, PORT )
+  if config.general.ENABLE_LOCAL_REDIS then
+    local HOST = assert( '127.0.0.1' )
+    local PORT = assert( config.general.PORT_LOCAL )
+    return connect_impl( HOST, PORT )
+  else
+    return connect()
+  end
 end
 
 local function set_hash( cxn, key, tbl, expiry )

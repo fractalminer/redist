@@ -375,8 +375,7 @@ local function main()
   assert( os_version(), 'cannot determine os version tag' )
 
   local cxn<close> = assert( ru.connect() )
-  -- local l_cxn<close> = assert( ru.connect_local() )
-  local l_cxn = cxn
+  local l_cxn<close> = assert( ru.connect_local() )
 
   local command = assert( arg )
   local analyzed = assert( analyze_command( command ) )

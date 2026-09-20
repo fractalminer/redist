@@ -29,11 +29,9 @@ end
 -----------------------------------------------------------------
 return harden{
   general={
-    HOST='192.168.1.214', -- thelio/ethernet
-    -- HOST='192.168.1.98', -- bonobo
-    -- HOST='127.0.0.1', -- loopback
-    PORT=6379, --
-    PORT_LOCAL=6380, --
+    -- HOST='192.168.1.214', -- thelio/ethernet
+    HOST='127.0.0.1',
+    PORT=6379,
     CONNECT_TIMEOUT_SECS=10,
     COMPRESSION_METHOD='zstd',
     -- The ideal value of this compression level depends on up-
@@ -42,6 +40,13 @@ return harden{
     -- overall build times.
     COMPRESSION_LEVEL=1,
     USE_F_REWRITE_INCLUDES=false,
+    -- This will enable using a local redis for data that never
+    -- needs to be read by a remote worker, to reduce latency.
+    -- Note that it is a different port so that it doesn't con-
+    -- flict with a remote redis that is forwarded on
+    -- 127.0.0.1:6379.
+    ENABLE_LOCAL_REDIS=false,
+    PORT_LOCAL=6380,
   },
 
   local_cache={
