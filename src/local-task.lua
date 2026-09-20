@@ -99,7 +99,6 @@ local function register_preprocessed( cxn, lc, task_hash, ii_file )
   local tu_key = task_hash
 
   local base_hash = lc:preprocessed_get( tu_key )
-  local base_blob = base_hash and lc:blob_get( base_hash )
 
   local base_in_redis = base_hash and
                             farm.blob_exists( cxn, base_hash )
@@ -113,6 +112,7 @@ local function register_preprocessed( cxn, lc, task_hash, ii_file )
 
   -- The result has changed from the stored base.
 
+  local base_blob = base_hash and lc:blob_get( base_hash )
   if not base_blob or not base_in_redis then
     -- Store the new blob in the local cache.
     lc:preprocessed_update( tu_key, new_hash )
