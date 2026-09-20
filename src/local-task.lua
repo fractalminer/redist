@@ -89,7 +89,7 @@ local function set_result( cxn, l_cxn, hash, task_output )
     assert( type( blob.hash ) == 'string' )
     return blob.hash
   end
-  local function blobify_file( fname )
+  local function blobify_file_remote( fname )
     local blob = set_blob_from_file( cxn, fname )
     assert( type( blob ) == 'table' )
     assert( type( blob.hash ) == 'string' )
@@ -99,7 +99,7 @@ local function set_result( cxn, l_cxn, hash, task_output )
   local ii_hash
   local output_file = assert( task_output.output_file )
   if file.exists( output_file ) then
-    ii_hash = blobify_file( output_file )
+    ii_hash = blobify_file_remote( output_file )
   end
   set_hash( l_cxn, out_key, {
     status=assert( task_output.status ),
