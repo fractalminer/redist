@@ -82,16 +82,26 @@ end
 
 local function set_result( cxn, hash, task_output )
   local out_key = keys.task_output( hash )
-  local function to_blob( content )
-    return set_blob_from_string( cxn, content )
+  local function blobify( content )
+    local blob = set_blob_from_string( cxn, content )
+    assert( type( blob ) == 'table' )
+    assert( type( blob.hash ) == 'string' )
+    return blob.hash
+  end
+  local function blobify_file( fname )
+    local blob = set_blob_from_file( cxn, fname )
+    assert( type( blob ) == 'table' )
+    assert( type( blob.hash ) == 'string' )
+    return blob.hash
   end
   local stderr = task_output.stderr:trim()
   set_hash( cxn, out_key, {
     status=assert( task_output.status ),
-    stdout=to_blob( task_output.stdout ),
-    stderr=to_blob( stderr ),
+    stdout=blobify( task_output.stdout ),
+    stderr=blobify( stderr ),
     has_stderr=(#stderr > 0),
     time_micros=assert( task_output.time_micros ),
+    ii_hash=blobify_file( task_output.output_file ),
   } )
 end
 

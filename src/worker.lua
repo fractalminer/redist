@@ -367,11 +367,16 @@ local function run_local_task( cxn, task_hash )
     err( 'command failed [status=%d]:', ran.status )
     err( 'exit reason:', tostring( ran.reason ) )
   end
+  local output_file = decoded.special_flags.o
+  assert( output_file,
+          'could not obtain output file for preprocess task' )
+  output_file = format( '%s/%s', cwd, output_file )
   return {
     status=ran.status,
     stdout=ran.stdout,
     stderr=ran.stderr,
     time_micros=time_taken,
+    output_file=output_file,
   }
 end
 

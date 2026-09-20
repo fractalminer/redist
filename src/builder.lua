@@ -37,7 +37,6 @@ local log_command = assert( ccache.log_command )
 local machine_id = assert( network.machine_id )
 local match_compiler = assert( compilers.match_compiler )
 local os_version = assert( os_stat.os_version )
-local set_blob_from_file = assert( farm.set_blob_from_file )
 
 local deep_copy = assert( tbl.deep_copy )
 local err = assert( logger.err )
@@ -226,7 +225,7 @@ local function download_stderr( cxn, stderr_hash )
   return stderr
 end
 
-local function run_preprocess( cxn, l_cxn, analyzed )
+local function run_preprocess( l_cxn, analyzed )
   local task = create_local_preprocess_task( analyzed )
   -- NOTE: preprocessing tasks always get rerun when they are re-
   -- ceived, so we won't be checking for a pre-existing cached
@@ -261,15 +260,10 @@ local function run_preprocess( cxn, l_cxn, analyzed )
     err( 'preprocess command return non-zero status: %s', status )
     return nil
   end
-  local output_file = assert( task.output_file )
-  -- Note that it is possible that the compile won't need to
-  -- happen if the compile results are already cached. In that
-  -- case it is very likely that the preprocessed output will
-  -- still be cached as well, and in that case this won't reu-
-  -- pload the blob, so it should be fairly efficient in that
-  -- case (it will still compress it though).
-  local blob = set_blob_from_file( cxn, output_file )
-  return assert( blob.hash )
+  assert( task_output.ii_hash, 'missing ii_hash in output' )
+  assert( type( task_output.ii_hash ) == 'string',
+          'ii_hash has incorrect type' )
+  return task_output.ii_hash
 end
 
 local function fetch_cached_compile(cxn, analyzed, task_hash,
@@ -368,7 +362,7 @@ end
 
 -- This should yield an "exit code" style result.
 local function run( cxn, l_cxn, analyzed )
-  local ii_hash = run_preprocess( cxn, l_cxn, analyzed )
+  local ii_hash = run_preprocess( l_cxn, analyzed )
   if not ii_hash then return 1 end
   return run_compile( cxn, analyzed, ii_hash )
 end
