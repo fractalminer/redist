@@ -28,15 +28,10 @@ local format = assert( string.format )
 local function post_task( cxn, hash, params )
   assert( hash )
   assert( params )
+  assert( type( params ) == 'table' )
+  assert( params.os )
   local key = keys.task_input( hash )
-  set_hash( cxn, key, {
-    os=assert( params.os ),
-    compiler_type=assert( params.compiler_type ),
-    compiler_version=assert( params.compiler_version ),
-    compiler_flags=assert( params.compiler_flags ),
-    input=assert( params.input ),
-    description=assert( params.description ),
-  }, config.builder.EXPIRE_REMOTE_TASK )
+  set_hash( cxn, key, params, config.builder.EXPIRE_REMOTE_TASK )
 end
 
 local function queue_task( cxn, hash )
@@ -77,7 +72,7 @@ local function find( cxn, hash )
   return cxn:hgetall( key )
 end
 
-local function set_result( cxn, _, hash, result )
+local function set_result( cxn, _, _, hash, result )
   local out_key = keys.task_output( hash )
   local function blobify( content )
     local blob = set_blob_from_string( cxn, content )

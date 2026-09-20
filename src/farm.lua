@@ -3,13 +3,14 @@
 -----------------------------------------------------------------
 local compression = require( 'compression' )
 local config = require( 'config' )
-local hash = assert( require( 'hash' ).hash )
+local hasher = assert( require( 'hash' ).hash )
 local keys = require( 'keys' )
 local network = require( 'network' )
 local ru = require( 'redis-util' )
 
 local logger = require( 'moon.logger' )
 local time = require( 'moon.time' )
+local xdelta = require( 'moon.xdelta' )
 
 local posix = require( 'posix' )
 
@@ -46,26 +47,45 @@ local function create_blob( data )
   assert( type( data ) == 'string', 'invalid data' )
   -- NOTE: this will log its own compression time.
   local compressed = assert( compress( data ) )
-  local h = assert( hash( compressed ) )
+  local hash = assert( hasher( compressed ) )
   return {
-    hash=h, --
+    hash=hash, --
     compressed=true, --
     data=compressed, --
   }
 end
 
-local function create_delta( base, diff )
+local function blob_data( blob )
+  local data = assert( blob.data )
+  if blob.compressed then
+    return decompress( data )
+  else
+    return data
+  end
+end
+
+local function create_delta( base_blob, new_blob )
+  assert( type( base_blob ) == 'table', 'invalid base_blob' )
+  assert( type( new_blob ) == 'table', 'invalid new_blob' )
+  -- This will decompress.
+  local base = assert( blob_data( base_blob ) )
+  local new = assert( blob_data( new_blob ) )
   assert( type( base ) == 'string', 'invalid base' )
-  assert( type( diff ) == 'string', 'invalid diff' )
+  assert( type( new ) == 'string', 'invalid new' )
+  local diff = assert( xdelta.encode( base, new ) )
   local blob_base = create_blob( base )
   local blob_diff = create_blob( diff )
   local hash_base = assert( blob_base.hash )
   local hash_diff = assert( blob_diff.hash )
-  local hash_manifest = assert( hash{ hash_base, hash_diff } )
+  local hash_manifest = assert( hasher{ hash_base, hash_diff } )
+  -- This hash_new can be optionally used by the remote worker to
+  -- check the result after applying the diff as a sanity check.
+  local hash_new = assert( hasher( new ) )
   local manifest = {
-    hash=hash_manifest, --
-    hash_bash=hash_base, --
-    hash_diff=hash_diff, --
+    hash=hash_manifest,
+    hash_base=hash_base,
+    hash_diff=hash_diff,
+    hash_new=hash_new,
   }
   local delta = {
     manifest=manifest, --
@@ -82,8 +102,9 @@ local function upload_delta_manifest( cxn, manifest )
     debug( 'uploading delta manifest for %s', manifest.hash )
     local time_taken = timeit( function()
       set_hash( cxn, key, {
-        hash_base=assert( manifest.hash_base ), --
-        hash_diff=assert( manifest.hash_diff ), --
+        hash_base=assert( manifest.hash_base ),
+        hash_diff=assert( manifest.hash_diff ),
+        hash_new=assert( manifest.hash_new ),
       } )
     end )
     debug( 'upload time: %d us', time_taken )
@@ -91,11 +112,15 @@ local function upload_delta_manifest( cxn, manifest )
   return manifest
 end
 
-local function upload_blob( cxn, blob )
+-- Force is useful because when we know we need to upload it we
+-- can save a ping to redis to check if it already exists.
+local function upload_blob( cxn, blob, opts )
+  opts = opts or {}
+  local force = opts.force
   assert( type( blob ) == 'table', 'invalid blob' )
   local data = assert( blob.data )
   local key = keys.blob( assert( blob.hash ) )
-  if not cxn:exists( key ) then
+  if force or not cxn:exists( key ) then
     debug( 'uploading blob of size %d', #data )
     local time_taken = timeit( function()
       set_hash( cxn, key, blob )
@@ -106,10 +131,15 @@ local function upload_blob( cxn, blob )
 end
 
 local function upload_delta( cxn, delta )
-  upload_blob( cxn, delta.blob_base )
+  -- NOTE: we don't upload the base blob because the assumption
+  -- is that when we're using a delta it is because the base blob
+  -- already exists there. We could enable this because
+  -- upload_blob will not reupload if it already exists, but that
+  -- requires another ping to redis.
+  --
+  --   upload_blob( cxn, delta.blob_base )
   upload_blob( cxn, delta.blob_diff )
   upload_delta_manifest( cxn, delta.manifest )
-  return delta
 end
 
 local function set_blob_from_string( cxn, body )
@@ -157,6 +187,40 @@ local function download_blob( cxn, blob_hash )
   end
 end
 
+local function download_delta( cxn, delta_hash )
+  assert( type( delta_hash ) == 'string' )
+  debug( 'downloading delta: %s', delta_hash )
+  local key = keys.delta( delta_hash )
+  local time_taken, manifest = timeit( function()
+    return cxn:hgetall( key )
+  end )
+  debug( 'download time: %d us', time_taken )
+  -- Note that a non-existent manifest will still return a lua
+  -- table from this API, so we need to check the contents as
+  -- well.
+  if not manifest or not manifest.hash_base then
+    error( format( 'non-existent delta manifest for hash %s',
+                   delta_hash ) )
+  end
+  assert( type( manifest ) == 'table',
+          format( 'unexpected manifest type: %s for key: %s',
+                  type( manifest ), key ) )
+  local hash_base = assert( manifest.hash_base )
+  local hash_diff = assert( manifest.hash_diff )
+  local hash_new = assert( manifest.hash_new )
+  local base_data = assert( download_blob( cxn, hash_base ) )
+  local diff_data = assert( download_blob( cxn, hash_diff ) )
+  local new_data =
+      assert( xdelta.decode( base_data, diff_data ) )
+  local hash_new_checksum = hasher( new_data )
+  if hash_new_checksum ~= hash_new then
+    error( format(
+               'checksum failed after applying diff: %s != %s',
+               hash_new_checksum, hash_new ) )
+  end
+  return new_data
+end
+
 local function blob_exists( cxn, blob_hash )
   local key = keys.blob( blob_hash )
   return cxn:exists( key )
@@ -173,6 +237,20 @@ local function download_blob_to_file( cxn, blob_hash, ofile )
   local f<close> = assert( io.open( ofile, 'w' ) )
   f:write( data )
   return true
+end
+
+local function download_artifact( cxn, artifact )
+  assert( cxn )
+  assert( type( artifact ) == 'table' )
+  local hash = assert( artifact.hash )
+  local repr = assert( artifact.type )
+  if repr == 'blob' then
+    return assert( download_blob( cxn, hash ) )
+  elseif repr == 'delta' then
+    return assert( download_delta( cxn, hash ) )
+  else
+    error( format( 'unrecognized artifact repr: %s', repr ) )
+  end
 end
 
 local function broadcast_worker_presence( cxn, set )
@@ -227,11 +305,17 @@ end
 -----------------------------------------------------------------
 return {
   blob_exists=blob_exists,
+  blob_data=blob_data,
   create_blob=create_blob,
+  create_blob_from_file=create_blob_from_file,
+  upload_blob=upload_blob,
   download_blob=download_blob,
   set_blob_from_string=set_blob_from_string,
   set_blob_from_file=set_blob_from_file,
   download_blob_to_file=download_blob_to_file,
+  create_delta=create_delta,
+  upload_delta=upload_delta,
+  download_artifact=download_artifact,
   broadcast_worker_presence=broadcast_worker_presence,
   remove_worker_presence=remove_worker_presence,
   WorkerCount=WorkerCount.new,

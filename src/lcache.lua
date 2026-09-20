@@ -2,8 +2,8 @@
 -- Cache on local disk (sqlite).
 -----------------------------------------------------------------
 local config = require( 'config' )
-local hash = require( 'hash' )
 local sqlite = require( 'sqlite' )
+local hasher = assert( require( 'hash' ).hash )
 
 local logger = require( 'moon.logger' )
 
@@ -51,7 +51,11 @@ local QUERY_BLOB_SET = [[
     (?, ?, ?, ?)
 ]]
 
-local QUERY_ON_PREPROCESSED = [[
+local QUERY_PREPROCESSED = [[
+  SELECT content_hash FROM preprocessed WHERE tu_key=?
+]]
+
+local QUERY_UPDATE_PREPROCESSED = [[
   INSERT INTO preprocessed( tu_key, content_hash )
   VALUES (?, ?)
   ON CONFLICT( tu_key ) DO UPDATE
@@ -90,26 +94,52 @@ function LocalCache:check_ok( code )
   error( reason )
 end
 
-function LocalCache:blob_get( h )
+function LocalCache:blob_get( hash )
   local stmt = assert( self.stmt.blob_get )
   stmt:reset()
-  assert( stmt:bind_values( h ) )
+  self:check_ok( stmt:bind_values( hash ) )
   local data
   if stmt:step() == sqlite.ROW then data = stmt:get_value( 0 ) end
   stmt:reset()
-  return data
+  return {
+    hash=hash, --
+    compressed=true, -- FIXME: shouldn't assume this.
+    data=data, --
+  }
 end
 
-function LocalCache:blob_set( data )
+function LocalCache:blob_set( blob )
+  assert( blob )
+  local data = assert( blob.data )
+  local hash = assert( blob.hash )
   assert( type( data ) == 'string' )
-  local h = assert( hash.hash( data ) )
+  assert( type( hash ) == 'string' )
   local stmt = assert( self.stmt.blob_set )
   stmt:reset()
-  assert( stmt:bind( 1, h ) == sqlite.OK )
-  assert( stmt:bind_blob( 2, data ) == sqlite.OK )
-  assert( stmt:bind( 3, #data ) == sqlite.OK )
-  assert( stmt:bind( 4, 0 ) == sqlite.OK )
+  self:check_ok( stmt:bind( 1, hash ) )
+  self:check_ok( stmt:bind_blob( 2, data ) )
+  self:check_ok( stmt:bind( 3, #data ) )
+  self:check_ok( stmt:bind( 4, 0 ) )
+  assert( stmt:step() == sqlite.DONE )
+  stmt:reset()
+end
 
+function LocalCache:preprocessed_get( tu_key )
+  local stmt = assert( self.stmt.preprocessed_get )
+  stmt:reset()
+  self:check_ok( stmt:bind_values( tu_key ) )
+  local content_hash
+  if stmt:step() == sqlite.ROW then
+    content_hash = stmt:get_value( 0 )
+  end
+  stmt:reset()
+  return content_hash
+end
+
+function LocalCache:preprocessed_update( tu_key, content_hash )
+  local stmt = assert( self.stmt.preprocessed_update )
+  stmt:reset()
+  self:check_ok( stmt:bind_values( tu_key, content_hash ) )
   assert( stmt:step() == sqlite.DONE )
   stmt:reset()
 end
@@ -117,12 +147,11 @@ end
 function LocalCache:evict()
   local stmt = assert( self.stmt.evict )
   stmt:reset()
-  stmt:bind_values( config.local_cache.MAX_SIZE_BYTES )
+  self:check_ok( stmt:bind_values(
+                     config.local_cache.MAX_SIZE_BYTES ) )
   assert( stmt:step() == sqlite.DONE )
   stmt:reset()
 end
-
-function LocalCache:register_preprocessed() end
 
 function LocalCache:init()
   self:check_ok( self.db:exec( SCHEMA ) )
@@ -130,7 +159,8 @@ function LocalCache:init()
   local queries = {
     blob_get=QUERY_BLOB_GET,
     blob_set=QUERY_BLOB_SET,
-    on_preprocessed=QUERY_ON_PREPROCESSED,
+    preprocessed_get=QUERY_PREPROCESSED,
+    preprocessed_update=QUERY_UPDATE_PREPROCESSED,
     evict=QUERY_EVICT,
   }
 
@@ -160,5 +190,5 @@ end
 -- Finished.
 -----------------------------------------------------------------
 return {
-  open=open, --
+  LocalCache=open, --
 }

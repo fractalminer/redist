@@ -7,6 +7,7 @@ local config = require( 'config' )
 local decode = require( 'decode' )
 local farm = require( 'farm' )
 local keys = require( 'keys' )
+local lcache = require( 'lcache' )
 -- TODO: consolidate these two modules.
 local ltask, rtask = require( 'local-task' ),
                      require( 'remote-task' )
@@ -40,10 +41,11 @@ local cencode = assert( decode.cencode )
 local cleanup = assert( mcleanup.cleanup )
 local cround_trip = assert( decode.cround_trip )
 local debug = assert( logger.debug )
-local download_blob = assert( farm.download_blob )
+local download_artifact = assert( farm.download_artifact )
 local err = assert( logger.err )
 local format_table = assert( printer.format_table )
 local info = assert( logger.info )
+local LocalCache = assert( lcache.LocalCache )
 local log_command = assert( ccache.log_command )
 local machine_label = assert( network.machine_label )
 local match_compiler = assert( compilers.match_compiler )
@@ -302,10 +304,11 @@ local function run_remote_task( cxn, task_hash )
   info( 'performing remote task: %s', task_hash )
   local task_info = rtask.find( cxn, task_hash )
   task_info.hash = task_hash
-  assertf( task_info.input, 'cannot find remote task: %s',
-           task_hash )
-  local input_hash = assert( task_info.input )
-  local body = assert( download_blob( cxn, input_hash ) )
+  local artifact = {
+    hash=assert( task_info.input ),
+    type=assert( task_info.input_type ),
+  }
+  local body = assert( download_artifact( cxn, artifact ) )
   debug( 'body is %d bytes', #body )
   local compiler = find_compiler( task_info.compiler_type,
                                   task_info.compiler_version )
@@ -380,8 +383,8 @@ local function run_local_task( cxn, task_hash )
   }
 end
 
-local function process_task(cxn_main, cxn_task, task, perform,
-                            set_result, publish )
+local function process_task(cxn_main, cxn_task, lc, task,
+                            perform, set_result, publish )
   assert( perform )
   assert( set_result )
   local task_hash = assert( task.hash )
@@ -394,7 +397,7 @@ local function process_task(cxn_main, cxn_task, task, perform,
   local ok, result = pcall( perform, cxn_task, task_hash )
   advertise( cxn_main )
   if ok then
-    set_result( cxn_main, cxn_task, task_hash, result )
+    set_result( cxn_main, cxn_task, lc, task_hash, result )
     if result.status == 0 then
       publish( cxn_task, task_hash, 'finished:success' )
     else
@@ -416,7 +419,7 @@ local function process_task(cxn_main, cxn_task, task, perform,
       stderr=reason,
       time_micros='',
     }
-    set_result( cxn_main, cxn_task, task_hash, task_result )
+    set_result( cxn_main, cxn_task, lc, task_hash, task_result )
     publish( cxn_task, task_hash, 'finished:failed-to-run' )
     if args.fail_on_meta_error then
       error( 'fail-on-meta-error: exiting' )
@@ -424,7 +427,7 @@ local function process_task(cxn_main, cxn_task, task, perform,
   end
 end
 
-local function process_next_task( cxn, l_cxn )
+local function process_next_task( cxn, l_cxn, lc )
   local task
   repeat
     STATE.status = 'idle'
@@ -446,10 +449,10 @@ local function process_next_task( cxn, l_cxn )
   until task
   assert( task.type )
   if task.type == 'local' then
-    process_task( cxn, l_cxn, task, run_local_task,
+    process_task( cxn, l_cxn, lc, task, run_local_task,
                   ltask.set_result, ltask.publish_event )
   elseif task.type == 'remote' then
-    process_task( cxn, cxn, task, run_remote_task,
+    process_task( cxn, cxn, lc, task, run_remote_task,
                   rtask.set_result, rtask.publish_event )
   else
     err( 'unrecognized task type: ' .. task.type )
@@ -515,8 +518,10 @@ local function main()
 
   local _<close> = cleanup( function() unadvertise( cxn ) end )
 
+  local lc = LocalCache()
+
   while not STOP do
-    local did_task = process_next_task( cxn, l_cxn )
+    local did_task = process_next_task( cxn, l_cxn, lc )
     if not did_task and args.mode ~= 'drain' then break end
   end
 end

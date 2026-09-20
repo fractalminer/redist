@@ -146,9 +146,9 @@ local function create_local_preprocess_task( analyzed )
   }
 end
 
-local function create_remote_compile_task( analyzed, ii_hash )
+local function create_remote_compile_task( analyzed, ii )
   assert( analyzed )
-  assert( ii_hash )
+  assert( ii )
   local decoded = deep_copy( assert( analyzed.decoded ) )
   local compiler = assert( analyzed.compiler_match )
   assert( decoded.special_flags.c )
@@ -181,7 +181,8 @@ local function create_remote_compile_task( analyzed, ii_hash )
   -- Ideally we'd include the source itself in the hash instead
   -- of hashing the hash, but this is probably good enough and it
   -- will save some CPU.
-  local input = ii_hash
+  local input = assert( ii.hash )
+  local input_type = assert( ii.type )
 
   -- NOTE: When we invoke clang we often uses the libstdc++ in
   -- gcc-current, which is a symlink that could in theory point
@@ -209,6 +210,7 @@ local function create_remote_compile_task( analyzed, ii_hash )
     compiler_flags=compiler_flags,
     description=description,
     input=input,
+    input_type=input_type,
   }
 end
 
@@ -263,7 +265,11 @@ local function run_preprocess( l_cxn, analyzed )
   assert( task_output.ii_hash, 'missing ii_hash in output' )
   assert( type( task_output.ii_hash ) == 'string',
           'ii_hash has incorrect type' )
-  return task_output.ii_hash
+  assert( task_output.ii_type, 'missing ii_type in output' )
+  assert( type( task_output.ii_type ) == 'string',
+          'ii_type has incorrect type' )
+  -- "type" means, is it a blob or a delta of blobs.
+  return { hash=task_output.ii_hash, type=task_output.ii_type }
 end
 
 local function fetch_cached_compile(cxn, analyzed, task_hash,
@@ -321,11 +327,11 @@ local function fetch_cached_compile(cxn, analyzed, task_hash,
   return status, stderr
 end
 
-local function run_compile( cxn, analyzed, ii_hash )
+local function run_compile( cxn, analyzed, ii )
   assert( analyzed )
-  assert( ii_hash )
+  assert( ii )
   local status, stderr
-  local task = create_remote_compile_task( analyzed, ii_hash )
+  local task = create_remote_compile_task( analyzed, ii )
   local task_output = rtask.output_of( cxn, task.hash )
   if task_output then
     -- Given that the task output exists in Redis then we should
@@ -338,14 +344,7 @@ local function run_compile( cxn, analyzed, ii_hash )
                                            task.hash, task_output )
   end
   if status ~= 0 then
-    rtask.post_task( cxn, task.hash, {
-      os=assert( task.os ),
-      compiler_type=assert( task.compiler_type ),
-      compiler_version=assert( task.compiler_version ),
-      compiler_flags=assert( task.compiler_flags ),
-      input=assert( task.input ),
-      description=assert( task.description ),
-    } )
+    rtask.post_task( cxn, task.hash, task )
     info( 'queueing for task %s...', task.hash )
     task_output =
         assert( rtask.queue_and_wait( cxn, task.hash ) )
@@ -362,9 +361,9 @@ end
 
 -- This should yield an "exit code" style result.
 local function run( cxn, l_cxn, analyzed )
-  local ii_hash = run_preprocess( l_cxn, analyzed )
-  if not ii_hash then return 1 end
-  return run_compile( cxn, analyzed, ii_hash )
+  local ii = run_preprocess( l_cxn, analyzed )
+  if not ii then return 1 end
+  return run_compile( cxn, analyzed, ii )
 end
 
 -----------------------------------------------------------------

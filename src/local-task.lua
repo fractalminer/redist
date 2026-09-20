@@ -15,10 +15,14 @@ local socket = require( 'socket' )
 -----------------------------------------------------------------
 -- Aliases.
 -----------------------------------------------------------------
+local create_blob_from_file =
+    assert( farm.create_blob_from_file )
+local create_delta = assert( farm.create_delta )
 local machine_label = assert( network.machine_label )
 local set_blob_from_string = assert( farm.set_blob_from_string )
-local set_blob_from_file = assert( farm.set_blob_from_file )
 local set_hash = assert( ru.set_hash )
+local upload_blob = assert( farm.upload_blob )
+local upload_delta = assert( farm.upload_delta )
 
 local info = assert( logger.info )
 
@@ -36,11 +40,7 @@ local function post_task( cxn, hash, params )
   assert( params.description )
   if params.cwd then assert( #params.cwd > 0 ) end
   local key = keys.task_input( hash )
-  set_hash( cxn, key, {
-    command=params.command,
-    cwd=params.cwd,
-    description=params.description,
-  }, config.builder.EXPIRE_LOCAL_TASK )
+  set_hash( cxn, key, params, config.builder.EXPIRE_LOCAL_TASK )
 end
 
 local function queue_task( cxn, hash )
@@ -81,7 +81,56 @@ local function find( cxn, hash )
   return cxn:hgetall( key )
 end
 
-local function set_result( cxn, l_cxn, hash, task_output )
+local function register_preprocessed( cxn, lc, task_hash, ii_file )
+  assert( cxn )
+  assert( lc )
+  assert( task_hash )
+  assert( ii_file )
+
+  local new_blob = assert( create_blob_from_file( ii_file ) )
+  local new_hash = assert( new_blob.hash )
+
+  if not config.worker.SEND_PREPROCESSED_DELTAS then
+    upload_blob( cxn, new_blob )
+    return { type='blob', hash=new_hash }
+  end
+
+  -- TODO: need to improve this.
+  local tu_key = task_hash
+
+  local base_hash = lc:preprocessed_get( tu_key )
+  local base_blob = base_hash and lc:blob_get( base_hash )
+
+  local base_in_redis = base_hash and
+                            farm.blob_exists( cxn, base_hash )
+
+  if new_hash == base_hash and base_in_redis then
+    -- The new preprocessed output is the same as the previous
+    -- one and it is both in redis and in the local cache, so we
+    -- don't need to do anything.
+    return { type='blob', hash=base_hash }
+  end
+
+  -- The result has changed from the stored base.
+
+  if not base_blob or not base_in_redis then
+    -- Store the new blob in the local cache.
+    lc:preprocessed_update( tu_key, new_hash )
+    lc:blob_set( new_blob )
+    -- Upload the new blob to redis.
+    upload_blob( cxn, new_blob, { force=true } )
+    return { type='blob', hash=new_hash }
+  end
+
+  -- The base blob exists in sqlite and is in redis.
+  local delta = assert( create_delta( base_blob, new_blob ) )
+  -- Do not update the local sqlite cache.
+  upload_delta( cxn, delta )
+
+  return { type='delta', hash=assert( delta.manifest.hash ) }
+end
+
+local function set_result( cxn, l_cxn, lc, hash, task_output )
   local out_key = keys.task_output( hash )
   local function blobify( content )
     local blob = set_blob_from_string( l_cxn, content )
@@ -89,17 +138,16 @@ local function set_result( cxn, l_cxn, hash, task_output )
     assert( type( blob.hash ) == 'string' )
     return blob.hash
   end
-  local function blobify_file_remote( fname )
-    local blob = set_blob_from_file( cxn, fname )
-    assert( type( blob ) == 'table' )
-    assert( type( blob.hash ) == 'string' )
-    return blob.hash
-  end
   local stderr = task_output.stderr:trim()
-  local ii_hash
+  local ii_type, ii_hash
   local output_file = assert( task_output.output_file )
   if file.exists( output_file ) then
-    ii_hash = blobify_file_remote( output_file )
+    local registered = assert( register_preprocessed( cxn, lc,
+                                                      hash,
+                                                      output_file ) )
+    assert( type( registered ) == 'table' )
+    ii_type = assert( registered.type )
+    ii_hash = assert( registered.hash )
   end
   set_hash( l_cxn, out_key, {
     status=assert( task_output.status ),
@@ -107,6 +155,7 @@ local function set_result( cxn, l_cxn, hash, task_output )
     stderr=blobify( stderr ),
     has_stderr=(#stderr > 0),
     time_micros=assert( task_output.time_micros ),
+    ii_type=ii_type,
     ii_hash=ii_hash,
   } )
 end
