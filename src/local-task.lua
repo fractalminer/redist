@@ -14,9 +14,10 @@ local socket = require( 'socket' )
 -----------------------------------------------------------------
 -- Aliases.
 -----------------------------------------------------------------
-local set_hash = assert( ru.set_hash )
-local set_blob = assert( farm.set_blob )
 local machine_label = assert( network.machine_label )
+local set_blob_from_string = assert( farm.set_blob_from_string )
+local set_blob_from_file = assert( farm.set_blob_from_file )
+local set_hash = assert( ru.set_hash )
 
 local info = assert( logger.info )
 
@@ -79,18 +80,18 @@ local function find( cxn, hash )
   return cxn:hgetall( key )
 end
 
-local function set_result( cxn, hash, result )
+local function set_result( cxn, hash, task_output )
   local out_key = keys.task_output( hash )
   local function to_blob( content )
-    return set_blob( cxn, content )
+    return set_blob_from_string( cxn, content )
   end
-  local stderr = result.stderr:trim()
+  local stderr = task_output.stderr:trim()
   set_hash( cxn, out_key, {
-    status=assert( result.status ),
-    stdout=to_blob( result.stdout ),
+    status=assert( task_output.status ),
+    stdout=to_blob( task_output.stdout ),
     stderr=to_blob( stderr ),
     has_stderr=(#stderr > 0),
-    time_micros=assert( result.time_micros ),
+    time_micros=assert( task_output.time_micros ),
   } )
 end
 

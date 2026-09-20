@@ -177,7 +177,7 @@ local function main()
   -- LuaFormatter off
   parser:option( '--verbosity' )
         :choices{ 'error', 'warning', 'info', 'debug', 'trace' }
-        :default( 'debug' )
+        :default( 'info' )
         :description( 'log level' )
   -- LuaFormatter on
 

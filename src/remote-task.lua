@@ -14,7 +14,7 @@ local socket = require( 'socket' )
 -- Aliases.
 -----------------------------------------------------------------
 local set_hash = assert( ru.set_hash )
-local set_blob = assert( farm.set_blob )
+local set_blob_from_string = assert( farm.set_blob_from_string )
 
 local info = assert( logger.info )
 
@@ -79,19 +79,22 @@ end
 
 local function set_result( cxn, hash, result )
   local out_key = keys.task_output( hash )
-  local function to_blob( content )
-    return set_blob( cxn, content )
+  local function blobify( content )
+    local blob = set_blob_from_string( cxn, content )
+    assert( type( blob ) == 'table' )
+    assert( type( blob.hash ) == 'string' )
+    return blob.hash
   end
   local output = nil
   if result.output and #result.output > 0 then
-    output = to_blob( result.output )
+    output = blobify( result.output )
   end
   local stderr = result.stderr:trim()
   set_hash( cxn, out_key, {
     status=assert( result.status ),
     output=output,
-    stdout=to_blob( result.stdout ),
-    stderr=to_blob( stderr ),
+    stdout=blobify( result.stdout ),
+    stderr=blobify( stderr ),
     has_stderr=(#stderr > 0),
     time_micros=assert( result.time_micros ),
   } )

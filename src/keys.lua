@@ -177,6 +177,23 @@ function M.blob( hash )
   return make( key, elems )
 end
 
+function M.deltas()
+  local key = '%s:delta'
+  local elems = {
+    M.ns(), --
+  }
+  return make( key, elems )
+end
+
+function M.delta( hash )
+  local key = '%s:%s'
+  local elems = {
+    M.deltas(), --
+    assert( hash ), --
+  }
+  return make( key, elems )
+end
+
 function M.worker_presence_set( node, set )
   local key = '%s:presence:%s'
   local elems = {

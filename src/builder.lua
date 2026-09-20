@@ -217,6 +217,7 @@ end
 -- has_stderr flag set. In that case, the stderr, if it hasn't
 -- been evicted, is expected to be a non-empty string.
 local function download_stderr( cxn, stderr_hash )
+  assert( type( stderr_hash ) == 'string' )
   local stderr, reason = download_blob( cxn, stderr_hash )
   if not stderr then return nil, reason end
   assert( #stderr:trim() > 0, 'stderr blob empty' )
@@ -267,8 +268,8 @@ local function run_preprocess( cxn, l_cxn, analyzed )
   -- still be cached as well, and in that case this won't reu-
   -- pload the blob, so it should be fairly efficient in that
   -- case (it will still compress it though).
-  local ii_hash = set_blob_from_file( cxn, output_file )
-  return ii_hash
+  local blob = set_blob_from_file( cxn, output_file )
+  return assert( blob.hash )
 end
 
 local function fetch_cached_compile(cxn, analyzed, task_hash,
@@ -307,6 +308,7 @@ local function fetch_cached_compile(cxn, analyzed, task_hash,
     assert( task_output.output )
     local output_file =
         assert( analyzed.decoded.special_flags.o )
+    assert( type( task_output.output ) == 'string' )
     local ok, reason = download_blob_to_file( cxn,
                                               task_output.output,
                                               output_file )
