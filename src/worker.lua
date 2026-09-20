@@ -380,25 +380,25 @@ local function run_local_task( cxn, task_hash )
   }
 end
 
-local function process_task(cxn, task, perform, set_result,
-                            publish )
+local function process_task(cxn_main, cxn_task, task, perform,
+                            set_result, publish )
   assert( perform )
   assert( set_result )
   local task_hash = assert( task.hash )
   debug( 'found task hash: %s', task_hash )
   STATE.status = 'active'
   STATE.task = task_hash
-  advertise( cxn )
+  advertise( cxn_main )
   -- Publish after we increment the active count.
-  publish( cxn, task_hash, 'started' )
-  local ok, result = pcall( perform, cxn, task_hash )
-  advertise( cxn )
+  publish( cxn_task, task_hash, 'started' )
+  local ok, result = pcall( perform, cxn_task, task_hash )
+  advertise( cxn_main )
   if ok then
-    set_result( cxn, task_hash, result )
+    set_result( cxn_main, cxn_task, task_hash, result )
     if result.status == 0 then
-      publish( cxn, task_hash, 'finished:success' )
+      publish( cxn_task, task_hash, 'finished:success' )
     else
-      publish( cxn, task_hash,
+      publish( cxn_task, task_hash,
                format( 'finished:error:%d', result.status ) )
     end
   else
@@ -416,8 +416,8 @@ local function process_task(cxn, task, perform, set_result,
       stderr=reason,
       time_micros='',
     }
-    set_result( cxn, task_hash, task_result )
-    publish( cxn, task_hash, 'finished:failed-to-run' )
+    set_result( cxn_main, cxn_task, task_hash, task_result )
+    publish( cxn_task, task_hash, 'finished:failed-to-run' )
     if args.fail_on_meta_error then
       error( 'fail-on-meta-error: exiting' )
     end
@@ -446,11 +446,11 @@ local function process_next_task( cxn, l_cxn )
   until task
   assert( task.type )
   if task.type == 'local' then
-    process_task( l_cxn, task, run_local_task, ltask.set_result,
-                  ltask.publish_event )
+    process_task( cxn, l_cxn, task, run_local_task,
+                  ltask.set_result, ltask.publish_event )
   elseif task.type == 'remote' then
-    process_task( cxn, task, run_remote_task, rtask.set_result,
-                  rtask.publish_event )
+    process_task( cxn, cxn, task, run_remote_task,
+                  rtask.set_result, rtask.publish_event )
   else
     err( 'unrecognized task type: ' .. task.type )
     return false

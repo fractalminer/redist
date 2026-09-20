@@ -7,6 +7,7 @@ local keys = require( 'keys' )
 local network = require( 'network' )
 local ru = require( 'redis-util' )
 
+local file = require( 'moon.file' )
 local logger = require( 'moon.logger' )
 
 local socket = require( 'socket' )
@@ -80,10 +81,10 @@ local function find( cxn, hash )
   return cxn:hgetall( key )
 end
 
-local function set_result( cxn, hash, task_output )
+local function set_result( cxn, l_cxn, hash, task_output )
   local out_key = keys.task_output( hash )
   local function blobify( content )
-    local blob = set_blob_from_string( cxn, content )
+    local blob = set_blob_from_string( l_cxn, content )
     assert( type( blob ) == 'table' )
     assert( type( blob.hash ) == 'string' )
     return blob.hash
@@ -95,13 +96,18 @@ local function set_result( cxn, hash, task_output )
     return blob.hash
   end
   local stderr = task_output.stderr:trim()
-  set_hash( cxn, out_key, {
+  local ii_hash
+  local output_file = assert( task_output.output_file )
+  if file.exists( output_file ) then
+    ii_hash = blobify_file( output_file )
+  end
+  set_hash( l_cxn, out_key, {
     status=assert( task_output.status ),
     stdout=blobify( task_output.stdout ),
     stderr=blobify( stderr ),
     has_stderr=(#stderr > 0),
     time_micros=assert( task_output.time_micros ),
-    ii_hash=blobify_file( task_output.output_file ),
+    ii_hash=ii_hash,
   } )
 end
 

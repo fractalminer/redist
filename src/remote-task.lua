@@ -77,7 +77,7 @@ local function find( cxn, hash )
   return cxn:hgetall( key )
 end
 
-local function set_result( cxn, hash, result )
+local function set_result( cxn, _, hash, result )
   local out_key = keys.task_output( hash )
   local function blobify( content )
     local blob = set_blob_from_string( cxn, content )

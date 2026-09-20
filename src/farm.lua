@@ -117,7 +117,7 @@ local function set_blob_from_string( cxn, body )
 end
 
 local function create_blob_from_file( fname )
-  assert( fname, 'invalid filename: ' .. fname )
+  assert( fname, 'invalid filename' )
   local f<close> = assert( io.open( fname, 'r' ) )
   debug( 'reading file %s', fname )
   local body = f:read( 'a' )
