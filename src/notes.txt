@@ -5,8 +5,6 @@ TODO:
   * There needs to be a way through redis to tell a node to
     restart. Then we can add a command on the dashboard for this
     to restart either a node or the entire cluster.
-  * Check that the cpp file name is correctly reported if there
-    is a compile error in it.
   * Multiplexing:
     - There will be multiple channels to the redis server.
     - Workers should have an id and we should multiplex based
@@ -45,6 +43,8 @@ TODO:
     made by the builder and workers because latency can be very
     high when operating externally. For example, one query can
     have a latency (round trip) of 1/2 second.
+    - Try to put multiple commands into a transaction and check
+      to see if those will all get sent in one packet.
     - Consider putting any multi-step things into server-side lua
       functions.
   * Dashboard:

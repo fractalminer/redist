@@ -47,6 +47,11 @@ return harden{
     -- 127.0.0.1:6379.
     ENABLE_LOCAL_REDIS=false,
     PORT_LOCAL=6380,
+    -- When we are waiting for the redis DB to be available, how
+    -- many attempts before giving up and how much time in be-
+    -- tween attempts.
+    REDIS_INITIAL_CONNECT_RETRY_TIMES=60,
+    REDIS_INITIAL_CONNECT_WAIT_SECS=10,
   },
 
   local_cache={

@@ -5,6 +5,7 @@ local config = require( 'config' )
 
 local logger = require( 'moon.logger' )
 local file = require( 'moon.file' )
+local time = require( 'moon.time' )
 
 local redis = require( 'redis' )
 local socket = require( 'socket' )
@@ -13,11 +14,13 @@ local socket = require( 'socket' )
 -- Aliases.
 -----------------------------------------------------------------
 local debug = assert( logger.debug )
+local err = assert( logger.err )
 local trace = assert( logger.trace )
-local fatal = assert( logger.fatal )
+local sleep = assert( time.sleep )
 
 local insert = assert( table.insert )
 local unpack = assert( table.unpack )
+local format = assert( string.format )
 
 -----------------------------------------------------------------
 -- Methods.
@@ -49,7 +52,8 @@ local function connect_impl( host, port )
   -- read data from redis.
   if not tcp_reachable( HOST, PORT,
                         config.general.CONNECT_TIMEOUT_SECS ) then
-    fatal( 'redis server at %s:%s is not reachable.', HOST, PORT )
+    error( format( 'redis server at %s:%s is not reachable.',
+                   HOST, PORT ) )
   end
   local cxn = assert( redis.connect( HOST, PORT ) )
   assert( cxn:ping(), 'unable to ping redis server' )
@@ -76,6 +80,28 @@ local function connect_local()
   else
     return connect()
   end
+end
+
+local function wait_redis_available( stop_fn )
+  stop_fn = stop_fn or function() return false end
+  local HOST = assert( config.general.HOST )
+  local PORT = assert( config.general.PORT )
+  local max_retries = config.general
+                          .REDIS_INITIAL_CONNECT_RETRY_TIMES
+  local delay_secs = config.general
+                         .REDIS_INITIAL_CONNECT_WAIT_SECS
+  for _ = 1, max_retries do
+    if stop_fn() then return end
+    local ok, res = pcall( connect_impl, HOST, PORT )
+    if ok then
+      local cxn<close> = res
+      debug( 'redis connection available' )
+      return true
+    end
+    err( 'cannot connect to redis: %s:%s', HOST, PORT )
+    sleep( delay_secs )
+  end
+  return false
 end
 
 local function set_hash( cxn, key, tbl, expiry )
@@ -138,6 +164,7 @@ end
 return {
   connect=connect,
   connect_local=connect_local,
+  wait_redis_available=wait_redis_available,
   set_hash=set_hash,
   redis_script=redis_script,
   run_redis_script=run_redis_script,

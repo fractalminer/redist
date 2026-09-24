@@ -237,7 +237,19 @@ local function popen( path, args, opts )
   end
 end
 
+-- Simple execute with basic defaults and no knobs.
+local function execute( prog, args )
+  local opts = { use_path_env=true }
+  local ran = assert( popen( prog, args, opts ) )
+  -- NOTE: status is the integer error code.
+  return assert( ran.status )
+end
+
 -----------------------------------------------------------------
 -- Package.
 -----------------------------------------------------------------
-return { popen=popen, CANCEL_PROCESS=CANCEL_PROCESS }
+return {
+  popen=popen,
+  execute=execute,
+  CANCEL_PROCESS=CANCEL_PROCESS,
+}

@@ -225,6 +225,23 @@ function M.distributor_stgy() return M.stgy( 'distributor' ) end
 
 function M.node_rank() return M.node( 'rank' ) end
 
+function M.node_ctl( node )
+  local key = '%s:nodectl:%s'
+  local elems = {
+    M.ns(), --
+    assert( node ), --
+  }
+  return make( key, elems )
+end
+
+function M.update_node( node )
+  local key = '%s:update'
+  local elems = {
+    M.node_ctl( node ), --
+  }
+  return make( key, elems )
+end
+
 -----------------------------------------------------------------
 -- Module..
 -----------------------------------------------------------------

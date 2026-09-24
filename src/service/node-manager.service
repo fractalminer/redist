@@ -1,0 +1,25 @@
+[Unit]
+Description=ReDist Node Manager
+
+[Service]
+Type=simple
+
+# Adjust these two paths for each node.
+WorkingDirectory=/home/dsicilia/dev/redist/src
+ExecStart=/usr/bin/bash /home/dsicilia/dev/redist/src/run-node-manager.sh
+
+# Restart whenever the process exits.
+Restart=always
+RestartSec=1
+
+# Graceful shutdown.
+KillSignal=SIGTERM
+KillMode=mixed
+TimeoutStopSec=60
+
+# Send stdout/stderr to the systemd journal.
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

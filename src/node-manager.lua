@@ -7,6 +7,7 @@ local keys = require( 'keys' )
 local network = require( 'network' )
 local process_pool = require( 'process-pool' )
 local ru = require( 'redis-util' )
+local subprocess = require( 'subprocess' )
 
 local logger = require( 'moon.logger' )
 local mcleanup = require( 'moon.cleanup' )
@@ -23,11 +24,13 @@ local signal = require( 'posix.signal' )
 local ProcessPool = assert( process_pool.ProcessPool )
 local WorkerCount = assert( farm.WorkerCount )
 local set_hash = assert( ru.set_hash )
+local wait_redis_available = assert( ru.wait_redis_available )
 
 local chain = assert( mcleanup.chain )
 local clamp = assert( mmath.clamp )
 local cleanup = assert( mcleanup.cleanup )
 local debug = assert( logger.debug )
+local execute = assert( subprocess.execute )
 local info = assert( logger.info )
 local machine_label = assert( network.machine_label )
 local sleep = assert( time.sleep )
@@ -134,16 +137,35 @@ local function advertise_node( cxn )
             config.node_manager.EXPIRE_ADVERTISE_SECS )
 end
 
+local function should_stop() return STOP == true end
+
+local function check_update( cxn )
+  if STOP then return end
+  local key = keys.update_node( machine_label() )
+  if tonumber( cxn:get( key ) ) == 1 then
+    cxn:del( key )
+    info( 'UPDATING' )
+    STOP = true
+    execute( 'git', { 'pull' } )
+  end
+end
+
 -----------------------------------------------------------------
 -- Implementation.
 -----------------------------------------------------------------
-local function run( cxn )
-  assert( cxn )
+local function run()
+  -- This is so that if the redis DB happens to be down then we
+  -- will just wait a bit for it here before exiting with an
+  -- error so that this process that restart too frequently.
+  if not wait_redis_available( should_stop ) then return 1 end
+
+  local cxn<close> = assert( ru.connect() )
 
   local pools<close> = add_pools()
 
-  while not STOP do
+  while not should_stop() do
     advertise_node( cxn )
+    check_update( cxn )
     for _, conf in pairs( POOLS ) do
       local pool = assert( conf.pool )
       debug( '[%s] [%d] running', pool:name(),
@@ -174,11 +196,9 @@ local function main()
   local level = assert( logger.levels[args.verbosity:upper()] )
   logger.level = level
 
-  local cxn<close> = assert( ru.connect() )
-
   info( 'starting node manager: %s', machine_label() )
 
-  run( cxn )
+  run()
 end
 
 -----------------------------------------------------------------
