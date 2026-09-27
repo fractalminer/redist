@@ -11,9 +11,10 @@ local terminal = require( 'terminal' )
 local mcleanup = require( 'moon.cleanup' )
 local merr = require( 'moon.err' )
 local mmath = require( 'moon.math' )
+local set = require( 'moon.set' )
 local str = require( 'moon.str' )
-local time = require( 'moon.time' )
 local tbl = require( 'moon.tbl' )
+local time = require( 'moon.time' )
 
 local socket = require( 'socket' )
 
@@ -63,7 +64,8 @@ local g_data = {}
 local g_needs_clear = true
 local g_compact_view = 0
 local g_show_node_mem_histerisis = {}
-local g_seen_with_local_workers = {}
+local g_seen_nodes = set()
+local g_seen_nodes_with_local_workers = set()
 
 local g_node_cpu_smoothed = {}
 
@@ -599,6 +601,27 @@ local function redraw( out )
     return
   end
 
+  local cur_nodes = set()
+  local cur_nodes_with_local = set()
+  for _, node_label in ipairs( g_data.node_ordering ) do
+    local node = g_data.nodes[node_label]
+    if node then
+      cur_nodes:add( node_label )
+      if node.local_workers > 0 then
+        cur_nodes_with_local:add( node_label )
+      end
+    end
+  end
+
+  if cur_nodes ~= g_seen_nodes then
+    g_needs_clear = true
+    g_seen_nodes = cur_nodes
+  end
+  if cur_nodes_with_local ~= g_seen_nodes_with_local_workers then
+    g_needs_clear = true
+    g_seen_nodes_with_local_workers = cur_nodes_with_local
+  end
+
   -- If we need to clear then do it.
   if g_needs_clear then
     out:clear()
@@ -999,10 +1022,6 @@ local function redraw( out )
 
       advance()
       if node.local_workers > 0 then
-        if not g_seen_with_local_workers[node_label] then
-          g_seen_with_local_workers[node_label] = true
-          g_needs_clear = true
-        end
         out:fg( DARK_LABEL )
         text( out, 'local  usage: ' )
         out:reset()
@@ -1010,11 +1029,6 @@ local function redraw( out )
                    node.local_active_workers, node.local_workers,
                    node.local_worker_utilization * 100 )
         advance()
-      else
-        if g_seen_with_local_workers[node_label] then
-          g_seen_with_local_workers[node_label] = false
-          g_needs_clear = true
-        end
       end
     end
     ::continue::
