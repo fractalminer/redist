@@ -871,6 +871,7 @@ local function redraw( out )
       out:fg( DARK_GREY )
       text( out, ']' )
     end
+    out:clear_to_eol()
     out:reset()
     advance( 3 )
 
