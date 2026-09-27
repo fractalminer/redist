@@ -3,6 +3,9 @@ TODO:
 -----------------------------------------------------------------
   * Need to switch to Fios. 5Gig plan.  $100/mo.
   * Dashboard:
+    * The dashboard still has issues with redrawing because when
+      the set of nodes changes it doesn't seem to trigger a
+      clearing of the screen.
     * The dashboard should go to sleep (increase poll delay after
       a certain amount of time of no utilization), then as soon
       as something happens it should go back to frequent updates.
