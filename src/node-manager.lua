@@ -84,6 +84,7 @@ handle_stop_signal( SIGTERM )
 -----------------------------------------------------------------
 local POOLS = {
   workers_both={
+    enabled=true,
     target=0,
     worker_type='both',
     cmd={ 'bash', 'run-worker.sh' },
@@ -91,6 +92,7 @@ local POOLS = {
     last_logged_count=0,
   },
   workers_remote={
+    enabled=true,
     target=0,
     worker_type='remote',
     cmd={ 'bash', 'run-remote-worker.sh' },
@@ -98,6 +100,7 @@ local POOLS = {
     last_logged_count=0,
   },
   workers_local={
+    enabled=true,
     target=0,
     worker_type='local',
     cmd={ 'bash', 'run-local-worker.sh' },
@@ -105,9 +108,20 @@ local POOLS = {
     last_logged_count=0,
   },
   node_stats_finder={
+    enabled=true,
     target=1,
     worker_type=nil,
     cmd={ 'bash', 'run-node-stats-finder.sh' },
+    pool=nil,
+    last_logged_count=0,
+  },
+  distributor={
+    -- This one will be enabled only when we are running this
+    -- node maager on the same host as the redis server.
+    enabled=false,
+    target=1,
+    worker_type=nil,
+    cmd={ 'bash', 'run-distributor.sh' },
     pool=nil,
     last_logged_count=0,
   },
@@ -123,8 +137,13 @@ end
 
 local function add_pools()
   local res = {}
+  local _, running_on_redis_host = ru.resolve_host()
+  if running_on_redis_host then
+    info( 'enabling distributor' )
+    assert( POOLS.distributor ).enabled = true
+  end
   for name, conf in pairs( POOLS ) do
-    insert( res, add_pool( name, conf ) )
+    if conf.enabled then insert( res, add_pool( name, conf ) ) end
   end
   return chain( res )
 end
@@ -140,12 +159,15 @@ end
 local function update_pool_counts()
   local need_log_counts = false
   for _, conf in pairs( POOLS ) do
-    need_log_counts = update_pool_count( conf ) or
-                          need_log_counts
+    if conf.enabled then
+      need_log_counts = update_pool_count( conf ) or
+                            need_log_counts
+    end
   end
   if not need_log_counts then return end
   local counts = {}
   on_ordered_kv( POOLS, function( _, conf )
+    if not conf.enabled then return end
     local pool = assert( conf.pool )
     insert( counts,
             format( '[%-17s] %2d jobs running', pool:name(),
@@ -216,6 +238,7 @@ local function run()
     check_update( cxn )
     update_pool_counts()
     on_ordered_kv( POOLS, function( _, conf )
+      if not conf.enabled then return end
       local pool = assert( conf.pool )
       pool:log_pids()
       adjust_pool_count( cxn, pool, conf )

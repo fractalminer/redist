@@ -29,6 +29,10 @@ end
 -----------------------------------------------------------------
 return harden{
   redis={
+    -- This must be either a hostname or "tunnel". The reason we
+    -- need this is because unfortunately it is tricky to reli-
+    -- ably distinguish a situation where 127.0.0.1 refers to a
+    -- redis that is running locally vs one that is tunneled in.
     HOST='thelio',
     PORT=6379,
     CONNECT_TIMEOUT_SECS=10,

@@ -2,6 +2,7 @@
 -- General redis-lua utilities.
 -----------------------------------------------------------------
 local config = require( 'config' )
+local network = require( 'network' )
 
 local logger = require( 'moon.logger' )
 local file = require( 'moon.file' )
@@ -13,6 +14,8 @@ local socket = require( 'socket' )
 -----------------------------------------------------------------
 -- Aliases.
 -----------------------------------------------------------------
+local hostname = assert( network.hostname )
+
 local debug = assert( logger.debug )
 local err = assert( logger.err )
 local trace = assert( logger.trace )
@@ -66,8 +69,28 @@ local function connect_impl( host, port )
   } )
 end
 
-local function connect()
+-- Returns two values:
+--   * resolved host (could be name or ip address)
+--   * boolean indicating whether we are running on the same host
+--     as the redis server or not.
+local function resolve_host()
   local host = assert( config.redis.HOST )
+  if host == 'tunnel' then
+    return '127.0.0.1', false
+  elseif host == hostname() then
+    -- This is to support the case where we are running locally
+    -- outside of the network (e.g. on public wifi) where the
+    -- redis server (for security) will not be listening on the
+    -- LAN IP address but instead will only be exposed on loop-
+    -- back. And it should work in other cases as well.
+    return '127.0.0.1', true
+  else
+    return host, false
+  end
+end
+
+local function connect()
+  local host = assert( resolve_host() )
   local port = assert( config.redis.PORT )
   return connect_impl( host, port )
 end
@@ -84,7 +107,7 @@ end
 
 local function wait_redis_available( stop_fn )
   stop_fn = stop_fn or function() return false end
-  local host = assert( config.redis.HOST )
+  local host = assert( resolve_host() )
   local port = assert( config.redis.PORT )
   local max_retries = config.redis.INITIAL_CONNECT_RETRY_TIMES
   local delay_secs = config.redis.INITIAL_CONNECT_WAIT_SECS
@@ -160,6 +183,7 @@ end
 -- Module.
 -----------------------------------------------------------------
 return {
+  resolve_host=resolve_host,
   connect=connect,
   connect_local=connect_local,
   wait_redis_available=wait_redis_available,
