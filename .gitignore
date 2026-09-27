@@ -42,3 +42,4 @@ luac.out
 Session.vim
 
 /src/cpp/build
+/cache

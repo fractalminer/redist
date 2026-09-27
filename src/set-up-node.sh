@@ -6,6 +6,8 @@ cd "$this_dir"
 
 svc=node-manager
 
+mkdir -p "../cache/"
+
 user_services=~/.config/systemd/user
 mkdir -p "$user_services"
 
