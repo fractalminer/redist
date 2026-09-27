@@ -26,8 +26,8 @@ nodes_all=(
 )
 
 categories=(
-  "Node Manager Service"
-  "Node Manager Command"
+  "Node Manager SYSTEMCTL"
+  "Node Manager REDIS CMD"
   "Node Host"
 )
 
@@ -125,7 +125,7 @@ get_action() {
   declare -a actions
   local title="CHOOSE ACTION"
   case "$category" in
-    "Node Manager Service")
+    "Node Manager SYSTEMCTL")
       actions=(
         "logs"
         "start"
@@ -137,7 +137,7 @@ get_action() {
       [[ -z "$selected" ]] && exit 1
       action="$selected"
       ;;
-    "Node Manager Command")
+    "Node Manager REDIS CMD")
       actions=(
         "update"
         "level"
@@ -230,25 +230,25 @@ execute() {
   local extra="$4"
 
   case "$cmd" in
-    "Node Manager Service>logs")
+    "Node Manager SYSTEMCTL>logs")
       node_manager_service_logs
       ;;
-    "Node Manager Service>start")
+    "Node Manager SYSTEMCTL>start")
       node_manager_service_start
       ;;
-    "Node Manager Service>stop")
+    "Node Manager SYSTEMCTL>stop")
       node_manager_service_stop
       ;;
-    "Node Manager Service>restart")
+    "Node Manager SYSTEMCTL>restart")
       node_manager_service_restart
       ;;
-    "Node Manager Service>status")
+    "Node Manager SYSTEMCTL>status")
       node_manager_service_status
       ;;
-    "Node Manager Command>update")
+    "Node Manager REDIS CMD>update")
       node_manager_command_update
       ;;
-    "Node Manager Command>level")
+    "Node Manager REDIS CMD>level")
       node_manager_command_level "$extra"
       ;;
     "Node Host>Power ON")
@@ -265,9 +265,9 @@ execute() {
 # ---------------------------------------------------------------
 main() {
   clear
-  get_nodes
   get_category
   get_action "$category"
+  get_nodes
 
   echo "CATEGORY:"
   echo "- $category"
