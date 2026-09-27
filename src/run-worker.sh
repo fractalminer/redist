@@ -11,7 +11,7 @@ listen="${1:-both}"
 workarea=/tmp/farm/workarea
 mkdir -p "$workarea"
 
-waiter lua worker.lua    \
+waiter lua worker.lua \
   --workarea="$workarea" \
-  --verbosity=debug      \
+  --verbosity=info \
   --listen="$listen"

@@ -201,6 +201,11 @@ local function advertise_throttled( cxn )
   advertise( cxn )
 end
 
+local function periodic( cxn )
+  advertise_throttled( cxn )
+  -- Can add more here...
+end
+
 local function unadvertise( cxn )
   if not args.advertise then return end
   debug( 'unadvertising %s:%s', machine_label(), PID )
@@ -225,7 +230,7 @@ end
 local function make_poller( cxn, desc )
   local start = now_seconds()
   local function on_poll()
-    advertise_throttled( cxn ) -- does its own throttling.
+    periodic( cxn ) -- does its own throttling.
     local now = now_seconds()
     local waited = now - start
     debug( 'waiting for %s: %.1fs', desc, waited )
@@ -432,7 +437,7 @@ local function process_next_task( cxn, l_cxn, lc )
   repeat
     STATE.status = 'idle'
     STATE.task = nil
-    advertise_throttled( cxn ) -- does its own throttling.
+    periodic( cxn ) -- does its own throttling.
     -- Check for stop just before taking the next task so that we
     -- don't risk taking a task and then exiting. That doesn't
     -- necessarily mean that we will be able to complete the
@@ -518,7 +523,7 @@ local function main()
 
   local _<close> = cleanup( function() unadvertise( cxn ) end )
 
-  local lc = LocalCache()
+  local lc<close> = LocalCache()
 
   while not STOP do
     local did_task = process_next_task( cxn, l_cxn, lc )

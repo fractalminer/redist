@@ -3,7 +3,6 @@
 -----------------------------------------------------------------
 local config = require( 'config' )
 local sqlite = require( 'sqlite' )
-local hasher = assert( require( 'hash' ).hash )
 
 local logger = require( 'moon.logger' )
 
@@ -64,6 +63,9 @@ local QUERY_UPDATE_PREPROCESSED = [[
 
 -- Evict old blobs that cause the total cache size to exceed a
 -- certain threshold.
+--
+-- NOTE: this query is expensive and it holds a write transaction
+-- open for a while, so should not be called that often.
 local QUERY_EVICT = [[
   WITH ranked AS (
       SELECT
@@ -149,7 +151,9 @@ function LocalCache:evict()
   stmt:reset()
   self:check_ok( stmt:bind_values(
                      config.local_cache.MAX_SIZE_BYTES ) )
-  assert( stmt:step() == sqlite.DONE )
+  local res = stmt:step()
+  if res == sqlite.BUSY then error( 'evict query failed: BUSY' ) end
+  assert( res == sqlite.DONE, tostring( res ) )
   stmt:reset()
 end
 

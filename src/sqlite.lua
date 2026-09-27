@@ -43,4 +43,5 @@ return {
   ERROR=assert( sqlite3.ERROR ),
   MISUSE=assert( sqlite3.MISUSE ),
   ROW=assert( sqlite3.ROW ),
+  BUSY=assert( sqlite3.BUSY ),
 }

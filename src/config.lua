@@ -28,18 +28,10 @@ end
 -- Config.
 -----------------------------------------------------------------
 return harden{
-  general={
-    HOST='192.168.1.214', -- thelio/ethernet
-    -- HOST='127.0.0.1',
+  redis={
+    HOST='thelio',
     PORT=6379,
     CONNECT_TIMEOUT_SECS=10,
-    COMPRESSION_METHOD='zstd',
-    -- The ideal value of this compression level depends on up-
-    -- load bandwidth to the redis server: lower bandwidths want
-    -- higher compression levels, and vice versa, for optimal
-    -- overall build times.
-    COMPRESSION_LEVEL=1,
-    USE_F_REWRITE_INCLUDES=false,
     -- This will enable using a local redis for data that never
     -- needs to be read by a remote worker, to reduce latency.
     -- Note that it is a different port so that it doesn't con-
@@ -50,8 +42,18 @@ return harden{
     -- When we are waiting for the redis DB to be available, how
     -- many attempts before giving up and how much time in be-
     -- tween attempts.
-    REDIS_INITIAL_CONNECT_RETRY_TIMES=60,
-    REDIS_INITIAL_CONNECT_WAIT_SECS=10,
+    INITIAL_CONNECT_RETRY_TIMES=60,
+    INITIAL_CONNECT_WAIT_SECS=10,
+  },
+
+  general={
+    COMPRESSION_METHOD='zstd',
+    -- The ideal value of this compression level depends on up-
+    -- load bandwidth to the redis server: lower bandwidths want
+    -- higher compression levels, and vice versa, for optimal
+    -- overall build times.
+    COMPRESSION_LEVEL=1,
+    USE_F_REWRITE_INCLUDES=false,
   },
 
   local_cache={
@@ -96,6 +98,7 @@ return harden{
     MAX_WORKERS_PER_TYPE=48, --
     ADVERTISE_INTERVAL_SECS=10,
     EXPIRE_ADVERTISE_SECS=50, --
+    EVICT_CACHE_INTERVAL_SECS=600,
   },
 
   stats_collector={

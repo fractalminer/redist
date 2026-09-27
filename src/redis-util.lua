@@ -43,19 +43,19 @@ local function tcp_reachable( host, port, timeout )
 end
 
 local function connect_impl( host, port )
-  local HOST = assert( host )
-  local PORT = assert( port )
+  assert( host )
+  assert( port )
   -- Test if the server is reachable first because then otherwise
   -- redis.connect can hang for a long period of time, and we
   -- don't want to put a timeout on its underlying socket because
   -- we generally want to be able to block on it while waiting to
   -- read data from redis.
-  if not tcp_reachable( HOST, PORT,
-                        config.general.CONNECT_TIMEOUT_SECS ) then
+  if not tcp_reachable( host, port,
+                        config.redis.CONNECT_TIMEOUT_SECS ) then
     error( format( 'redis server at %s:%s is not reachable.',
-                   HOST, PORT ) )
+                   host, port ) )
   end
-  local cxn = assert( redis.connect( HOST, PORT ) )
+  local cxn = assert( redis.connect( host, port ) )
   assert( cxn:ping(), 'unable to ping redis server' )
   return setmetatable( {}, {
     __index=cxn,
@@ -67,16 +67,16 @@ local function connect_impl( host, port )
 end
 
 local function connect()
-  local HOST = assert( config.general.HOST )
-  local PORT = assert( config.general.PORT )
-  return connect_impl( HOST, PORT )
+  local host = assert( config.redis.HOST )
+  local port = assert( config.redis.PORT )
+  return connect_impl( host, port )
 end
 
 local function connect_local()
-  if config.general.ENABLE_LOCAL_REDIS then
-    local HOST = assert( '127.0.0.1' )
-    local PORT = assert( config.general.PORT_LOCAL )
-    return connect_impl( HOST, PORT )
+  if config.redis.ENABLE_LOCAL_REDIS then
+    local host = assert( '127.0.0.1' )
+    local port = assert( config.redis.PORT_LOCAL )
+    return connect_impl( host, port )
   else
     return connect()
   end
@@ -84,21 +84,19 @@ end
 
 local function wait_redis_available( stop_fn )
   stop_fn = stop_fn or function() return false end
-  local HOST = assert( config.general.HOST )
-  local PORT = assert( config.general.PORT )
-  local max_retries = config.general
-                          .REDIS_INITIAL_CONNECT_RETRY_TIMES
-  local delay_secs = config.general
-                         .REDIS_INITIAL_CONNECT_WAIT_SECS
+  local host = assert( config.redis.HOST )
+  local port = assert( config.redis.PORT )
+  local max_retries = config.redis.INITIAL_CONNECT_RETRY_TIMES
+  local delay_secs = config.redis.INITIAL_CONNECT_WAIT_SECS
   for _ = 1, max_retries do
     if stop_fn() then return end
-    local ok, res = pcall( connect_impl, HOST, PORT )
+    local ok, res = pcall( connect_impl, host, port )
     if ok then
       local cxn<close> = res
       debug( 'redis connection available' )
       return true
     end
-    err( 'cannot connect to redis: %s:%s', HOST, PORT )
+    err( 'cannot connect to redis: %s:%s', host, port )
     sleep( delay_secs )
   end
   return false

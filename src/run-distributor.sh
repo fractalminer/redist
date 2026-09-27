@@ -7,4 +7,4 @@ cd "$this_dir"
 source waiter.sh
 
 waiter lua distributor.lua \
-  --verbosity=debug
+  --verbosity=info

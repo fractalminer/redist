@@ -11,6 +11,13 @@ waiter() {
   local pid=$!
 
   { wait "$pid"; res="$?"; } || true
+  if [[ "$res" == 143 ]]; then
+    # This is 128+15 where 15 is SIGTERM. This means that the
+    # process successfully terminated due to SIGTERM, which will
+    # happen e.g. when systemd restarts it. So we will just con-
+    # sider this a successful exit.
+    res=0
+  fi
   kill "$pid" || true
   wait "$pid" || true
   return "$res"

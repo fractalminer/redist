@@ -4,9 +4,7 @@ set -eo pipefail
 this_dir="$(dirname "$0")"
 cd "$this_dir"
 
-export LUA_INIT="@$HOME/.config/lua/startup.lua"
-eval "$(luarocks path --bin)"
-
+source lua-path.sh
 source waiter.sh
 
 # We generally want this service to be restarted if it exits, but
@@ -15,4 +13,4 @@ source waiter.sh
 # are ended first before starting another instance.
 
 waiter lua node-manager.lua \
-  --verbosity=debug
+  --verbosity=info

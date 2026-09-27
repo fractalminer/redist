@@ -152,7 +152,7 @@ function ProcessPool:_reap_pending()
     local updated_pid = wait( pid, WNOHANG )
     if updated_pid and updated_pid > 0 then
       assert( updated_pid == pid )
-      self:info( 'reaped pid %d', pid )
+      self:debug( 'reaped pid %d', pid )
       reaped_pids:add( pid )
     end
   end

@@ -4,6 +4,7 @@
 local config = require( 'config' )
 local farm = require( 'farm' )
 local keys = require( 'keys' )
+local lcache = require( 'lcache' )
 local network = require( 'network' )
 local process_pool = require( 'process-pool' )
 local ru = require( 'redis-util' )
@@ -13,6 +14,7 @@ local logger = require( 'moon.logger' )
 local mcleanup = require( 'moon.cleanup' )
 local mmath = require( 'moon.math' )
 local str = require( 'moon.str' )
+local tbl = require( 'moon.tbl' )
 local time = require( 'moon.time' )
 
 local argparse = require( 'argparse' )
@@ -21,6 +23,7 @@ local signal = require( 'posix.signal' )
 -----------------------------------------------------------------
 -- Aliases.
 -----------------------------------------------------------------
+local LocalCache = assert( lcache.LocalCache )
 local ProcessPool = assert( process_pool.ProcessPool )
 local WorkerCount = assert( farm.WorkerCount )
 local set_hash = assert( ru.set_hash )
@@ -29,13 +32,18 @@ local wait_redis_available = assert( ru.wait_redis_available )
 local chain = assert( mcleanup.chain )
 local clamp = assert( mmath.clamp )
 local cleanup = assert( mcleanup.cleanup )
-local debug = assert( logger.debug )
 local execute = assert( subprocess.execute )
 local info = assert( logger.info )
 local machine_label = assert( network.machine_label )
+local now_seconds = assert( time.now_seconds )
+local on_ordered_kv = assert( tbl.on_ordered_kv )
 local sleep = assert( time.sleep )
+local tcall = assert( time.tcall )
 
+local concat = assert( table.concat )
+local format = assert( string.format )
 local insert = assert( table.insert )
+local rep = assert( string.rep )
 
 -----------------------------------------------------------------
 -- Constants.
@@ -52,6 +60,8 @@ local args
 str.enable_string_injections()
 
 local STOP = false
+
+local LAST_EVICT = 0
 
 -----------------------------------------------------------------
 -- Signals.
@@ -78,24 +88,28 @@ local POOLS = {
     worker_type='both',
     cmd={ 'bash', 'run-worker.sh' },
     pool=nil,
+    last_logged_count=0,
   },
   workers_remote={
     target=0,
     worker_type='remote',
     cmd={ 'bash', 'run-remote-worker.sh' },
     pool=nil,
+    last_logged_count=0,
   },
   workers_local={
     target=0,
     worker_type='local',
     cmd={ 'bash', 'run-local-worker.sh' },
     pool=nil,
+    last_logged_count=0,
   },
   node_stats_finder={
     target=1,
     worker_type=nil,
     cmd={ 'bash', 'run-node-stats-finder.sh' },
     pool=nil,
+    last_logged_count=0,
   },
 }
 
@@ -115,6 +129,32 @@ local function add_pools()
   return chain( res )
 end
 
+local function update_pool_count( conf )
+  local pool = assert( conf.pool )
+  local count = assert( pool:running_count() )
+  if count == assert( conf.last_logged_count ) then return false end
+  conf.last_logged_count = count
+  return true
+end
+
+local function update_pool_counts()
+  local need_log_counts = false
+  for _, conf in pairs( POOLS ) do
+    need_log_counts = update_pool_count( conf ) or
+                          need_log_counts
+  end
+  if not need_log_counts then return end
+  local counts = {}
+  on_ordered_kv( POOLS, function( _, conf )
+    local pool = assert( conf.pool )
+    insert( counts,
+            format( '[%-17s] %2d jobs running', pool:name(),
+                    conf.last_logged_count ) )
+  end )
+  local bar = rep( '-', 65 )
+  info( 'pools:\n%s\n%s\n%s', bar, concat( counts, '\n' ), bar )
+end
+
 local function adjust_pool_count( cxn, pool, conf )
   if not conf.worker_type then return end
   local worker_count = WorkerCount( cxn, machine_label(),
@@ -129,12 +169,17 @@ local function advertise_node( cxn )
   local key = keys.node_manager_advertisement( machine_label() )
   local sock = assert( cxn.network.socket )
   local ip, port, _ = sock:getsockname()
-  local tbl = {
-    ip=ip, --
-    port=port, --
-  }
-  set_hash( cxn, key, tbl,
+  local o = { ip=ip, port=port }
+  set_hash( cxn, key, o,
             config.node_manager.EXPIRE_ADVERTISE_SECS )
+end
+
+local function evict_cache_throttled( lc )
+  local now = now_seconds()
+  if now < LAST_EVICT +
+      config.node_manager.EVICT_CACHE_INTERVAL_SECS then return end
+  LAST_EVICT = now
+  tcall( info, 'sqlite evict', function() lc:evict() end )
 end
 
 local function should_stop() return STOP == true end
@@ -163,19 +208,22 @@ local function run()
 
   local pools<close> = add_pools()
 
+  local lc<close> = LocalCache()
+
   while not should_stop() do
     advertise_node( cxn )
+    evict_cache_throttled( lc )
     check_update( cxn )
-    for _, conf in pairs( POOLS ) do
+    update_pool_counts()
+    on_ordered_kv( POOLS, function( _, conf )
       local pool = assert( conf.pool )
-      debug( '[%s] [%d] running', pool:name(),
-             pool:running_count() )
       pool:log_pids()
       adjust_pool_count( cxn, pool, conf )
       pool:advance()
-    end
+    end )
     sleep( config.node_manager.ADVERTISE_INTERVAL_SECS )
   end
+  return 0
 end
 
 -----------------------------------------------------------------
@@ -187,7 +235,7 @@ local function main()
   -- LuaFormatter off
   parser:option( '--verbosity' )
         :choices{ 'error', 'warning', 'info', 'debug', 'trace' }
-        :default( 'debug' )
+        :default( 'info' )
         :description( 'log level' )
   -- LuaFormatter on
 
@@ -198,7 +246,7 @@ local function main()
 
   info( 'starting node manager: %s', machine_label() )
 
-  run()
+  return assert( tonumber( run() ) )
 end
 
 -----------------------------------------------------------------
