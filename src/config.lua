@@ -104,7 +104,7 @@ return harden{
     MAX_WORKERS_PER_TYPE=48, --
     ADVERTISE_INTERVAL_SECS=10,
     EXPIRE_ADVERTISE_SECS=50, --
-    EVICT_CACHE_INTERVAL_SECS=600,
+    EVICT_CACHE_INTERVAL_SECS=43200, -- 12 hours
   },
 
   stats_collector={
