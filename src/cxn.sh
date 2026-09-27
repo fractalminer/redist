@@ -1,10 +1,10 @@
 redist_host() {
-  LUA_PATH="$HOME/dev/?.lua;$LUA_PATH" lua -e 'print( require( "redist.src.config" ).general.HOST )'
+  LUA_PATH="$HOME/dev/?.lua;$LUA_PATH" lua -e 'print( require( "redist.src.config" ).redis.HOST )'
 }
 export -f redist_host
 
 redist_port() {
-  LUA_PATH="$HOME/dev/?.lua;$LUA_PATH" lua -e 'print( require( "redist.src.config" ).general.PORT )'
+  LUA_PATH="$HOME/dev/?.lua;$LUA_PATH" lua -e 'print( require( "redist.src.config" ).redis.PORT )'
 }
 export -f redist_port
 
