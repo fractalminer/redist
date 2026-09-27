@@ -242,6 +242,14 @@ function M.update_node( node )
   return make( key, elems )
 end
 
+function M.log_level( node )
+  local key = '%s:loglevel'
+  local elems = {
+    M.node_ctl( node ), --
+  }
+  return make( key, elems )
+end
+
 -----------------------------------------------------------------
 -- Module..
 -----------------------------------------------------------------

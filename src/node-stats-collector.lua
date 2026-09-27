@@ -2,6 +2,7 @@
 -- Stats collector that runs on a node and collects host stats.
 -----------------------------------------------------------------
 local config = require( 'config' )
+local farm = require( 'farm' )
 local keys = require( 'keys' )
 local network = require( 'network' )
 local ru = require( 'redis-util' )
@@ -17,11 +18,14 @@ local signal = require( 'posix.signal' )
 -----------------------------------------------------------------
 -- Aliases.
 -----------------------------------------------------------------
-local format_table = assert( printer.format_table )
-local info = assert( logger.info )
-local debug = assert( logger.debug )
+local check_log_level = assert( farm.check_log_level )
 local machine_label = assert( network.machine_label )
 local set_hash = assert( ru.set_hash )
+
+local info = assert( logger.info )
+local debug = assert( logger.debug )
+local trace = assert( logger.trace )
+local format_table = assert( printer.format_table )
 local sleep = assert( time.sleep )
 
 -----------------------------------------------------------------
@@ -142,7 +146,7 @@ local function broadcast_stats(cxn, cores_total, cpu_usage,
     mem_total_gb=assert( mem_usage.total_gb ),
     mem_percent_used=assert( mem_usage.percent_used ),
   }
-  debug( 'broadcasting stats: %s', format_table( stats ) )
+  trace( 'broadcasting stats: %s', format_table( stats ) )
   set_hash( cxn, key, stats,
             config.stats_collector.EXPIRE_ADVERTISE_SECS )
 end
@@ -155,9 +159,10 @@ local function run( cxn )
 
   local last_sample, cpu_usage
   while not STOP do
+    check_log_level( cxn ) -- self-throttling.
     local sample = read_cpu_info()
     last_sample = last_sample or sample
-    debug( 'cpu sample: %s', format_table( sample ) )
+    trace( 'cpu sample: %s', format_table( sample ) )
     cpu_usage = cpu_percent_used( last_sample, sample )
     local mem_usage = read_mem_usage()
     broadcast_stats( cxn, sample.cpus, cpu_usage, mem_usage )
@@ -187,6 +192,7 @@ local function main()
   logger.level = level
 
   local cxn<close> = assert( ru.connect() )
+  check_log_level( cxn )
 
   info( 'starting stats collector: %s', machine_label() )
 

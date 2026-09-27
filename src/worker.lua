@@ -39,6 +39,7 @@ local broadcast_worker_presence = assert(
                                       farm.broadcast_worker_presence )
 local cencode = assert( decode.cencode )
 local cleanup = assert( mcleanup.cleanup )
+local check_log_level = assert( farm.check_log_level )
 local cround_trip = assert( decode.cround_trip )
 local debug = assert( logger.debug )
 local download_artifact = assert( farm.download_artifact )
@@ -203,6 +204,7 @@ end
 
 local function periodic( cxn )
   advertise_throttled( cxn )
+  check_log_level( cxn ) -- self-throttling.
   -- Can add more here...
 end
 
@@ -518,8 +520,9 @@ local function main()
 
   local cxn<close> = assert( ru.connect() )
   local l_cxn<close> = assert( ru.connect_local() )
+  check_log_level( cxn )
 
-  info( 'listen: %s', args.listen )
+  debug( 'listen: %s', args.listen )
 
   local _<close> = cleanup( function() unadvertise( cxn ) end )
 

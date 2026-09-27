@@ -9,6 +9,7 @@ local network = require( 'network' )
 local ru = require( 'redis-util' )
 
 local logger = require( 'moon.logger' )
+local printer = require( 'moon.printer' )
 local time = require( 'moon.time' )
 local xdelta = require( 'moon.xdelta' )
 
@@ -24,8 +25,11 @@ local decompress = assert( compression.decompress )
 local set_hash = assert( ru.set_hash )
 
 local debug = assert( logger.debug )
-local timeit = assert( time.timeit_micros )
+local err = assert( logger.err )
 local trace = assert( logger.trace )
+local printfln = assert( printer.printfln )
+local timeit = assert( time.timeit_micros )
+local now_seconds = assert( time.now_seconds )
 
 local format = assert( string.format )
 
@@ -267,6 +271,45 @@ local function remove_worker_presence( cxn, set )
   trace( 'removed presence: %s|%s', key, PID )
 end
 
+local function update_log_level( cxn )
+  trace( 'checking for log level command...' )
+  local key = assert( keys.log_level( machine_label() ) )
+  local new_level = cxn:get( key )
+  if not new_level then return end
+  local value = logger.levels[new_level]
+  if not value then
+    err( 'invalid log level received: %s', new_level )
+    -- We need to remove it here because 1) any other processes
+    -- on this node won't be able to process it either, and 2) we
+    -- don't want to keep trying.
+    cxn:del( key )
+    return
+  end
+  assert( type( value ) == 'number' )
+  local cur_level = assert( logger.level )
+  if value == cur_level then
+    trace( 'log level already at %s', new_level )
+    return
+  end
+  -- Do this with print so that it goes out regardless of what
+  -- the log level currently is.
+  printfln( 'INFO >>> setting log level to %s', new_level )
+  io.flush()
+  logger.level = assert( value )
+  -- NOTE: we do not erase the key from the db here because there
+  -- may be other processes on the host that need to read it.
+end
+
+local LAST_LOG_LEVEL_UPDATE_CHECK = 0
+local function check_log_level( cxn )
+  local now = now_seconds()
+  local next = LAST_LOG_LEVEL_UPDATE_CHECK +
+                   config.general.UPDATE_LOG_LEVEL_INTERVAL_SECS
+  if now < next then return end
+  LAST_LOG_LEVEL_UPDATE_CHECK = now
+  update_log_level( cxn )
+end
+
 -----------------------------------------------------------------
 -- WorkerCount
 -----------------------------------------------------------------
@@ -319,4 +362,5 @@ return {
   broadcast_worker_presence=broadcast_worker_presence,
   remove_worker_presence=remove_worker_presence,
   WorkerCount=WorkerCount.new,
+  check_log_level=check_log_level,
 }

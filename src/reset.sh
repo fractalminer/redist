@@ -15,6 +15,7 @@ del_pattern() {
 
 ./redis-cli.sh PING >/dev/null
 
+del_pattern "farm:nodectl:*"
 del_pattern "farm:blob:*"
 del_pattern "farm:delta:*"
 del_pattern "farm:queue:*"

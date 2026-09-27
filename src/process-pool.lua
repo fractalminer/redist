@@ -149,9 +149,12 @@ end
 function ProcessPool:_reap_pending()
   local reaped_pids = set()
   for pid in self._pending_term_pids do
-    local updated_pid = wait( pid, WNOHANG )
-    if updated_pid and updated_pid > 0 then
-      assert( updated_pid == pid )
+    local res, reason, errno = wait( pid, WNOHANG )
+    self:trace( 'wait(pid=%d): res=%s reason=%s errno=%s', pid,
+                tostring( res ), tostring( reason ),
+                tostring( errno ) )
+    if res and res > 0 then
+      assert( res == pid )
       self:debug( 'reaped pid %d', pid )
       reaped_pids:add( pid )
     end

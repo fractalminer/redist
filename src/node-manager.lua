@@ -13,6 +13,7 @@ local subprocess = require( 'subprocess' )
 local logger = require( 'moon.logger' )
 local mcleanup = require( 'moon.cleanup' )
 local mmath = require( 'moon.math' )
+local printer = require( 'moon.printer' )
 local str = require( 'moon.str' )
 local tbl = require( 'moon.tbl' )
 local time = require( 'moon.time' )
@@ -23,11 +24,12 @@ local signal = require( 'posix.signal' )
 -----------------------------------------------------------------
 -- Aliases.
 -----------------------------------------------------------------
+local check_log_level = assert( farm.check_log_level )
 local LocalCache = assert( lcache.LocalCache )
 local ProcessPool = assert( process_pool.ProcessPool )
-local WorkerCount = assert( farm.WorkerCount )
 local set_hash = assert( ru.set_hash )
 local wait_redis_available = assert( ru.wait_redis_available )
+local WorkerCount = assert( farm.WorkerCount )
 
 local chain = assert( mcleanup.chain )
 local clamp = assert( mmath.clamp )
@@ -39,6 +41,7 @@ local now_seconds = assert( time.now_seconds )
 local on_ordered_kv = assert( tbl.on_ordered_kv )
 local sleep = assert( time.sleep )
 local tcall = assert( time.tcall )
+local section = assert( printer.section )
 
 local concat = assert( table.concat )
 local format = assert( string.format )
@@ -233,6 +236,7 @@ local function run()
   wait_redis_available( should_stop )
 
   local cxn<close> = assert( ru.connect() )
+  check_log_level( cxn )
 
   local _<close> = cleanup(
                        function() unadvertise_node( cxn ) end )
@@ -242,6 +246,7 @@ local function run()
   local lc<close> = LocalCache()
 
   while not should_stop() do
+    check_log_level( cxn ) -- self-throttling.
     advertise_node( cxn )
     evict_cache_throttled( lc )
     check_update( cxn )
@@ -276,6 +281,7 @@ local function main()
   local level = assert( logger.levels[args.verbosity:upper()] )
   logger.level = level
 
+  section( ' Redist Node Manager' )
   info( 'starting node manager: %s', machine_label() )
 
   return assert( tonumber( run() ) )

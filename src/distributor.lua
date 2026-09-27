@@ -3,6 +3,7 @@
 -----------------------------------------------------------------
 local cluster = require( 'cluster' )
 local config = require( 'config' )
+local farm = require( 'farm' )
 local keys = require( 'keys' )
 local ru = require( 'redis-util' )
 
@@ -16,6 +17,7 @@ local signal = require( 'posix.signal' )
 -----------------------------------------------------------------
 -- Aliases.
 -----------------------------------------------------------------
+local check_log_level = assert( farm.check_log_level )
 local distributor_info = assert( cluster.distributor_info )
 
 local debug = assert( logger.debug )
@@ -151,6 +153,7 @@ local function run( cxn )
   assert( cxn )
 
   while not STOP do
+    check_log_level( cxn ) -- self-throttling.
     local hash = cxn:blpop( keys.remote_distributor_queue(),
                             config.distributor
                                 .QUEUE_POLL_TIMEOUT_SECS )
@@ -184,6 +187,7 @@ local function main()
   logger.level = level
 
   local cxn<close> = assert( ru.connect() )
+  check_log_level( cxn )
 
   info( 'starting distributor' )
 
