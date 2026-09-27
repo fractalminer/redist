@@ -1,10 +1,11 @@
 -----------------------------------------------------------------
 -- Dashboard for build farm control/monitoring.
 -----------------------------------------------------------------
-local config = require( 'config' )
-local ru = require( 'redis-util' )
-local farm = require( 'farm' )
 local cluster = require( 'cluster' )
+local config = require( 'config' )
+local farm = require( 'farm' )
+local keys = require( 'keys' )
+local ru = require( 'redis-util' )
 local terminal = require( 'terminal' )
 
 local mcleanup = require( 'moon.cleanup' )
@@ -289,6 +290,13 @@ local function cycle_compact_view()
   g_needs_clear = true
 end
 
+local function restart_node_managers( cxn )
+  for _, node_label in ipairs( g_data.node_ordering ) do
+    local key = keys.update_node( node_label )
+    cxn:set( key, 1 )
+  end
+end
+
 -----------------------------------------------------------------
 -- Socket helpers.
 -----------------------------------------------------------------
@@ -431,6 +439,8 @@ local function update_data( cxn, opts )
     node.target_count = assert( v.target_count )
     node.local_queue_size = assert( v.local_queue_size )
     node.remote_queue_size = assert( v.remote_queue_size )
+    node.update_pending = v.update_pending
+    assert( node.update_pending ~= nil )
     nodes[node_label] = node
   end )
   stats.worker_utilization = percent( stats.active_workers,
@@ -494,7 +504,7 @@ local function text_center( out, y, ... )
   out:clear_to_eol()
 end
 
-function box_T( out, point, width, height, style, t, color )
+local function box_T( out, point, width, height, style, t, color )
   assert( t )
   assert( t.t_top ~= nil )
   assert( t.t_bottom ~= nil )
@@ -604,6 +614,8 @@ local function redraw( out )
   local BOX_COLOR = terminal.gruvbox.yellow
   local STATUS_LINE_COLOR = { r=60, g=82, b=16 }
   local DARK_LABEL = terminal.gruvbox.light4
+  local UPDATE_COLOR = terminal.gruvbox.bright_purple
+  local DARK_GREY = terminal.gruvbox.gray
 
   local y = 0
   local old_x = 2
@@ -850,8 +862,15 @@ local function redraw( out )
     out:text( 'NODE' )
     out:reset()
     text( out, ': %s', node.name )
-    out:fg{ r=0x70, g=0x70, b=0x70 }
+    out:fg( DARK_GREY )
     text( out, ' [%s]', node.from_host )
+    if node.update_pending then
+      text( out, ' [' )
+      out:fg( UPDATE_COLOR ):bold()
+      text( out, 'UPDATING', node.from_host )
+      out:fg( DARK_GREY )
+      text( out, ']' )
+    end
     out:reset()
     advance( 3 )
 
@@ -1078,6 +1097,7 @@ local function loop( cxn, pubsub_cxn, pubsub_msgs )
                                INPUT_STATE.node_label,
                                INPUT_STATE.counter_type )
         if key == 'r' then reset_cached_rendering_data() end
+        if key == 'R' then restart_node_managers( cxn ) end
         update_data( cxn, { force=true } )
         g_last_redraw_time = 0 -- force redraw.
       end

@@ -151,6 +151,8 @@ local function query_cluster_state( cxn, opts )
     node.local_queue_size = cxn:llen( keys.local_queue( name ) )
     node.remote_queue_size = cxn:llen(
                                  keys.remote_host_queue( name ) )
+    node.update_pending = cxn:get( keys.update_node( name ) ) and
+                              true or false
     state.preprocess_queue_size =
         state.preprocess_queue_size + node.local_queue_size
     state.hosts_queue_size = state.hosts_queue_size +
