@@ -44,9 +44,11 @@ return harden{
     ENABLE_LOCAL_REDIS=false,
     PORT_LOCAL=6380,
     -- When we are waiting for the redis DB to be available, how
-    -- many attempts before giving up and how much time in be-
-    -- tween attempts.
-    INITIAL_CONNECT_RETRY_TIMES=60,
+    -- long should we wait before retrying. This should not be
+    -- too short because it is expected that the node manager on
+    -- e.g. darter2 will often be in a state where it cannot con-
+    -- nect to redis, so we don't want it to be doing too much
+    -- spinning in that case.
     INITIAL_CONNECT_WAIT_SECS=10,
   },
 

@@ -109,20 +109,18 @@ local function wait_redis_available( stop_fn )
   stop_fn = stop_fn or function() return false end
   local host = assert( resolve_host() )
   local port = assert( config.redis.PORT )
-  local max_retries = config.redis.INITIAL_CONNECT_RETRY_TIMES
   local delay_secs = config.redis.INITIAL_CONNECT_WAIT_SECS
-  for _ = 1, max_retries do
+  while true do
     if stop_fn() then return end
     local ok, res = pcall( connect_impl, host, port )
     if ok then
       local cxn<close> = res
       debug( 'redis connection available' )
-      return true
+      return
     end
     err( 'cannot connect to redis: %s:%s', host, port )
     sleep( delay_secs )
   end
-  return false
 end
 
 local function set_hash( cxn, key, tbl, expiry )

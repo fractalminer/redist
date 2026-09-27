@@ -222,9 +222,9 @@ end
 -----------------------------------------------------------------
 local function run()
   -- This is so that if the redis DB happens to be down then we
-  -- will just wait a bit for it here before exiting with an
-  -- error so that this process that restart too frequently.
-  if not wait_redis_available( should_stop ) then return 1 end
+  -- will just wait for it here so that we don't keep crash
+  -- looping (in which case systemd will stop starting us).
+  wait_redis_available( should_stop )
 
   local cxn<close> = assert( ru.connect() )
 
