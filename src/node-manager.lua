@@ -196,6 +196,12 @@ local function advertise_node( cxn )
             config.node_manager.EXPIRE_ADVERTISE_SECS )
 end
 
+local function unadvertise_node( cxn )
+  info( 'unadvertising node' )
+  local key = keys.node_manager_advertisement( machine_label() )
+  cxn:del( key )
+end
+
 local function evict_cache_throttled( lc )
   local now = now_seconds()
   if now < LAST_EVICT +
@@ -227,6 +233,9 @@ local function run()
   wait_redis_available( should_stop )
 
   local cxn<close> = assert( ru.connect() )
+
+  local _<close> = cleanup(
+                       function() unadvertise_node( cxn ) end )
 
   local pools<close> = add_pools()
 
