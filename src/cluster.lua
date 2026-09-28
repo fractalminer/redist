@@ -73,8 +73,6 @@ local function query_cluster_state( cxn, opts )
     insert( nodes[node].workers, worker )
     ::continue::
   end
-  state.node_rank =
-      assert( cxn:zrange( keys.node_rank(), 0, -1 ) )
   state.distributor_queue_size = cxn:llen(
                                      keys.remote_distributor_queue() )
   state.preprocess_queue_size = 0
@@ -203,8 +201,6 @@ local function distributor_info( cxn )
     local _, _, node, _ = key:tsplit( ':' )
     nodes[node] = nodes[node] or {}
   end
-  state.node_rank =
-      assert( cxn:zrange( keys.node_rank(), 0, -1 ) )
   local function number( from )
     if not from then return 0 end
     if from == '' then return 0 end

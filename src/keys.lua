@@ -223,8 +223,6 @@ end
 
 function M.distributor_stgy() return M.stgy( 'distributor' ) end
 
-function M.node_rank() return M.node( 'rank' ) end
-
 function M.node_ctl( node )
   local key = '%s:nodectl:%s'
   local elems = {

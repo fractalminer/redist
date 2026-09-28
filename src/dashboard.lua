@@ -337,7 +337,8 @@ local function percent( n, d )
   return n / d
 end
 
-local function get_node_ordering( nodes, node_rank )
+local function get_node_ordering( nodes )
+  local node_rank = config.node_rank
   local all = {}
   for label, _ in pairs( nodes ) do all[label] = true end
   for _, label in ipairs( node_rank ) do all[label] = true end
@@ -378,8 +379,6 @@ local function update_data( cxn, opts )
   g_data = {}
   g_data.query_time_micros = query_time
   g_data.stats = {}
-
-  g_data.node_rank = assert( state.node_rank )
 
   local stats = g_data.stats
 
@@ -457,8 +456,7 @@ local function update_data( cxn, opts )
   stats.local_worker_utilization = percent(
                                        stats.local_active_workers,
                                        stats.local_workers )
-  g_data.node_ordering = get_node_ordering( g_data.nodes,
-                                            g_data.node_rank )
+  g_data.node_ordering = get_node_ordering( g_data.nodes)
 end
 
 -----------------------------------------------------------------
@@ -869,8 +867,8 @@ local function redraw( out )
   -- Nodes.
   if has_nodes then start_box( ' NODES' ) end
   for _, node_label in ipairs( g_data.node_ordering ) do
-    -- This can happen if there are nodes in the ranking in redis
-    -- but which are not online now.
+    -- This can happen if there are nodes in the ranking but
+    -- which are not online now.
     if not g_data.nodes[node_label] then goto continue end
     local node = assert( g_data.nodes[node_label] )
     advance( 3 )

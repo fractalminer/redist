@@ -95,10 +95,9 @@ function Stgy.smart( cxn, hash )
       timeit_micros( distributor_info, cxn )
   debug( 'queried cluster state: %.1f ms', query_time / 1000 )
   assert( state )
-  assert( #state.node_rank > 0, 'node ranks not present.' )
-  for _, node_label in ipairs( state.node_rank ) do
-    -- This can happen if there are nodes in the ranking in redis
-    -- but which are not online now.
+  for _, node_label in ipairs( config.node_rank ) do
+    -- This can happen if there are nodes in the ranking but
+    -- which are not online now.
     if not state.nodes[node_label] then goto continue end
     local node = assert( state.nodes[node_label] )
     local active_workers = assert( node.active_worker_count )
