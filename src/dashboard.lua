@@ -652,6 +652,12 @@ local function redraw( out )
     y = y + 1
     move{ x=x, y=y }
   end
+  local function advance_x( w )
+    local x = old_x + w
+    old_x = x
+    y = y + 0
+    move{ x=x, y=y }
+  end
   local function center( ... ) text_center( out, y, ... ) end
   local function textln( ... )
     text( out, ... )
@@ -752,7 +758,7 @@ local function redraw( out )
     center( '(core utilization)' )
     out:reset()
     advance()
-    advance()
+    if compact() < 3 then advance() end
     move{ x=3 }
     worker_progress_bar( COLS - 6,
                          g_data.stats.remote_worker_utilization )
@@ -760,7 +766,7 @@ local function redraw( out )
     center( '(r-worker utilization)' )
     out:reset()
     advance()
-    advance()
+    if compact() < 3 then advance() end
     move{ x=3 }
     worker_progress_bar( COLS - 6,
                          g_data.stats.local_worker_utilization )
@@ -805,31 +811,33 @@ local function redraw( out )
   end
 
   -- Queues.
-  start_box( 'QUEUES' )
-  advance()
-  move{ x=COLS // 2 - 31 }
-  out:fg( DARK_LABEL )
-  text( out, 'preprocess: ' )
-  out:reset()
-  textwmove( 6, g_data.stats.preprocess_queue_size )
-  out:fg( DARK_LABEL )
-  text( out, 'distributor: ' )
-  out:reset()
-  textwmove( 6, g_data.stats.distributor_queue_size )
-  out:fg( DARK_LABEL )
-  text( out, 'compile: ' )
-  out:reset()
-  textwmove( 6, g_data.stats.compile_queue_size )
-  out:fg( DARK_LABEL )
-  text( out, 'hosts: ' )
-  out:reset()
-  textwmove( 6, g_data.stats.hosts_queue_size )
-  advance()
-  advance()
-  if has_nodes then
-    finish_box{ t_top=true, t_bottom=true }
-  else
-    finish_box{ t_top=true, t_bottom=false }
+  if compact() < 3 then
+    start_box( 'QUEUES' )
+    advance()
+    move{ x=COLS // 2 - 31 }
+    out:fg( DARK_LABEL )
+    text( out, 'preprocess: ' )
+    out:reset()
+    textwmove( 6, g_data.stats.preprocess_queue_size )
+    out:fg( DARK_LABEL )
+    text( out, 'distributor: ' )
+    out:reset()
+    textwmove( 6, g_data.stats.distributor_queue_size )
+    out:fg( DARK_LABEL )
+    text( out, 'compile: ' )
+    out:reset()
+    textwmove( 6, g_data.stats.compile_queue_size )
+    out:fg( DARK_LABEL )
+    text( out, 'hosts: ' )
+    out:reset()
+    textwmove( 6, g_data.stats.hosts_queue_size )
+    advance()
+    advance()
+    if has_nodes then
+      finish_box{ t_top=true, t_bottom=true }
+    else
+      finish_box{ t_top=true, t_bottom=false }
+    end
   end
 
   if false then
@@ -865,12 +873,12 @@ local function redraw( out )
 
   -- Nodes.
   if has_nodes then start_box( ' NODES' ) end
-  for _, node_label in ipairs( g_data.node_ordering ) do
+  for i, node_label in ipairs( g_data.node_ordering ) do
     -- This can happen if there are nodes in the ranking but
     -- which are not online now.
     if not g_data.nodes[node_label] then goto continue end
     local node = assert( g_data.nodes[node_label] )
-    advance( 3 )
+    if compact() < 3 or i == 1 then advance( 3 ) end
     out:fg( SUB_TITLE_COLOR )
     if compact() < 1 then
       out:hline( { x=3, y=y }, COLS - 5 )
@@ -879,6 +887,7 @@ local function redraw( out )
                  terminal.box_chars.rounded.tr )
       advance( 4 )
     end
+    move{ x=4 }
     out:reset()
     out:fg( SUB_TITLE_COLOR )
     out:text( 'NODE' )
@@ -895,30 +904,38 @@ local function redraw( out )
     end
     out:clear_to_eol()
     out:reset()
-    advance( 3 )
+    if compact() < 3 then advance( 3 ) end
 
     local smoothed_cpu = advance_cpu( node_label,
                                       node.core_utilization )
     advance( 4 )
+    advance_x( 1 )
     out:fg( LABEL_COLOR )
-    text( out, 'cpu:    ' )
+    text( out, 'cpu: ' )
+    if compact() < 1 then
+      text( out, '   ' )
+    elseif compact() < 2 then
+      text( out, '  ' )
+    elseif compact() < 3 then
+      text( out, ' ' )
+    end
     out:reset()
     cpu_progress_bar( COLS - 16, smoothed_cpu )
     if compact() < 1 then
-      move{ x=4 }
+      move{ x=5 }
       out:fg( LABEL_COLOR )
       text( out, 'worker: ' )
       out:reset()
       worker_progress_bar( COLS - 16,
                            node.remote_worker_utilization )
-      move{ x=4 }
+      move{ x=5 }
       if node.local_workers > 0 then
         out:fg( LABEL_COLOR )
         text( out, 'local:  ' )
         out:reset()
         local_worker_progress_bar( COLS - 16,
                                    node.local_worker_utilization )
-        move{ x=4 }
+        move{ x=5 }
       end
     end
     -- Most of the time we don't care about memory... we only
@@ -992,7 +1009,7 @@ local function redraw( out )
       end
     end
     if compact() < 2 then
-      advance()
+      if compact() < 1 then advance() end
       out:fg( DARK_LABEL )
       text( out, 'core   usage: ' )
       out:reset()
