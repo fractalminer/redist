@@ -288,7 +288,7 @@ end
 
 local function cycle_compact_view()
   g_compact_view = g_compact_view + 1
-  g_compact_view = g_compact_view % 3
+  g_compact_view = g_compact_view % 4
   g_needs_clear = true
 end
 
@@ -872,12 +872,14 @@ local function redraw( out )
     local node = assert( g_data.nodes[node_label] )
     advance( 3 )
     out:fg( SUB_TITLE_COLOR )
-    out:hline( { x=3, y=y }, COLS - 5 )
-    out:hline( { x=2, y=y }, 1, terminal.box_chars.rounded.tl )
-    out:hline( { x=COLS - 3, y=y }, 1,
-               terminal.box_chars.rounded.tr )
+    if compact() < 1 then
+      out:hline( { x=3, y=y }, COLS - 5 )
+      out:hline( { x=2, y=y }, 1, terminal.box_chars.rounded.tl )
+      out:hline( { x=COLS - 3, y=y }, 1,
+                 terminal.box_chars.rounded.tr )
+      advance( 4 )
+    end
     out:reset()
-    advance( 4 )
     out:fg( SUB_TITLE_COLOR )
     out:text( 'NODE' )
     out:reset()
@@ -902,7 +904,7 @@ local function redraw( out )
     text( out, 'cpu:    ' )
     out:reset()
     cpu_progress_bar( COLS - 16, smoothed_cpu )
-    if compact() < 2 then
+    if compact() < 1 then
       move{ x=4 }
       out:fg( LABEL_COLOR )
       text( out, 'worker: ' )
@@ -924,7 +926,7 @@ local function redraw( out )
     if g_show_node_mem_histerisis[node.name] == nil then
       g_show_node_mem_histerisis[node.name] = false
     end
-    if compact() < 1 then
+    if compact() < 2 then
       if not g_show_node_mem_histerisis[node.name] and
           node.mem_utilization > .8 then
         g_show_node_mem_histerisis[node.name] = true
@@ -989,7 +991,7 @@ local function redraw( out )
         out:text( ' ' )
       end
     end
-    if compact() < 1 then
+    if compact() < 2 then
       advance()
       out:fg( DARK_LABEL )
       text( out, 'core   usage: ' )
