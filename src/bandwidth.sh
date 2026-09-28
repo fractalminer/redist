@@ -1,15 +1,18 @@
 #!/bin/bash
 set -euo pipefail
 
-HOST="${HOST:-127.0.0.1}"
-PORT="${PORT:-6379}"
+this_dir="$(dirname "$0")"
+cd "$this_dir"
+
+source cxn.sh
+
 SIZE_MIB="${SIZE_MIB:-50}"
 KEY="bandwidth-test-$$"
 
 BYTES=$((SIZE_MIB * 1024 * 1024))
 
 cleanup() {
-  redis-cli -h "$HOST" -p "$PORT" DEL "$KEY" >/dev/null 2>&1 || true
+  redis-cli DEL "$KEY" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
 
@@ -34,7 +37,6 @@ report() {
     }'
 }
 
-echo "Redis: ${HOST}:${PORT}"
 echo "Size:  ${SIZE_MIB} MiB"
 echo
 
@@ -42,7 +44,7 @@ echo "Testing upload (SET)..."
 start=$(date +%s.%N)
 
 head -c "$BYTES" /dev/zero |
-  redis-cli -h "$HOST" -p "$PORT" -x SET "$KEY" >/dev/null
+  redis-cli -x SET "$KEY" >/dev/null
 
 end=$(date +%s.%N)
 upload_seconds=$(elapsed "$start" "$end")
@@ -50,11 +52,11 @@ upload_seconds=$(elapsed "$start" "$end")
 echo "Testing download (GET)..."
 start=$(date +%s.%N)
 
-redis-cli -h "$HOST" -p "$PORT" --raw GET "$KEY" >/dev/null
+redis-cli --raw GET "$KEY" >/dev/null
 
 end=$(date +%s.%N)
 download_seconds=$(elapsed "$start" "$end")
 
 echo
-report "Upload:"   "$upload_seconds"
-report "Download:" "$download_seconds"
+report "Upload:   " "$upload_seconds"
+report "Download: " "$download_seconds"
