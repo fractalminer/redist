@@ -456,7 +456,7 @@ local function update_data( cxn, opts )
   stats.local_worker_utilization = percent(
                                        stats.local_active_workers,
                                        stats.local_workers )
-  g_data.node_ordering = get_node_ordering( g_data.nodes)
+  g_data.node_ordering = get_node_ordering( g_data.nodes )
 end
 
 -----------------------------------------------------------------
@@ -768,38 +768,37 @@ local function redraw( out )
     center( '(l-worker utilization)' )
     out:reset()
     advance()
-    advance()
     out:clear_line()
-    move{ x=COLS // 2 - 8 }
+
+    advance()
+    move{ x=COLS // 2 - 37 }
     out:fg( DARK_LABEL )
     text( out, 'cores: ' )
     out:reset()
-    textwmove( 3, '%3d', floor( g_data.stats.active_cores ) )
-    textwmove( 5, '/%s', g_data.stats.cores )
+    text( out, '%3d', floor( g_data.stats.active_cores ) )
+    text( out, '/%s', g_data.stats.cores )
     text( out, ' (%.1f%%)', g_data.stats.core_utilization * 100 )
-    advance()
-    out:clear_line()
-    move{ x=COLS // 2 - 12 }
+
+    text( out, '  ' )
     out:fg( DARK_LABEL )
     text( out, 'r-workers: ' )
     out:reset()
-    textwmove( 3, '%3s', g_data.stats.active_workers -
-                   g_data.stats.local_active_workers )
-    textwmove( 5, '/%s', g_data.stats.total_workers -
-                   g_data.stats.local_workers )
+    text( out, '%3s', g_data.stats.active_workers -
+              g_data.stats.local_active_workers )
+    text( out, '/%s', g_data.stats.total_workers -
+              g_data.stats.local_workers )
     text( out, ' (%.1f%%)',
           g_data.stats.remote_worker_utilization * 100 )
-    advance()
-    out:clear_line()
-    move{ x=COLS // 2 - 12 }
+
+    text( out, '  ' )
     out:fg( DARK_LABEL )
     text( out, 'l-workers: ' )
     out:reset()
-    out:reset()
-    textwmove( 3, '%3s', g_data.stats.local_active_workers )
-    textwmove( 5, '/%s', g_data.stats.local_workers )
+    text( out, '%3s', g_data.stats.local_active_workers )
+    text( out, '/%s', g_data.stats.local_workers )
     text( out, ' (%.1f%%)',
           g_data.stats.local_worker_utilization * 100 )
+    out:reset()
     advance()
     advance()
     finish_box{ t_top=true, t_bottom=true }
