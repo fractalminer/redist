@@ -981,17 +981,28 @@ local function redraw( out )
         g_needs_clear = true
       end
       if g_show_node_mem_histerisis[node.name] then
-        move{ x=4 }
+        move{ x=5 }
         out:fg( LABEL_COLOR )
         if node.mem_utilization > .8 then
           out:bold()
-          text( out, 'mem(!!):' )
+          if compact() < 1 then
+            text( out, 'mem(!!):' )
+          elseif compact() < 2 then
+            text( out, 'mem(!):' )
+          else
+            text( out, 'mem!:' )
+          end
           out:reset()
         else
-          text( out, 'mem:    ' )
+          text( out, 'mem: ' )
+          if compact() < 1 then
+            text( out, '   ' )
+          elseif compact() < 2 then
+            text( out, '  ' )
+          end
         end
         mem_progress_bar( COLS - 16, node.mem_utilization )
-        move{ x=4 }
+        move{ x=5 }
       end
     end
 
