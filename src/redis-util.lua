@@ -58,8 +58,14 @@ local function connect_impl( host, port )
     error( format( 'redis server at %s:%s is not reachable.',
                    host, port ) )
   end
-  local cxn = assert( redis.connect( host, port ) )
-  assert( cxn:ping(), 'unable to ping redis server' )
+  local cxn = assert( redis.connect{
+    host=host,
+    port=port,
+    -- Disables buffering. On by default when not specified, but
+    -- we have it here since it may be worth trying to turn it
+    -- off when we are latency bound.
+    tcp_nodelay=true,
+  } )
   return setmetatable( {}, {
     __index=cxn,
     __close=function( self )
