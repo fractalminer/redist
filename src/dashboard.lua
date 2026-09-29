@@ -42,6 +42,11 @@ local min = assert( math.min )
 local abs = assert( math.abs )
 
 -----------------------------------------------------------------
+-- Constants.
+-----------------------------------------------------------------
+local NUM_COMPACT_LEVELS = 5
+
+-----------------------------------------------------------------
 -- Globals.
 -----------------------------------------------------------------
 str.enable_string_injections()
@@ -288,8 +293,27 @@ end
 
 local function cycle_compact_view()
   g_compact_view = g_compact_view + 1
-  g_compact_view = g_compact_view % 4
+  g_compact_view = g_compact_view % NUM_COMPACT_LEVELS
   g_needs_clear = true
+end
+
+local function recompute_compact_level( rows )
+  local old = g_compact_view
+  if rows >= 91 then
+    g_compact_view = 0
+  elseif rows >= 69 then
+    g_compact_view = 1
+  elseif rows >= 54 then
+    g_compact_view = 2
+  elseif rows >= 34 then
+    g_compact_view = 3
+  elseif rows >= 20 then
+    g_compact_view = 4
+  else
+    g_compact_view = NUM_COMPACT_LEVELS - 1
+  end
+  g_compact_view = g_compact_view % NUM_COMPACT_LEVELS
+  if g_compact_view ~= old then g_needs_clear = true end
 end
 
 local function restart_node_managers( cxn )
@@ -589,6 +613,7 @@ local function redraw( out )
     g_needs_clear = true
     g_last_term_size.rows = ROWS
     g_last_term_size.cols = COLS
+    recompute_compact_level( ROWS )
   end
 
   if COLS < 80 then
@@ -743,11 +768,13 @@ local function redraw( out )
 
   local has_nodes = next( g_data.nodes ) ~= nil
 
-  start_box( 'ReDist Build Farm Dashboard' )
-  finish_box{ t_top=false, t_bottom=true }
+  if compact() < 4 then
+    start_box( 'ReDist Build Farm Dashboard' )
+    finish_box{ t_top=false, t_bottom=true }
+  end
 
   -- Cluster.
-  if has_nodes then
+  if has_nodes and compact() < 4 then
     start_box( 'CLUSTER' )
     advance()
     move{ x=3 }
@@ -777,7 +804,7 @@ local function redraw( out )
     out:clear_line()
 
     advance()
-    move{ x=COLS // 2 - 37 }
+    move{ x=COLS // 2 - 34 }
     out:fg( DARK_LABEL )
     text( out, 'cores: ' )
     out:reset()
@@ -787,7 +814,7 @@ local function redraw( out )
 
     text( out, '  ' )
     out:fg( DARK_LABEL )
-    text( out, 'r-workers: ' )
+    text( out, 'r-work: ' )
     out:reset()
     text( out, '%3s', g_data.stats.active_workers -
               g_data.stats.local_active_workers )
@@ -798,7 +825,7 @@ local function redraw( out )
 
     text( out, '  ' )
     out:fg( DARK_LABEL )
-    text( out, 'l-workers: ' )
+    text( out, 'l-work: ' )
     out:reset()
     text( out, '%3s', g_data.stats.local_active_workers )
     text( out, '/%s', g_data.stats.local_workers )
