@@ -48,15 +48,17 @@ end
 local function connect_impl( host, port )
   assert( host )
   assert( port )
-  -- Test if the server is reachable first because then otherwise
-  -- redis.connect can hang for a long period of time, and we
-  -- don't want to put a timeout on its underlying socket because
-  -- we generally want to be able to block on it while waiting to
-  -- read data from redis.
-  if not tcp_reachable( host, port,
-                        config.redis.CONNECT_TIMEOUT_SECS ) then
-    error( format( 'redis server at %s:%s is not reachable.',
-                   host, port ) )
+  if config.redis.CONNECT_TIMEOUT_SECS > 0 then
+    -- Test if the server is reachable first because then other-
+    -- wise redis.connect can hang for a long period of time, and
+    -- we don't want to put a timeout on its underlying socket
+    -- because we generally want to be able to block on it while
+    -- waiting to read data from redis.
+    if not tcp_reachable( host, port,
+                          config.redis.CONNECT_TIMEOUT_SECS ) then
+      error( format( 'redis server at %s:%s is not reachable.',
+                     host, port ) )
+    end
   end
   local cxn = assert( redis.connect{
     host=host,

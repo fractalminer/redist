@@ -60,7 +60,14 @@ return harden{
       IP='192.168.1.214',
     },
     PORT=6379,
-    CONNECT_TIMEOUT_SECS=10,
+    -- Making this non-zero enables a TCP-reachability check be-
+    -- fore each connection is initiated so that we can put a
+    -- timeout on the connection (to prevent hanging when redis
+    -- is not reachable) without putting a timeout on the socket
+    -- (which would have other consequences). It is off by de-
+    -- fault because it requires an additional ping to the server
+    -- on each connection, which can be taxing for builders.
+    CONNECT_TIMEOUT_SECS=0,
     -- This will enable using a local redis for data that never
     -- needs to be read by a remote worker, to reduce latency.
     -- Note that it is a different port so that it doesn't con-
