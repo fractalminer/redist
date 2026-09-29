@@ -944,7 +944,7 @@ local function redraw( out )
     elseif compact() < 2 then
       text( out, '  ' )
     elseif compact() < 3 then
-      text( out, ' ' )
+      text( out, '' )
     end
     out:reset()
     cpu_progress_bar( COLS - 16, smoothed_cpu )
