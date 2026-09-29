@@ -74,7 +74,7 @@ end
 --   * boolean indicating whether we are running on the same host
 --     as the redis server or not.
 local function resolve_host()
-  local host = assert( config.redis.HOST )
+  local host = assert( config.redis.host.NAME )
   if host == 'tunnel' then
     return '127.0.0.1', false
   elseif host == hostname() then
@@ -85,7 +85,8 @@ local function resolve_host()
     -- back. And it should work in other cases as well.
     return '127.0.0.1', true
   else
-    return host, false
+    local ip = assert( config.redis.host.IP )
+    return ip, false
   end
 end
 
