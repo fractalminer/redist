@@ -43,13 +43,21 @@ return harden{
   },
 
   redis={
-    -- This must be either a hostname or "tunnel". The reason we
-    -- need this is because unfortunately it is tricky to reli-
-    -- ably distinguish a situation where 127.0.0.1 refers to a
-    -- redis that is running locally vs one that is tunneled in.
     host={
-      NAME='thelio', --
-      IP='192.168.1.214', --
+      -- This must be either a hostname or "tunnel". The reason
+      -- we need that is because unfortunately it is tricky to
+      -- reliably distinguish a situation where 127.0.0.1 refers
+      -- to a redis that is running locally vs one that is tun-
+      -- neled in.
+      --
+      -- We need both the name and the IP because when we connect
+      -- we want to use the IP directly because somehow it is a
+      -- lot faster, while we want the hostname so that we can
+      -- easily detect if we are running on the same host as the
+      -- redis server so that the node manager knows to run the
+      -- distributor.
+      NAME='thelio',
+      IP='192.168.1.214',
     },
     PORT=6379,
     CONNECT_TIMEOUT_SECS=10,
