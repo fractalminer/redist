@@ -47,7 +47,7 @@ return harden{
     -- need this is because unfortunately it is tricky to reli-
     -- ably distinguish a situation where 127.0.0.1 refers to a
     -- redis that is running locally vs one that is tunneled in.
-    HOST='thelio',
+    HOST='192.168.1.214',
     PORT=6379,
     CONNECT_TIMEOUT_SECS=10,
     -- This will enable using a local redis for data that never

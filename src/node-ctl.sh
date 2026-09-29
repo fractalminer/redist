@@ -73,6 +73,7 @@ get_hostname_and_id() {
   id="${BASH_REMATCH[2]}"
   [[ -n "$hostname" ]] || die 'empty hostname'
   [[ -n "$id" ]] || die 'empty id'
+  hostname="$hostname.local"
 }
 
 bar() {
