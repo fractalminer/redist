@@ -94,7 +94,7 @@ return harden{
     USE_F_REWRITE_INCLUDES=false,
     -- Every n secs we'll check redis for a command to update the
     -- log level.
-    UPDATE_LOG_LEVEL_INTERVAL_SECS=60,
+    UPDATE_LOG_LEVEL_INTERVAL_SECS=30,
   },
 
   local_cache={
