@@ -26,6 +26,7 @@ local set_hash = assert( ru.set_hash )
 
 local debug = assert( logger.debug )
 local err = assert( logger.err )
+local warn = assert( logger.warn )
 local trace = assert( logger.trace )
 local printfln = assert( printer.printfln )
 local timeit = assert( time.timeit_micros )
@@ -339,6 +340,25 @@ function WorkerCount.new( cxn, node, label )
   return setmetatable( o, WorkerCount )
 end
 
+local function reset_task_input_and_output( cxn )
+  local function del( key )
+    assert( key )
+    warn( 'deleting keys: %s', key )
+    cxn:del( key )
+  end
+  local function del_all( key )
+    assert( key )
+    del( key .. ':*' )
+  end
+  del( keys.node_ctl( '*' ) )
+  del( keys.blob( '*' ) )
+  del( keys.delta( '*' ) )
+  del( keys.task( '*' ) )
+  del_all( keys.queue() )
+  del_all( keys.events() )
+  return true
+end
+
 -----------------------------------------------------------------
 -- Module.
 -----------------------------------------------------------------
@@ -359,4 +379,5 @@ return {
   remove_worker_presence=remove_worker_presence,
   WorkerCount=WorkerCount.new,
   check_log_level=check_log_level,
+  reset_task_input_and_output=reset_task_input_and_output,
 }

@@ -10,8 +10,6 @@ TODO:
     processed output, perhaps we want to adapt the compression
     level according to the upload bandwidth they have to the
     redis server, if that can be measured reliably.
-  * Move the reset.sh script into lua and have the central node
-    manager perform it in response to a redis command.
   * Node Manager:
     * Should keep track of the number of unexpected worker
       deaths.
