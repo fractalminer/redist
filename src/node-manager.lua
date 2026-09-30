@@ -191,12 +191,12 @@ local function adjust_pool_count( cxn, pool, conf )
 end
 
 local function advertise_node( cxn )
-  local key = keys.node_manager_advertisement( machine_label() )
+  local key, ex = keys.node_manager_advertisement(
+                      machine_label() )
   local sock = assert( cxn.network.socket )
   local ip, port, _ = sock:getsockname()
   local o = { ip=ip, port=port }
-  set_hash( cxn, key, o,
-            config.node_manager.EXPIRE_ADVERTISE_SECS )
+  set_hash( cxn, key, o, ex )
 end
 
 local function unadvertise_node( cxn )

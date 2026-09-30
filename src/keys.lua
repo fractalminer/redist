@@ -3,9 +3,13 @@
 -----------------------------------------------------------------
 local M = {}
 
+local config = require( 'config' )
+
 -----------------------------------------------------------------
 -- Aliases.
 -----------------------------------------------------------------
+local expire = assert( config.expire )
+
 local unpack = assert( table.unpack )
 
 local NS = 'farm'
@@ -39,7 +43,7 @@ function M.remote_queue( which )
     M.queue(), --
     assert( which ), --
   }
-  return make( key, elems )
+  return make( key, elems ), expire.TASKS
 end
 
 function M.remote_global_queue()
@@ -65,7 +69,7 @@ function M.local_queue( label )
     M.queue(), --
     assert( label ), --
   }
-  return make( key, elems )
+  return make( key, elems ), expire.TASKS
 end
 
 function M.workers()
@@ -83,7 +87,7 @@ function M.worker_advertisement( label, pid )
     assert( label ), --
     assert( pid ), --
   }
-  return make( key, elems )
+  return make( key, elems ), expire.WORKER_ADVERTISE_SECS
 end
 
 function M.nodes()
@@ -108,7 +112,7 @@ function M.node_stats( label )
   local elems = {
     M.node( label ), --
   }
-  return make( key, elems )
+  return make( key, elems ), expire.NODE_MANAGER_ADVERTISE_SECS
 end
 
 function M.node_manager_advertisement( label )
@@ -116,7 +120,7 @@ function M.node_manager_advertisement( label )
   local elems = {
     M.node( label ), --
   }
-  return make( key, elems )
+  return make( key, elems ), expire.NODE_MANAGER_ADVERTISE_SECS
 end
 
 function M.task( hash )
@@ -133,7 +137,7 @@ function M.task_input( hash )
   local elems = {
     M.task( hash ), --
   }
-  return make( key, elems )
+  return make( key, elems ), expire.TASKS
 end
 
 function M.task_output( hash )
@@ -200,7 +204,7 @@ function M.worker_presence_set( node, set )
     M.node( node ), --
     assert( set ), --
   }
-  return make( key, elems )
+  return make( key, elems ), expire.WORKER_ADVERTISE_SECS
 end
 
 function M.node_worker_target_count( node, label )

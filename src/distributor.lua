@@ -116,6 +116,8 @@ function Stgy.smart( cxn, hash )
                                      .STGY_SMART_OVERFILL )
     if have < want then
       assert( remote_workers > 0 )
+      -- NOTE: no expiry here to avoid another hit to the redis
+      -- server. Ideally it'd be config.expire.TASKS.
       push_queue( cxn, keys.remote_host_queue( node_label ), hash )
       debug( 'distributed task %s to %s: %s<%s', hash,
              node_label:split( '-' )[1], have, want )

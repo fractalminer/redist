@@ -97,6 +97,15 @@ return harden{
     UPDATE_LOG_LEVEL_INTERVAL_SECS=30,
   },
 
+  expire={
+    WORKER_ADVERTISE_SECS=15,
+    NODE_MANAGER_ADVERTISE_SECS=50, --
+    -- For things associated with task processing, e.g. task in-
+    -- put, task queues, etc. But not task output; those are
+    -- cached.
+    TASKS=3600,
+  },
+
   local_cache={
     LOCATION=REDIST( 'cache/cache.db' ),
     MAX_SIZE_BYTES=48 * 1024 * 1024 * 1024,
@@ -105,15 +114,12 @@ return harden{
   worker={
     QUEUE_POLL_TIMEOUT_SECS=5,
     ADVERTISE_INTERVAL_SECS=10,
-    EXPIRE_ADVERTISE_SECS=15,
     POPEN_POLL_TIMEOUT_MILLIS=1000,
     POPEN_TIMEOUT_SECS=600,
     SEND_PREPROCESSED_DELTAS=true,
   },
 
   builder={
-    EXPIRE_LOCAL_TASK=3600,
-    EXPIRE_REMOTE_TASK=3600,
     REMOTE_FLAGS={
       ADD={
         CLANG={
@@ -138,7 +144,6 @@ return harden{
   node_manager={
     MAX_WORKERS_PER_TYPE=48, --
     ADVERTISE_INTERVAL_SECS=10,
-    EXPIRE_ADVERTISE_SECS=50, --
     EVICT_CACHE_INTERVAL_SECS=43200, -- 12 hours
   },
 

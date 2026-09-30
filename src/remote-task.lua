@@ -30,8 +30,8 @@ local function post_task( cxn, hash, params )
   assert( params )
   assert( type( params ) == 'table' )
   assert( params.os )
-  local key = keys.task_input( hash )
-  set_hash( cxn, key, params, config.builder.EXPIRE_REMOTE_TASK )
+  local key, ex = keys.task_input( hash )
+  set_hash( cxn, key, params, ex )
 end
 
 local function queue_task( cxn, hash )

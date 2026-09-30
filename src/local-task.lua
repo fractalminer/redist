@@ -39,8 +39,8 @@ local function post_task( cxn, hash, params )
   assert( params.command )
   assert( params.description )
   if params.cwd then assert( #params.cwd > 0 ) end
-  local key = keys.task_input( hash )
-  set_hash( cxn, key, params, config.builder.EXPIRE_LOCAL_TASK )
+  local key, ex = keys.task_input( hash )
+  set_hash( cxn, key, params, ex )
 end
 
 local function queue_task( cxn, hash )
@@ -49,6 +49,8 @@ local function queue_task( cxn, hash )
   -- Push on the right, then the worker pops from the left to
   -- create a FIFO (queue).
   cxn:rpush( key, hash )
+  -- NOTE: no expiry here to avoid another hit to the redis
+  -- server. Ideally it'd be config.expire.TASKS.
 end
 
 local function output_of( cxn, hash )

@@ -139,7 +139,7 @@ end
 
 local function broadcast_stats(cxn, cores_total, cpu_usage,
                                mem_usage )
-  local key = keys.node_stats( machine_label() )
+  local key, ex = keys.node_stats( machine_label() )
   local stats = {
     cores_total=assert( cores_total ),
     cores_percent_used=assert( cpu_usage.percent_used ),
@@ -147,8 +147,7 @@ local function broadcast_stats(cxn, cores_total, cpu_usage,
     mem_percent_used=assert( mem_usage.percent_used ),
   }
   trace( 'broadcasting stats: %s', format_table( stats ) )
-  set_hash( cxn, key, stats,
-            config.stats_collector.EXPIRE_ADVERTISE_SECS )
+  set_hash( cxn, key, stats, ex )
 end
 
 -----------------------------------------------------------------

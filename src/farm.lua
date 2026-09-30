@@ -34,11 +34,6 @@ local now_seconds = assert( time.now_seconds )
 local format = assert( string.format )
 
 -----------------------------------------------------------------
--- Config Fields.
------------------------------------------------------------------
-local EXPIRE_ADVERTISE_SECS = config.worker.EXPIRE_ADVERTISE_SECS
-
------------------------------------------------------------------
 -- Globals.
 -----------------------------------------------------------------
 local PID<const> = assert( posix.getpid().pid )
@@ -258,9 +253,10 @@ local function download_artifact( cxn, artifact )
 end
 
 local function broadcast_worker_presence( cxn, set )
-  local key = keys.worker_presence_set( machine_label(), set )
+  local key, ex =
+      keys.worker_presence_set( machine_label(), set )
   assert( cxn:sadd( key, PID ) )
-  cxn:expire( key, EXPIRE_ADVERTISE_SECS )
+  cxn:expire( key, ex )
   trace( 'added presence: %s|%s', key, PID )
 end
 

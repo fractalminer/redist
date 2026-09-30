@@ -180,7 +180,8 @@ local function advertise( cxn )
     remove_worker_presence( cxn, 'workers_active' )
     remove_worker_presence( cxn, 'workers_active_local' )
   end
-  local key = keys.worker_advertisement( machine_label(), PID )
+  local key, ex =
+      keys.worker_advertisement( machine_label(), PID )
   local sock = assert( cxn.network.socket )
   local ip, port, _ = sock:getsockname()
   local worker = {
@@ -192,7 +193,7 @@ local function advertise( cxn )
   }
   trace( 'advertising %s:%s: %s', machine_label(), PID,
          format_table( worker ) )
-  set_hash( cxn, key, worker, config.worker.EXPIRE_ADVERTISE_SECS )
+  set_hash( cxn, key, worker, ex )
 end
 
 local function advertise_throttled( cxn )
