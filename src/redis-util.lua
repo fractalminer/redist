@@ -24,7 +24,7 @@ local sleep = assert( time.sleep )
 local insert = assert( table.insert )
 local unpack = assert( table.unpack )
 local format = assert( string.format )
-local traceback = assert( debug.traceback )
+local traceback = assert( require( 'debug' ).traceback )
 
 -----------------------------------------------------------------
 -- Methods.

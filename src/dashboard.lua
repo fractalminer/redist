@@ -29,6 +29,7 @@ local clamp = assert( mmath.clamp )
 local cleanup = assert( mcleanup.cleanup )
 local now_millis = assert( time.now_millis )
 local now_micros = assert( time.now_micros )
+local now_seconds = assert( time.now_seconds )
 local on_ordered_kv = assert( tbl.on_ordered_kv )
 local timeit_micros = assert( time.timeit_micros )
 
@@ -53,6 +54,7 @@ str.enable_string_injections()
 
 local g_last_update_time = 0
 local g_last_redraw_time = 0
+local g_last_active_time = 0
 
 local g_status = ''
 local g_sub_status = ''
@@ -481,6 +483,9 @@ local function update_data( cxn, opts )
                                        stats.local_active_workers,
                                        stats.local_workers )
   g_data.node_ordering = get_node_ordering( g_data.nodes )
+  if stats.active_workers > 0 then
+    g_last_active_time = now_seconds()
+  end
 end
 
 -----------------------------------------------------------------
@@ -1134,14 +1139,21 @@ local function loop( cxn, pubsub_cxn, pubsub_msgs )
     update_data( cxn )
     redraw( out )
     g_loops = g_loops + 1
-    local input = assert(
-                      next_event( pubsub_cxn, config.dashboard
-                                      .POLL_TIMEOUT_SECS ) )
+    local delay = (function()
+      if now_seconds() - g_last_active_time >
+          config.dashboard.INACTIVITY_TIMEOUT_SECS then
+        return config.dashboard.INACTIVE_POLL_TIMEOUT_SECS
+      else
+        return config.dashboard.ACTIVE_POLL_TIMEOUT_SECS
+      end
+    end)()
+    local input = assert( next_event( pubsub_cxn, delay ) )
     if input.keyboard then
       assert( terminal.read_input() )
       while terminal.has_input() do
         local key = terminal.getkey()
         if not key then break end
+        g_last_active_time = now_seconds()
         if key == 'q' then return true end
         g_status = 'key=' .. key
         g_events = g_events + 1
@@ -1172,6 +1184,7 @@ local function loop( cxn, pubsub_cxn, pubsub_msgs )
       end
     end
     if input.redis then
+      g_last_active_time = now_seconds()
       pubsub_msgs()
       g_status = 'redis message'
       g_events = g_events + 1

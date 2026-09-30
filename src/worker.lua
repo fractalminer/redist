@@ -31,7 +31,7 @@ local argparse = require( 'argparse' )
 local posix = require( 'posix' )
 local signal = require( 'posix.signal' )
 
-local traceback = assert( debug.traceback )
+local traceback = assert( require( 'debug' ).traceback )
 
 -----------------------------------------------------------------
 -- Aliases.

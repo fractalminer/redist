@@ -154,8 +154,12 @@ return harden{
   },
 
   dashboard={
-    -- 60 fps
-    POLL_TIMEOUT_SECS=.01666,
+    -- Sleep time in each main loop iteration. If there are no
+    -- active workers for INACTIVITY_TIMEOUT_SECS then it will
+    -- fall to the inactive timeout, otherwise the active one.
+    ACTIVE_POLL_TIMEOUT_SECS=.01666, -- 60 fps
+    INACTIVE_POLL_TIMEOUT_SECS=2.0,
+    INACTIVITY_TIMEOUT_SECS=60,
     REDIS_UPDATE_INTERVAL_MILLIS=16.66,
     REDRAW_INTERVAL_MILLIS=16.66,
   },
