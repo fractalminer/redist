@@ -40,8 +40,8 @@ local function query_cluster_state( cxn, opts )
   -- but not a manager running (sometimes done during local test-
   -- ing) the node will still get picked up when iterating
   -- through the workers below.
-  local node_keys = cxn:keys(
-                        keys.node_manager_advertisement( '*' ) )
+  local node_keys = cxn:keys( (keys.node_manager_advertisement(
+                                  '*' )) )
   sort( node_keys )
   for _, key in ipairs( node_keys ) do
     local _, _, node, _, _ = key:tsplit( ':' )
@@ -50,8 +50,8 @@ local function query_cluster_state( cxn, opts )
   end
 
   -- Now get all workers.
-  local worker_keys = cxn:keys( keys.worker_advertisement( '*',
-                                                           '*' ) )
+  local worker_keys = cxn:keys( (keys.worker_advertisement( '*',
+                                                            '*' )) )
   sort( worker_keys )
   for _, key in ipairs( worker_keys ) do
     local _, _, node, pid = key:tsplit( ':' )
@@ -74,7 +74,7 @@ local function query_cluster_state( cxn, opts )
     ::continue::
   end
   state.distributor_queue_size = cxn:llen(
-                                     keys.remote_distributor_queue() )
+                                     (keys.remote_distributor_queue()) )
   state.preprocess_queue_size = 0
   state.hosts_queue_size = 0
   state.mem_total_gb = 0
@@ -83,8 +83,8 @@ local function query_cluster_state( cxn, opts )
   state.core_count = 0
   state.active_core_count = 0
   state.cores_percent_used = 0
-  state.compile_queue_size =
-      cxn:llen( keys.remote_global_queue() )
+  state.compile_queue_size = cxn:llen(
+                                 (keys.remote_global_queue()) )
   state.active_worker_count = 0
   state.local_active_worker_count = 0
   state.worker_count = 0
@@ -96,7 +96,7 @@ local function query_cluster_state( cxn, opts )
     return assert( num, format( 'invalid number: "%s"', from ) )
   end
   for name, node in pairs( nodes ) do
-    local node_stats = cxn:hgetall( keys.node_stats( name ) )
+    local node_stats = cxn:hgetall( (keys.node_stats( name )) )
     node_stats = node_stats or {}
     node_stats.cores_total = node_stats.cores_total or 1
     node_stats.cores_percent_used =
@@ -146,9 +146,10 @@ local function query_cluster_state( cxn, opts )
     node.target_count['local'] = local_target_count
     node.target_count.both = both_target_count
 
-    node.local_queue_size = cxn:llen( keys.local_queue( name ) )
+    node.local_queue_size =
+        cxn:llen( (keys.local_queue( name )) )
     node.remote_queue_size = cxn:llen(
-                                 keys.remote_host_queue( name ) )
+                                 (keys.remote_host_queue( name )) )
     node.update_pending = cxn:get( keys.update_node( name ) ) and
                               true or false
     state.preprocess_queue_size =
@@ -185,8 +186,8 @@ local function distributor_info( cxn )
   -- Get the list of nodes from two places: node advertisement
   -- and worker advertisement. That way we get nodes that have no
   -- workers and nodes with workers but no node manager.
-  local node_keys = cxn:keys(
-                        keys.node_manager_advertisement( '*' ) )
+  local node_keys = cxn:keys( (keys.node_manager_advertisement(
+                                  '*' )) )
   sort( node_keys )
   for _, key in ipairs( node_keys ) do
     local _, _, node, _, _ = key:tsplit( ':' )
@@ -194,8 +195,8 @@ local function distributor_info( cxn )
   end
 
   -- Now get all workers.
-  local worker_keys = cxn:keys( keys.worker_advertisement( '*',
-                                                           '*' ) )
+  local worker_keys = cxn:keys( (keys.worker_advertisement( '*',
+                                                            '*' )) )
   sort( worker_keys )
   for _, key in ipairs( worker_keys ) do
     local _, _, node, _ = key:tsplit( ':' )
@@ -208,7 +209,7 @@ local function distributor_info( cxn )
     return assert( num, format( 'invalid number: "%s"', from ) )
   end
   for name, node in pairs( nodes ) do
-    local node_stats = cxn:hgetall( keys.node_stats( name ) )
+    local node_stats = cxn:hgetall( (keys.node_stats( name )) )
     node_stats = node_stats or {}
     local function get_count( label )
       local key = keys.worker_presence_set( name, label )
@@ -220,7 +221,7 @@ local function distributor_info( cxn )
     node.local_active_worker_count = get_count(
                                          'workers_active_local' )
     node.remote_queue_size = cxn:llen(
-                                 keys.remote_host_queue( name ) )
+                                 (keys.remote_host_queue( name )) )
   end
   return state
 end
