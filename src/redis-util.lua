@@ -24,6 +24,7 @@ local sleep = assert( time.sleep )
 local insert = assert( table.insert )
 local unpack = assert( table.unpack )
 local format = assert( string.format )
+local traceback = assert( debug.traceback )
 
 -----------------------------------------------------------------
 -- Methods.
@@ -121,13 +122,14 @@ local function wait_redis_available( stop_fn )
   local delay_secs = config.redis.INITIAL_CONNECT_WAIT_SECS
   while true do
     if stop_fn() then return end
-    local ok, res = pcall( connect_impl, host, port )
+    local ok, res = xpcall( connect_impl, traceback, host, port )
     if ok then
       local cxn<close> = res
       debug( 'redis connection available' )
       return
     end
-    err( 'cannot connect to redis: %s:%s', host, port )
+    err( 'cannot connect to redis [%s:%s]: %s', host, port,
+         tostring( res ) )
     sleep( delay_secs )
   end
 end
@@ -154,13 +156,14 @@ local function redis_script( source )
       debug( 'reloading script...' )
       sha = cxn:script( 'load', source )
     end
-    local ok, res = pcall( cxn.evalsha, cxn, sha, nkeys, ... )
+    local ok, res = xpcall( cxn.evalsha, traceback, cxn, sha,
+                            nkeys, ... )
     if ok then return res end
     if tostring( res ):find( 'NOSCRIPT', 1, true ) then
       sha = cxn:script( 'load', source )
       return cxn:evalsha( sha, nkeys, ... )
     end
-    error( res )
+    error( tostring( res ) )
   end
 end
 

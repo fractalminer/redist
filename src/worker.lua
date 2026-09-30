@@ -31,6 +31,8 @@ local argparse = require( 'argparse' )
 local posix = require( 'posix' )
 local signal = require( 'posix.signal' )
 
+local traceback = assert( debug.traceback )
+
 -----------------------------------------------------------------
 -- Aliases.
 -----------------------------------------------------------------
@@ -401,7 +403,8 @@ local function process_task(cxn_main, cxn_task, lc, task,
   advertise( cxn_main )
   -- Publish after we increment the active count.
   publish( cxn_task, task_hash, 'started' )
-  local ok, result = pcall( perform, cxn_task, task_hash )
+  local ok, result = xpcall( perform, traceback, cxn_task,
+                             task_hash )
   advertise( cxn_main )
   if ok then
     set_result( cxn_main, cxn_task, lc, task_hash, result )

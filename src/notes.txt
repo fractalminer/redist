@@ -10,8 +10,6 @@ TODO:
     processed output, perhaps we want to adapt the compression
     level according to the upload bandwidth they have to the
     redis server, if that can be measured reliably.
-  * Make sure to use xpcall( ..., debug.traceback ) to get a
-    traceback instead of regular pcall.
   * Need to set TTLs properly on all the keys.
     - When pushing to the queue log, set the expiry on the list.
   * Node Manager:
