@@ -202,13 +202,15 @@ node_manager_service_status() {
 node_manager_command_update() {
   [[ -n "$hostname" ]] || die 'hostname not set'
   [[ -n "$id" ]] || die 'id not set'
-  ./redis-cli.sh set "farm:nodectl:$hostname-$id:update" 1
+  local name="${hostname//.local}"
+  ./redis-cli.sh set "farm:nodectl:$name-$id:update" 1
 }
 
 node_manager_command_level() {
   local level="$1"
   [[ -n "$level" ]] || die 'level not set'
-  ./redis-cli.sh set "farm:nodectl:$hostname-$id:loglevel" "$level"
+  local name="${hostname//.local}"
+  ./redis-cli.sh set "farm:nodectl:$name-$id:loglevel" "$level"
 }
 
 node_host_power_on() {
