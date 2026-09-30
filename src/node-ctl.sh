@@ -141,7 +141,7 @@ get_action() {
     "Node Manager REDIS CMD")
       actions=(
         "update"
-        "level"
+        "log level"
       )
       get_input_single "$title" "${actions[@]}"
       [[ -z "$selected" ]] && exit 1
@@ -149,7 +149,7 @@ get_action() {
       case "$action" in
         update)
           ;;
-        level)
+        "log level")
           levels=(OFF ERROR WARNING INFO DEBUG TRACE)
           get_input_single "CHOOSE LEVEL" "${levels[@]}"
           [[ -z "$selected" ]] && exit 1
@@ -251,7 +251,7 @@ execute() {
     "Node Manager REDIS CMD>update")
       node_manager_command_update
       ;;
-    "Node Manager REDIS CMD>level")
+    "Node Manager REDIS CMD>log level")
       node_manager_command_level "$extra"
       ;;
     "Node Host>Power ON")
