@@ -341,21 +341,20 @@ function WorkerCount.new( cxn, node, label )
 end
 
 local function reset_task_input_and_output( cxn )
-  local function del( key )
-    assert( key )
-    warn( 'deleting keys: %s', key )
-    cxn:del( key )
-  end
-  local function del_all( key )
-    assert( key )
-    del( key .. ':*' )
+  local function del( pattern )
+    assert( pattern )
+    assert( pattern:find( '*' ) )
+    warn( 'deleting keys: %s', pattern )
+    for _, key in ipairs( cxn:keys( pattern ) ) do
+      cxn:del( key )
+    end
   end
   del( keys.node_ctl( '*' ) )
   del( keys.blob( '*' ) )
   del( keys.delta( '*' ) )
   del( keys.task( '*' ) )
-  del_all( keys.queue() )
-  del_all( keys.events() )
+  del( keys.queue() .. ':*' )
+  del( keys.events() .. ':*' )
   return true
 end
 
