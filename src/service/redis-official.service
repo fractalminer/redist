@@ -1,0 +1,11 @@
+[Unit]
+Description=Redis Server
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/redis-server %h/dev/redist/conf/redis-official.conf
+Restart=always
+RestartSec=1
+
+[Install]
+WantedBy=default.target

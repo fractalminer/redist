@@ -4,9 +4,10 @@ set -eo pipefail
 this_dir="$(dirname "$0")"
 cd "$this_dir"
 
-svc=node-manager
+echo 'NOTE: this should only be run on the permanent redis host.'
+exit 1  # remove to run.
 
-mkdir -p "../cache/"
+svc=redis-official
 
 user_services=~/.config/systemd/user
 mkdir -p "$user_services"
