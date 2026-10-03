@@ -27,6 +27,8 @@ local signal = require( 'posix.signal' )
 local check_log_level = assert( farm.check_log_level )
 local LocalCache = assert( lcache.LocalCache )
 local ProcessPool = assert( process_pool.ProcessPool )
+local remove_worker_presence = assert(
+                                   farm.remove_worker_presence )
 local set_hash = assert( ru.set_hash )
 local wait_redis_available = assert( ru.wait_redis_available )
 local WorkerCount = assert( farm.WorkerCount )
@@ -36,6 +38,8 @@ local clamp = assert( mmath.clamp )
 local cleanup = assert( mcleanup.cleanup )
 local execute = assert( subprocess.execute )
 local info = assert( logger.info )
+local err = assert( logger.err )
+local warn = assert( logger.warn )
 local machine_label = assert( network.machine_label )
 local now_seconds = assert( time.now_seconds )
 local on_ordered_kv = assert( tbl.on_ordered_kv )
@@ -81,6 +85,11 @@ end
 
 handle_stop_signal( SIGINT )
 handle_stop_signal( SIGTERM )
+
+local function pid_exists( pid )
+  local ok, _, _ = signal.kill( pid, 0 )
+  return ok ~= nil
+end
 
 -----------------------------------------------------------------
 -- Process Pools.
@@ -226,6 +235,54 @@ local function check_update( cxn )
   end
 end
 
+local function remove_stale_worker_pids( cxn )
+  local presence_sets = {
+    'workers_active', --
+    'workers_active_local', --
+    'workers_count', --
+    'workers_local', --
+  }
+  for _, ps in ipairs( presence_sets ) do
+    local key = keys.worker_presence_set( machine_label(), ps )
+    for _, pid in ipairs( cxn:smembers( key ) ) do
+      if not pid_exists( tonumber( pid ) ) then
+        warn( 'removing stale pid %s from %s presence set', pid,
+              ps )
+        remove_worker_presence( cxn, ps, tonumber( pid ) )
+      end
+    end
+  end
+end
+
+local function reset_node_worker_deaths( cxn )
+  local key_count = keys.node_worker_deaths( machine_label() )
+  cxn:del( key_count )
+end
+
+local function update_unexpected_deaths( cxn, pool )
+  local died = assert( pool:pids_newly_died() )
+  local died_count = assert( died:size() )
+  if died_count == 0 then return end
+  local key_count = keys.node_worker_deaths( machine_label() )
+  for pid in died do
+    err( 'unexpected worker death: parent_pid=%s', pid )
+    -- This number will be shown on the dashboard.
+    cxn:incr( key_count )
+  end
+  -- Just in case the worker died without unadvertising itself we
+  -- need to remove them from the worker presence sets. Unfortu-
+  -- nately we can't rely on expiries for that because individual
+  -- set elements don't expire in redis.
+  --
+  -- NOTE: unfortunately, the PIDs in the `died` set are the pids
+  -- of the wrapper shell scripts run-worker.sh and not the PIDs
+  -- of the workers themselves, thus we can't remove them di-
+  -- rectly from the worker presence sets in redis since they
+  -- won't be in there. So instead we have to iterate over all
+  -- the PIDs in those sets to check if they are still alive.
+  remove_stale_worker_pids( cxn )
+end
+
 -----------------------------------------------------------------
 -- Implementation.
 -----------------------------------------------------------------
@@ -237,6 +294,8 @@ local function run()
 
   local cxn<close> = assert( ru.connect() )
   check_log_level( cxn )
+
+  reset_node_worker_deaths( cxn )
 
   local _<close> = cleanup(
                        function() unadvertise_node( cxn ) end )
@@ -257,6 +316,7 @@ local function run()
       pool:log_pids()
       adjust_pool_count( cxn, pool, conf )
       pool:advance()
+      update_unexpected_deaths( cxn, pool )
     end )
     sleep( config.node_manager.ADVERTISE_INTERVAL_SECS )
   end

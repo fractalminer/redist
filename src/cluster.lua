@@ -83,6 +83,7 @@ local function query_cluster_state( cxn, opts )
   state.core_count = 0
   state.active_core_count = 0
   state.cores_percent_used = 0
+  state.worker_deaths = 0
   state.compile_queue_size = cxn:llen(
                                  (keys.remote_global_queue()) )
   state.active_worker_count = 0
@@ -156,6 +157,11 @@ local function query_cluster_state( cxn, opts )
         state.preprocess_queue_size + node.local_queue_size
     state.hosts_queue_size = state.hosts_queue_size +
                                  node.remote_queue_size
+    node.worker_deaths = tonumber( cxn:get(
+                                       (keys.node_worker_deaths(
+                                           name )) ) ) or 0
+    state.worker_deaths = state.worker_deaths +
+                              node.worker_deaths
   end
   if state.core_count > 0 then
     state.cores_percent_used = state.active_core_count /

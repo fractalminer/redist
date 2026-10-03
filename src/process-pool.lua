@@ -141,6 +141,7 @@ function ProcessPool:_check_running()
       killpg( pid, signal.SIGTERM )
       self:err( 'child exited unexpectedly: pid=%d', pid )
       reaped_pids:add( pid )
+      self._died_unexpectedly_pids:add( pid )
     end
   end
   self._running_pids:subtract( reaped_pids )
@@ -211,6 +212,12 @@ function ProcessPool:_seek_target()
   end
 end
 
+function ProcessPool:pids_newly_died()
+  local died = self._died_unexpectedly_pids
+  self._died_unexpectedly_pids = set()
+  return died
+end
+
 function ProcessPool:advance()
   self:_check_running()
   self:_reap_pending()
@@ -226,6 +233,7 @@ function ProcessPool.new( opts )
     _target=opts.target or 0,
     _running_pids=set(),
     _pending_term_pids=set(),
+    _died_unexpectedly_pids=set(),
   }
   return setmetatable( o, {
     __newindex=function()

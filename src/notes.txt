@@ -2,9 +2,6 @@
 TODO:
 -----------------------------------------------------------------
   * Need to switch to Fios. 5Gig plan.  $100/mo.
-  * Record the number of failed workers and show it on the dash-
-    board so that we can confirm the reason for the stuck tasks
-    when they happen.
   * Need to find a way to handle ENABLE_LOCAL_REDIS in a way that
     is automated but doesn't enable it on nodes that we're not
     building on.

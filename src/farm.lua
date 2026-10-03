@@ -261,11 +261,12 @@ local function broadcast_worker_presence( cxn, set )
   trace( 'added presence: %s|%s', key, PID )
 end
 
-local function remove_worker_presence( cxn, set )
+local function remove_worker_presence( cxn, set, pid )
+  pid = pid or PID
   local key = keys.worker_presence_set( machine_label(), set )
   -- Don't assert here just in case the set no longer exists.
-  cxn:srem( key, PID )
-  trace( 'removed presence: %s|%s', key, PID )
+  cxn:srem( key, pid )
+  trace( 'removed presence: %s|%s', key, pid )
 end
 
 local function update_log_level( cxn )
@@ -355,6 +356,7 @@ local function reset_task_input_and_output( cxn )
   del( keys.task( '*' ) )
   del( keys.queue() .. ':*' )
   del( keys.events() .. ':*' )
+  del( keys.node_worker_deaths( '*' ) )
   return true
 end
 

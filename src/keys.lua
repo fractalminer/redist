@@ -123,6 +123,18 @@ function M.node_manager_advertisement( label )
   return make( key, elems ), expire.NODE_MANAGER_ADVERTISE_SECS
 end
 
+function M.node_worker_deaths( label )
+  local key = '%s:workerdeaths:node:%s'
+  local elems = {
+    M.ns(), --
+    label, --
+  }
+  -- Use the TASKS expiration because a worker death is likely
+  -- only happens due to a build (i.e. they don't just randomly
+  -- die when idle; if they do then something else is wrong).
+  return make( key, elems ), expire.TASKS
+end
+
 function M.task( hash )
   local key = '%s:task:%s'
   local elems = {

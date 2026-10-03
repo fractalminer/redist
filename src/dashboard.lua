@@ -430,6 +430,7 @@ local function update_data( cxn, opts )
   stats.total_workers = assert( state.worker_count )
   stats.local_workers = assert( state.local_worker_count )
   stats.active_workers = assert( state.active_worker_count )
+  stats.worker_deaths = assert( state.worker_deaths )
 
   g_data.nodes = {}
   local nodes = g_data.nodes
@@ -455,6 +456,7 @@ local function update_data( cxn, opts )
                                     v.local_active_worker_count )
     node.worker_utilization = percent( node.active_workers,
                                        node.total_workers )
+    node.worker_deaths = assert( v.worker_deaths )
     node.remote_active_workers =
         node.active_workers - node.local_active_workers
     node.remote_worker_utilization = percent(
@@ -667,6 +669,7 @@ local function redraw( out )
   local DARK_LABEL = terminal.gruvbox.light4
   local UPDATE_COLOR = terminal.gruvbox.bright_purple
   local DARK_GREY = terminal.gruvbox.gray
+  local ERROR_COLOR = { r=255, g=0, b=0 }
 
   local y = 0
   local old_x = 2
@@ -928,6 +931,14 @@ local function redraw( out )
     text( out, ': %s', node.name )
     out:fg( DARK_GREY )
     text( out, ' [%s]', node.from_host )
+    if node.worker_deaths > 0 then
+      text( out, ' [' )
+      out:fg( ERROR_COLOR ):bold()
+      text( out, '%s %s', terminal.symbol.cross,
+            node.worker_deaths )
+      out:fg( DARK_GREY )
+      text( out, ']' )
+    end
     if node.update_pending then
       text( out, ' [' )
       out:fg( UPDATE_COLOR ):bold()
