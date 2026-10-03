@@ -10,6 +10,7 @@ local ru = require( 'redis-util' )
 
 local logger = require( 'moon.logger' )
 local printer = require( 'moon.printer' )
+local str = require( 'moon.str' )
 local time = require( 'moon.time' )
 local xdelta = require( 'moon.xdelta' )
 
@@ -31,6 +32,7 @@ local trace = assert( logger.trace )
 local printfln = assert( printer.printfln )
 local timeit = assert( time.timeit_micros )
 local now_seconds = assert( time.now_seconds )
+local unwords = assert( str.unwords )
 
 local format = assert( string.format )
 
@@ -346,8 +348,20 @@ local function reset_task_input_and_output( cxn )
     assert( pattern )
     assert( pattern:find( '*' ) )
     warn( 'deleting keys: %s', pattern )
-    for _, key in ipairs( cxn:keys( pattern ) ) do
-      cxn:del( key )
+    -- Delete in groups otherwise too slow.
+    while true do
+      local all = cxn:keys( pattern )
+      assert( type( all ) == 'table' )
+      if #all == 0 then return end
+      local some = {}
+      for i = 1, 1000 do
+        if all[i] then
+          some[i] = all[i]
+        else
+          break
+        end
+      end
+      cxn:raw_cmd( format( 'del %s', unwords( some ) ) )
     end
   end
   del( keys.node_ctl( '*' ) )
