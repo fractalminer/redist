@@ -2,6 +2,9 @@
 TODO:
 -----------------------------------------------------------------
   * Need to switch to Fios. 5Gig plan.  $100/mo.
+  * Record the number of failed workers and show it on the dash-
+    board so that we can confirm the reason for the stuck tasks
+    when they happen.
   * Move the subprocess code into moon.
   * Rename the node stats collector node telemetry.
   * For the local workers, when they are uploading their pre-
