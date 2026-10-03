@@ -837,6 +837,7 @@ local function redraw( out )
     text( out, ' (%.1f%%)',
           g_data.stats.local_worker_utilization * 100 )
     out:reset()
+    out:clear_line()
     advance()
     advance()
     finish_box{ t_top=true, t_bottom=true }
