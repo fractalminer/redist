@@ -2,21 +2,11 @@
 TODO:
 -----------------------------------------------------------------
   * Need to switch to Fios. 5Gig plan.  $100/mo.
-  * Dashboard:
-    * Try to have the cluster downloader pull in all of its info
-      in a remote lua function so that it only needs one trip.
-      Low priority.
+  * Move the subprocess code into moon.
   * For the local workers, when they are uploading their pre-
     processed output, perhaps we want to adapt the compression
     level according to the upload bandwidth they have to the
     redis server, if that can be measured reliably.
-  * Node Manager:
-    * Should keep track of the number of unexpected worker
-      deaths.
-    * Make sure the wait/sleep times on the node manager and
-      worker are long enough so that no significant cpu is used
-      when the node is idle.
-  * Move the subprocess code into moon.
   * In the case where latency to the redis server really matters
     (i.e. we are external) then we can alleviate some associated
     performance issues by using a local redis instance for the
@@ -26,26 +16,7 @@ TODO:
       - In a pipeline which apparently will send all the commands
         in one packet (a transaction may not do this).
       - In a redis lua script.
-  * Multiplexing:
-    - There will be multiple channels to the redis server.
-    - Workers should have an id and we should multiplex based
-      on bandwidth in each channel.
   * Distributor:
-    - Periodically the Distributor will check all the node spe-
-      cific queues and grab their pids from the task objects and
-      then check the worker advertisement to see if that pid is
-      still alive and, if not, it will reclaim the task (just
-      putting it back into the global queue). When it does that
-      it will increase a counter on the task object so that it
-      doesn't do too many retries in case there is something
-      wrong with the task itself that is causing the worker to
-      die. In the event that the retry count is exceeded then it
-      will fail the task by creating the output with a failed
-      status code, that way the message will appear to the
-      builder. Initially, we can set the retry count at zero so
-      that we can get a better sense of worker deaths.
-      - Note that this shouldn't be handled by the node manager
-        since the node manager goes away if the entire node dies.
     - Each time a compile finishes (maybe on one reference plat-
       form) a sorted set with the compile time can be maintained.
       Then, the distributor can look at that to determine if the
@@ -54,6 +25,27 @@ TODO:
       the front of that host's queue so that it gets run ASAP.
       That way we ensure that a slow box never gets stuck han-
       dling a heavy TU.
+
+LOW PRIORITY:
+-----------------------------------------------------------------
+  - Periodically the Distributor will check all the node spe-
+    cific queues and grab their pids from the task objects and
+    then check the worker advertisement to see if that pid is
+    still alive and, if not, it will reclaim the task (just
+    putting it back into the global queue). When it does that
+    it will increase a counter on the task object so that it
+    doesn't do too many retries in case there is something
+    wrong with the task itself that is causing the worker to
+    die. In the event that the retry count is exceeded then it
+    will fail the task by creating the output with a failed
+    status code, that way the message will appear to the
+    builder. Initially, we can set the retry count at zero so
+    that we can get a better sense of worker deaths.
+    [EDIT: I don't think this would work because if a worker
+    dies with a task then it has already removed that task from
+    the node specific queue].
+    - Note that this shouldn't be handled by the node manager
+      since the node manager goes away if the entire node dies.
   * Worker Death:
     * Currently there are a few ways a worker can fail, and in
       most cases, the worker will be able to communicate the
@@ -84,3 +76,11 @@ TODO:
       been exceeded, it can put it back onto the front of the
       global queue so it gets retried. But that seems like it is
       not worth the effort since this doesn't seem to happen.
+  * Multiplexing:
+    - There will be multiple channels to the redis server.
+    - Workers should have an id and we should multiplex based
+      on bandwidth in each channel.
+  * Dashboard:
+    * Try to have the cluster downloader pull in all of its info
+      in a remote lua function so that it only needs one trip.
+      Low priority.
