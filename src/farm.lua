@@ -381,18 +381,11 @@ local function reset_task_input_and_output( cxn )
 end
 
 local function is_fast_node()
-  trace( 'is_fast_node: %s', machine_label() )
   local total_nodes = #config.nodes.node_rank
-  trace( 'total_nodes: %d', total_nodes )
   for i = 1, min( config.nodes.fast_nodes, total_nodes ) do
     local node = config.nodes.node_rank[i]
-    trace( 'i=%d, node=%s', i, node )
-    if node == machine_label() then
-      trace( '  => fast' )
-      return true
-    end
+    if node == machine_label() then return true end
   end
-  trace( '  => not fast' )
   return false
 end
 
