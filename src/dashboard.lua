@@ -45,7 +45,7 @@ local abs = assert( math.abs )
 -----------------------------------------------------------------
 -- Constants.
 -----------------------------------------------------------------
-local NUM_COMPACT_LEVELS = 5
+local NUM_COMPACT_LEVELS = 6
 
 -----------------------------------------------------------------
 -- Globals.
@@ -311,6 +311,8 @@ local function recompute_compact_level( rows )
     g_compact_view = 3
   elseif rows >= 20 then
     g_compact_view = 4
+  elseif rows >= 15 then
+    g_compact_view = 5
   else
     g_compact_view = NUM_COMPACT_LEVELS - 1
   end
@@ -782,7 +784,7 @@ local function redraw( out )
   end
 
   -- Cluster.
-  if has_nodes and compact() < 4 then
+  if has_nodes and (compact() < 4 or compact() == 5) then
     start_box( 'CLUSTER' )
     advance()
     move{ x=3 }
@@ -843,7 +845,11 @@ local function redraw( out )
     out:reset()
     advance()
     advance()
-    finish_box{ t_top=true, t_bottom=true }
+    if compact() == 5 then
+      finish_box{ t_top=true, t_bottom=false }
+    else
+      finish_box{ t_top=true, t_bottom=true }
+    end
   end
 
   -- Queues.
@@ -908,205 +914,210 @@ local function redraw( out )
   end
 
   -- Nodes.
-  if has_nodes then start_box( ' NODES' ) end
-  for i, node_label in ipairs( g_data.node_ordering ) do
-    -- This can happen if there are nodes in the ranking but
-    -- which are not online now.
-    if not g_data.nodes[node_label] then goto continue end
-    local node = assert( g_data.nodes[node_label] )
-    if compact() < 3 or i == 1 then advance( 3 ) end
-    out:fg( SUB_TITLE_COLOR )
-    if compact() < 1 then
-      out:hline( { x=3, y=y }, COLS - 5 )
-      out:hline( { x=2, y=y }, 1, terminal.box_chars.rounded.tl )
-      out:hline( { x=COLS - 3, y=y }, 1,
-                 terminal.box_chars.rounded.tr )
-      advance( 4 )
-    end
-    move{ x=4 }
-    out:reset()
-    out:fg( SUB_TITLE_COLOR )
-    out:text( 'NODE' )
-    out:reset()
-    text( out, ': %s', node.name )
-    out:fg( DARK_GREY )
-    text( out, ' [%s]', node.from_host )
-    if node.worker_deaths > 0 then
-      text( out, ' [' )
-      out:fg( ERROR_COLOR ):bold()
-      text( out, '%s %s', terminal.symbol.cross,
-            node.worker_deaths )
-      out:fg( DARK_GREY )
-      text( out, ']' )
-    end
-    if node.update_pending then
-      text( out, ' [' )
-      out:fg( UPDATE_COLOR ):bold()
-      text( out, 'UPDATING', node.from_host )
-      out:fg( DARK_GREY )
-      text( out, ']' )
-    end
-    out:clear_to_eol()
-    out:reset()
-    if compact() < 3 then advance( 3 ) end
-
-    local smoothed_cpu = advance_cpu( node_label,
-                                      node.core_utilization )
-    advance( 4 )
-    advance_x( 1 )
-    out:fg( LABEL_COLOR )
-    text( out, 'cpu: ' )
-    if compact() < 1 then
-      text( out, '   ' )
-    elseif compact() < 2 then
-      text( out, '  ' )
-    elseif compact() < 3 then
-      text( out, '' )
-    end
-    out:reset()
-    cpu_progress_bar( COLS - 16, smoothed_cpu )
-    if compact() < 1 then
-      move{ x=5 }
-      out:fg( LABEL_COLOR )
-      text( out, 'worker: ' )
+  if compact() < 5 then
+    if has_nodes then start_box( ' NODES' ) end
+    for i, node_label in ipairs( g_data.node_ordering ) do
+      -- This can happen if there are nodes in the ranking but
+      -- which are not online now.
+      if not g_data.nodes[node_label] then goto continue end
+      local node = assert( g_data.nodes[node_label] )
+      if compact() < 3 or i == 1 then advance( 3 ) end
+      out:fg( SUB_TITLE_COLOR )
+      if compact() < 1 then
+        out:hline( { x=3, y=y }, COLS - 5 )
+        out:hline( { x=2, y=y }, 1, terminal.box_chars.rounded.tl )
+        out:hline( { x=COLS - 3, y=y }, 1,
+                   terminal.box_chars.rounded.tr )
+        advance( 4 )
+      end
+      move{ x=4 }
       out:reset()
-      worker_progress_bar( COLS - 16,
-                           node.remote_worker_utilization )
-      move{ x=5 }
-      if node.local_workers > 0 then
+      out:fg( SUB_TITLE_COLOR )
+      out:text( 'NODE' )
+      out:reset()
+      text( out, ': %s', node.name )
+      out:fg( DARK_GREY )
+      text( out, ' [%s]', node.from_host )
+      if node.worker_deaths > 0 then
+        text( out, ' [' )
+        out:fg( ERROR_COLOR ):bold()
+        text( out, '%s %s', terminal.symbol.cross,
+              node.worker_deaths )
+        out:fg( DARK_GREY )
+        text( out, ']' )
+      end
+      if node.update_pending then
+        text( out, ' [' )
+        out:fg( UPDATE_COLOR ):bold()
+        text( out, 'UPDATING', node.from_host )
+        out:fg( DARK_GREY )
+        text( out, ']' )
+      end
+      out:clear_to_eol()
+      out:reset()
+      if compact() < 3 then advance( 3 ) end
+
+      local smoothed_cpu = advance_cpu( node_label,
+                                        node.core_utilization )
+      advance( 4 )
+      advance_x( 1 )
+      out:fg( LABEL_COLOR )
+      text( out, 'cpu: ' )
+      if compact() < 1 then
+        text( out, '   ' )
+      elseif compact() < 2 then
+        text( out, '  ' )
+      elseif compact() < 3 then
+        text( out, '' )
+      end
+      out:reset()
+      cpu_progress_bar( COLS - 16, smoothed_cpu )
+      if compact() < 1 then
+        move{ x=5 }
         out:fg( LABEL_COLOR )
-        text( out, 'local:  ' )
+        text( out, 'worker: ' )
         out:reset()
-        local_worker_progress_bar( COLS - 16,
-                                   node.local_worker_utilization )
+        worker_progress_bar( COLS - 16,
+                             node.remote_worker_utilization )
         move{ x=5 }
+        if node.local_workers > 0 then
+          out:fg( LABEL_COLOR )
+          text( out, 'local:  ' )
+          out:reset()
+          local_worker_progress_bar( COLS - 16,
+                                     node.local_worker_utilization )
+          move{ x=5 }
+        end
       end
-    end
-    -- Most of the time we don't care about memory... we only
-    -- care about it if it goes too high.
-    if g_show_node_mem_histerisis[node.name] == nil then
-      g_show_node_mem_histerisis[node.name] = false
-    end
-    if compact() < 2 then
-      if not g_show_node_mem_histerisis[node.name] and
-          node.mem_utilization > .8 then
-        g_show_node_mem_histerisis[node.name] = true
-        g_needs_clear = true
-      elseif g_show_node_mem_histerisis[node.name] and
-          node.mem_utilization < .6 then
+      -- Most of the time we don't care about memory... we only
+      -- care about it if it goes too high.
+      if g_show_node_mem_histerisis[node.name] == nil then
         g_show_node_mem_histerisis[node.name] = false
-        g_needs_clear = true
       end
-      if g_show_node_mem_histerisis[node.name] then
-        move{ x=5 }
-        out:fg( LABEL_COLOR )
-        if node.mem_utilization > .8 then
-          out:bold()
-          if compact() < 1 then
-            text( out, 'mem(!!):' )
-          elseif compact() < 2 then
-            text( out, 'mem(!):' )
+      if compact() < 2 then
+        if not g_show_node_mem_histerisis[node.name] and
+            node.mem_utilization > .8 then
+          g_show_node_mem_histerisis[node.name] = true
+          g_needs_clear = true
+        elseif g_show_node_mem_histerisis[node.name] and
+            node.mem_utilization < .6 then
+          g_show_node_mem_histerisis[node.name] = false
+          g_needs_clear = true
+        end
+        if g_show_node_mem_histerisis[node.name] then
+          move{ x=5 }
+          out:fg( LABEL_COLOR )
+          if node.mem_utilization > .8 then
+            out:bold()
+            if compact() < 1 then
+              text( out, 'mem(!!):' )
+            elseif compact() < 2 then
+              text( out, 'mem(!):' )
+            else
+              text( out, 'mem!:' )
+            end
+            out:reset()
           else
-            text( out, 'mem!:' )
+            text( out, 'mem: ' )
+            if compact() < 1 then
+              text( out, '   ' )
+            elseif compact() < 2 then
+              text( out, '  ' )
+            end
           end
+          mem_progress_bar( COLS - 16, node.mem_utilization )
+          move{ x=5 }
+        end
+      end
+
+      local function counter_widget( counter_type )
+        local is_selected = INPUT_STATE.node_label ==
+                                node.node_label and
+                                INPUT_STATE.counter_type ==
+                                counter_type
+        local caret = is_selected and terminal.symbol.circle or
+                          ' '
+        local value = node.target_count[counter_type]
+        return is_selected, caret, counter_type, value
+      end
+      local function text_widget(w, is_selected, caret,
+                                 counter_type, value )
+        if is_selected then
+          out:fg( terminal.gruvbox.yellow ):bg(
+              terminal.gruvbox.dark0 )
+          out:text( terminal.symbol.left_round )
+          out:bg( terminal.gruvbox.yellow ):fg(
+              terminal.gruvbox.dark0 )
+          local txt = format( '%s %6s target: %2d', caret,
+                              counter_type,
+                              node.target_count[counter_type] )
+          out:bold()
+          textwmove( w, txt )
           out:reset()
         else
-          text( out, 'mem: ' )
-          if compact() < 1 then
-            text( out, '   ' )
-          elseif compact() < 2 then
-            text( out, '  ' )
-          end
+          out:text( ' ' )
+          out:fg( DARK_LABEL ):text(
+              format( '  %6s target: ', counter_type ) )
+          out:reset()
+          out:text( format( '%2d', value ) )
         end
-        mem_progress_bar( COLS - 16, node.mem_utilization )
-        move{ x=5 }
+
+        if is_selected then
+          out:fg( terminal.gruvbox.yellow ):bg(
+              terminal.gruvbox.dark0 )
+          out:text( terminal.symbol.right_round )
+          out:reset()
+        else
+          out:text( ' ' )
+        end
       end
-    end
-
-    local function counter_widget( counter_type )
-      local is_selected = INPUT_STATE.node_label ==
-                              node.node_label and
-                              INPUT_STATE.counter_type ==
-                              counter_type
-      local caret = is_selected and terminal.symbol.circle or ' '
-      local value = node.target_count[counter_type]
-      return is_selected, caret, counter_type, value
-    end
-    local function text_widget(w, is_selected, caret,
-                               counter_type, value )
-      if is_selected then
-        out:fg( terminal.gruvbox.yellow ):bg(
-            terminal.gruvbox.dark0 )
-        out:text( terminal.symbol.left_round )
-        out:bg( terminal.gruvbox.yellow ):fg(
-            terminal.gruvbox.dark0 )
-        local txt = format( '%s %6s target: %2d', caret,
-                            counter_type,
-                            node.target_count[counter_type] )
-        out:bold()
-        textwmove( w, txt )
-        out:reset()
-      else
-        out:text( ' ' )
-        out:fg( DARK_LABEL ):text(
-            format( '  %6s target: ', counter_type ) )
-        out:reset()
-        out:text( format( '%2d', value ) )
-      end
-
-      if is_selected then
-        out:fg( terminal.gruvbox.yellow ):bg(
-            terminal.gruvbox.dark0 )
-        out:text( terminal.symbol.right_round )
-        out:reset()
-      else
-        out:text( ' ' )
-      end
-    end
-    if compact() < 2 then
-      if compact() < 1 then advance() end
-      out:fg( DARK_LABEL )
-      text( out, 'core   usage: ' )
-      out:reset()
-      textwmove( 20, '%.1fs/%s (%3.1f%%)', node.active_cores,
-                 node.cores, node.core_utilization * 100 )
-      text_widget( 18, counter_widget( 'remote' ) )
-      textwmove( 2, '' )
-      out:fg( DARK_LABEL )
-      textwmove( 13, ' host queue: ' )
-      out:reset()
-      textwmove( 4, '%d', node.remote_queue_size )
-
-      advance()
-      out:fg( DARK_LABEL )
-      text( out, 'worker usage: ' )
-      out:reset()
-      textwmove( 20, '%s/%s (%3.1f%%)',
-                 node.remote_active_workers, node.remote_workers,
-                 node.remote_worker_utilization * 100 )
-      text_widget( 18, counter_widget( 'local' ) )
-      textwmove( 2, '' )
-      out:fg( DARK_LABEL )
-      textwmove( 13, 'local queue: ' )
-      out:reset()
-      textwmove( 4, '%d', node.local_queue_size )
-
-      advance()
-      if node.local_workers > 0 then
+      if compact() < 2 then
+        if compact() < 1 then advance() end
         out:fg( DARK_LABEL )
-        text( out, 'local  usage: ' )
+        text( out, 'core   usage: ' )
         out:reset()
-        textwmove( 17, '%s/%s (%3.1f%%)',
-                   node.local_active_workers, node.local_workers,
-                   node.local_worker_utilization * 100 )
+        textwmove( 20, '%.1fs/%s (%3.1f%%)', node.active_cores,
+                   node.cores, node.core_utilization * 100 )
+        text_widget( 18, counter_widget( 'remote' ) )
+        textwmove( 2, '' )
+        out:fg( DARK_LABEL )
+        textwmove( 13, ' host queue: ' )
+        out:reset()
+        textwmove( 4, '%d', node.remote_queue_size )
+
         advance()
+        out:fg( DARK_LABEL )
+        text( out, 'worker usage: ' )
+        out:reset()
+        textwmove( 20, '%s/%s (%3.1f%%)',
+                   node.remote_active_workers,
+                   node.remote_workers,
+                   node.remote_worker_utilization * 100 )
+        text_widget( 18, counter_widget( 'local' ) )
+        textwmove( 2, '' )
+        out:fg( DARK_LABEL )
+        textwmove( 13, 'local queue: ' )
+        out:reset()
+        textwmove( 4, '%d', node.local_queue_size )
+
+        advance()
+        if node.local_workers > 0 then
+          out:fg( DARK_LABEL )
+          text( out, 'local  usage: ' )
+          out:reset()
+          textwmove( 17, '%s/%s (%3.1f%%)',
+                     node.local_active_workers,
+                     node.local_workers,
+                     node.local_worker_utilization * 100 )
+          advance()
+        end
       end
+      ::continue::
     end
-    ::continue::
-  end
-  if has_nodes then
-    advance()
-    finish_box{ t_top=true, t_bottom=false }
+    if has_nodes then
+      advance()
+      finish_box{ t_top=true, t_bottom=false }
+    end
   end
 
   local function make_status_line()
