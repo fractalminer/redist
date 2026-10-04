@@ -126,10 +126,9 @@ local function upload_blob( cxn, blob, opts )
   if force or not cxn:exists( key ) then
     debug( 'uploading blob of size %d', #data )
     local time_taken = timeit( function()
-      set_hash( cxn, key, blob )
+      set_hash( cxn, key, blob, ex )
     end )
     debug( 'upload time: %d us', time_taken )
-    if ex then cxn:expire( key, ex ) end
   end
   return blob
 end
@@ -261,8 +260,11 @@ end
 local function broadcast_worker_presence( cxn, set )
   local key, ex =
       keys.worker_presence_set( machine_label(), set )
-  assert( cxn:sadd( key, PID ) )
-  cxn:expire( key, ex )
+  assert( ex )
+  cxn:pipeline( function( p )
+    p:sadd( key, PID )
+    p:expire( key, ex )
+  end )
   trace( 'added presence: %s|%s', key, PID )
 end
 

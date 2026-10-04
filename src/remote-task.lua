@@ -25,8 +25,8 @@ local format = assert( string.format )
 -----------------------------------------------------------------
 -- Implementation.
 -----------------------------------------------------------------
-local function post_task( cxn, hash, params )
-  assert( hash )
+local function post_task( cxn, params )
+  local hash = assert( params.hash )
   assert( params )
   assert( type( params ) == 'table' )
   assert( params.os )
@@ -46,7 +46,6 @@ local function output_of( cxn, hash )
   assert( cxn )
   assert( hash )
   local key = keys.task_output( hash )
-  if not cxn:exists( key ) then return end
   local output = cxn:hgetall( key )
   -- For a key that doesn't exist it will return an empty table.
   -- We can use this to save a separate ping to the server just
@@ -103,8 +102,9 @@ local function publish_event( cxn, task_hash, event )
   cxn:publish( key, event )
 end
 
-local function queue_and_wait( cxn, task_hash, fn )
-  assert( task_hash )
+local function queue_and_wait( cxn, task, fn )
+  assert( task )
+  local task_hash = assert( task.hash )
   fn = fn or function() end
 
   local pubsub_cxn<close> = assert( ru.connect() )
@@ -113,13 +113,17 @@ local function queue_and_wait( cxn, task_hash, fn )
     subscribe=keys.task_events(),
   }
 
-  local output = output_of( cxn, task_hash )
-  if output then return output end
+  -- NOTE: we don't need to check for existing output here be-
+  -- cause the assumption is that that's already been done by the
+  -- caller.
 
-  queue_task( cxn, task_hash )
+  cxn:pipeline( function( p )
+    post_task( p, task )
+    queue_task( p, task_hash )
+  end )
 
   local target = format( '%s:finished', task_hash )
-  while not output do
+  while true do
     info( 'waiting for remote task...' )
     fn()
     if socket_select( { sock }, {}, 1 )[sock] then
@@ -130,9 +134,8 @@ local function queue_and_wait( cxn, task_hash, fn )
         abort() --
       end
     end
-    output = output_of( cxn, task_hash )
   end
-  return output or output_of( cxn, task_hash )
+  return output_of( cxn, task_hash )
 end
 
 -----------------------------------------------------------------

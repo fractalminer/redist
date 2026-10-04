@@ -69,6 +69,18 @@ local function connect_impl( host, port )
     -- off when we are latency bound.
     tcp_nodelay=true,
   } )
+  -- This is to work around a bug in redis-lua that prevents
+  -- nesting cxn:pipeline calls.
+  local original_pipeline = cxn.pipeline
+  cxn.pipeline = function( self, block )
+    return original_pipeline( self, function( p )
+      p.pipeline = function( self2, nested_block )
+        return nested_block( self2 )
+      end
+      return block( p )
+    end )
+  end
+  -- Use our own metatable so that we can auto close.
   return setmetatable( {}, {
     __index=cxn,
     __close=function( self )
@@ -141,10 +153,9 @@ local function set_hash( cxn, key, tbl, expiry )
     insert( kvs, k )
     insert( kvs, v )
   end
-  cxn:transaction( function( t )
-    t:del( key )
-    t:hset( key, unpack( kvs ) )
-    if expiry then t:expire( key, expiry ) end
+  cxn:pipeline( function( p )
+    p:hset( key, unpack( kvs ) )
+    if expiry then p:expire( key, expiry ) end
   end )
 end
 

@@ -57,7 +57,6 @@ local function output_of( cxn, hash )
   assert( cxn )
   assert( hash )
   local key = keys.task_output( hash )
-  if not cxn:exists( key ) then return end
   local output = cxn:hgetall( key )
   -- For a key that doesn't exist it will return an empty table.
   -- We can use this to save a separate ping to the server just

@@ -3,12 +3,6 @@ TODO:
 -----------------------------------------------------------------
   * Need to switch to Fios. 5Gig plan.  $100/mo.
   * Move the subprocess code into moon.
-  * We now use a local redis for local tasks which should be
-    fast, however, we do still have to post to the remote redis
-    for remote tasks. See if any of those can be bundled, either:
-      - In a pipeline which apparently will send all the commands
-        in one packet (a transaction may not do this).
-      - In a redis lua script.
 
 LOW PRIORITY:
 -----------------------------------------------------------------

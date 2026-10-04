@@ -344,10 +344,10 @@ local function run_compile( cxn, analyzed, ii )
                                            task.hash, task_output )
   end
   if status ~= 0 then
-    rtask.post_task( cxn, task.hash, task )
+    -- Note that at this point, if the task_object existed then
+    -- it has already been deleted.
     info( 'queueing for task %s...', task.hash )
-    task_output =
-        assert( rtask.queue_and_wait( cxn, task.hash ) )
+    task_output = assert( rtask.queue_and_wait( cxn, task ) )
     status, stderr = fetch_cached_compile( cxn, analyzed,
                                            task.hash, task_output )
   end
