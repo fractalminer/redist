@@ -184,7 +184,7 @@ local function run( cxn )
                                 .QUEUE_POLL_TIMEOUT_SECS )
     hash = hash and hash[2]
     if not hash then goto continue end
-    local task_info = assert( rtask.find( hash ) )
+    local task_info = assert( rtask.find( cxn, hash ) )
     if not distribute( cxn, task_info ) then
       warn( 'could not distribute task %s, will retry...' )
       cxn:lpush( keys.remote_distributor_queue(), hash )
