@@ -3,29 +3,12 @@ TODO:
 -----------------------------------------------------------------
   * Need to switch to Fios. 5Gig plan.  $100/mo.
   * Move the subprocess code into moon.
-  * Rename the node stats collector node telemetry.
-  * For the local workers, when they are uploading their pre-
-    processed output, perhaps we want to adapt the compression
-    level according to the upload bandwidth they have to the
-    redis server, if that can be measured reliably.
-  * In the case where latency to the redis server really matters
-    (i.e. we are external) then we can alleviate some associated
-    performance issues by using a local redis instance for the
-    local task marshalling.  However, we do still have to post
-    to the remote redis for remote tasks.  See if any of those
-    can be bundled, either:
+  * We now use a local redis for local tasks which should be
+    fast, however, we do still have to post to the remote redis
+    for remote tasks. See if any of those can be bundled, either:
       - In a pipeline which apparently will send all the commands
         in one packet (a transaction may not do this).
       - In a redis lua script.
-  * Distributor:
-    - Each time a compile finishes (maybe on one reference plat-
-      form) a sorted set with the compile time can be maintained.
-      Then, the distributor can look at that to determine if the
-      file is in the top N of heavy TUs and assign it to a desig-
-      nated box's host-specific queue. Moreover, it can put it in
-      the front of that host's queue so that it gets run ASAP.
-      That way we ensure that a slow box never gets stuck han-
-      dling a heavy TU.
 
 LOW PRIORITY:
 -----------------------------------------------------------------
@@ -85,3 +68,20 @@ LOW PRIORITY:
     * Try to have the cluster downloader pull in all of its info
       in a remote lua function so that it only needs one trip.
       Low priority.
+  * For the local workers, when they are uploading their pre-
+    processed output, perhaps we want to adapt the compression
+    level according to the upload bandwidth they have to the
+    redis server, if that can be measured reliably.
+  * Distributor:
+    - Each time a compile finishes (maybe on one reference plat-
+      form) a sorted set with the compile time can be maintained.
+      Then, the distributor can look at that to determine if the
+      file is in the top N of heavy TUs and assign it to a desig-
+      nated box's host-specific queue. Moreover, it can put it in
+      the front of that host's queue so that it gets run ASAP.
+      That way we ensure that a slow box never gets stuck han-
+      dling a heavy TU.
+      - This seems like it might be a bit wonky and also it would
+        require the distributor to subscribe to task output
+        events which would complicate it. Seems like it might not
+        be worth it.

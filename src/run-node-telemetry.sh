@@ -6,4 +6,4 @@ cd "$this_dir"
 
 source waiter.sh
 
-waiter lua node-stats-collector.lua
+waiter lua node-telemetry.lua

@@ -137,11 +137,11 @@ local POOLS = {
     last_logged_count=0,
     wait_secs=nil,
   },
-  node_stats_finder={
+  node_telemetry={
     enabled=true,
     target=1,
     worker_type=nil,
-    cmd={ 'bash', 'run-node-stats-finder.sh' },
+    cmd={ 'bash', 'run-node-telemetry.sh' },
     pool=nil,
     last_logged_count=0,
     wait_secs=nil,

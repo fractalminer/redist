@@ -107,8 +107,8 @@ function M.node( label )
   return make( key, elems )
 end
 
-function M.node_stats( label )
-  local key = '%s:stats'
+function M.node_telemetry( label )
+  local key = '%s:telemetry'
   local elems = {
     M.node( label ), --
   }

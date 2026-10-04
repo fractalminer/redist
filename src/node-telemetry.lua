@@ -1,5 +1,5 @@
 -----------------------------------------------------------------
--- Stats collector that runs on a node and collects host stats.
+-- Telemetry data collector that runs on a node.
 -----------------------------------------------------------------
 local config = require( 'config' )
 local farm = require( 'farm' )
@@ -23,7 +23,6 @@ local machine_label = assert( network.machine_label )
 local set_hash = assert( ru.set_hash )
 
 local info = assert( logger.info )
-local debug = assert( logger.debug )
 local trace = assert( logger.trace )
 local format_table = assert( printer.format_table )
 local sleep = assert( time.sleep )
@@ -137,17 +136,17 @@ local function read_mem_usage()
   return { total_gb=total_gb, percent_used=used_kb / total_kb }
 end
 
-local function broadcast_stats(cxn, cores_total, cpu_usage,
-                               mem_usage )
-  local key, ex = keys.node_stats( machine_label() )
-  local stats = {
+local function broadcast_telemetry(cxn, cores_total, cpu_usage,
+                                   mem_usage )
+  local key, ex = keys.node_telemetry( machine_label() )
+  local telemetry = {
     cores_total=assert( cores_total ),
     cores_percent_used=assert( cpu_usage.percent_used ),
     mem_total_gb=assert( mem_usage.total_gb ),
     mem_percent_used=assert( mem_usage.percent_used ),
   }
-  trace( 'broadcasting stats: %s', format_table( stats ) )
-  set_hash( cxn, key, stats, ex )
+  trace( 'broadcasting telemetry: %s', format_table( telemetry ) )
+  set_hash( cxn, key, telemetry, ex )
 end
 
 -----------------------------------------------------------------
@@ -164,10 +163,10 @@ local function run( cxn )
     trace( 'cpu sample: %s', format_table( sample ) )
     cpu_usage = cpu_percent_used( last_sample, sample )
     local mem_usage = read_mem_usage()
-    broadcast_stats( cxn, sample.cpus, cpu_usage, mem_usage )
+    broadcast_telemetry( cxn, sample.cpus, cpu_usage, mem_usage )
     last_sample = sample
-    sleep( config.stats_collector.COLLECTION_INTERVAL_MILLIS /
-               1000 )
+    sleep(
+        config.node_telemetry.COLLECTION_INTERVAL_MILLIS / 1000 )
   end
 end
 
@@ -175,8 +174,7 @@ end
 -- Main.
 -----------------------------------------------------------------
 local function main()
-  local parser =
-      argparse( arg[0], 'ReDist Node Stats Collector' )
+  local parser = argparse( arg[0], 'ReDist Node Telemetry' )
 
   -- LuaFormatter off
   parser:option( '--verbosity' )
@@ -193,7 +191,7 @@ local function main()
   local cxn<close> = assert( ru.connect() )
   check_log_level( cxn )
 
-  info( 'starting stats collector: %s', machine_label() )
+  info( 'starting telemetry: %s', machine_label() )
 
   run( cxn )
 end

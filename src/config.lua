@@ -148,7 +148,7 @@ return harden{
     EVICT_CACHE_INTERVAL_SECS=43200, -- 12 hours
   },
 
-  stats_collector={
+  node_telemetry={
     COLLECTION_INTERVAL_MILLIS=200, --
     EXPIRE_ADVERTISE_SECS=5, --
   },
