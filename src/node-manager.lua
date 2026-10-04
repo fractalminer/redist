@@ -95,6 +95,12 @@ end
 -- Process Pools.
 -----------------------------------------------------------------
 local POOLS = {
+  -- NOTE: local redis should go first because subsequent jobs
+  -- (workers) will need to connect to it. If they can't then
+  -- they will fail initially to come up; eventually they will be
+  -- brought back up so there is not permanent damage, but it
+  -- logs errors so we should avoid it. So we do two things: 1)
+  -- put redis first, and 2) add a delay.
   redis_local={
     enabled=true,
     target=1,
@@ -102,6 +108,7 @@ local POOLS = {
     cmd={ 'redis-server', '../conf/redis-local.conf' },
     pool=nil,
     last_logged_count=0,
+    wait_secs=2, -- wait a bit so workers can connect.
   },
   workers_both={
     enabled=true,
@@ -110,6 +117,7 @@ local POOLS = {
     cmd={ 'bash', 'run-worker.sh' },
     pool=nil,
     last_logged_count=0,
+    wait_secs=nil,
   },
   workers_remote={
     enabled=true,
@@ -118,6 +126,7 @@ local POOLS = {
     cmd={ 'bash', 'run-remote-worker.sh' },
     pool=nil,
     last_logged_count=0,
+    wait_secs=nil,
   },
   workers_local={
     enabled=true,
@@ -126,6 +135,7 @@ local POOLS = {
     cmd={ 'bash', 'run-local-worker.sh' },
     pool=nil,
     last_logged_count=0,
+    wait_secs=nil,
   },
   node_stats_finder={
     enabled=true,
@@ -134,6 +144,7 @@ local POOLS = {
     cmd={ 'bash', 'run-node-stats-finder.sh' },
     pool=nil,
     last_logged_count=0,
+    wait_secs=nil,
   },
   distributor={
     -- This one will be enabled only when we are running this
@@ -144,6 +155,7 @@ local POOLS = {
     cmd={ 'bash', 'run-distributor.sh' },
     pool=nil,
     last_logged_count=0,
+    wait_secs=nil,
   },
 }
 
@@ -152,6 +164,7 @@ local function add_pool( name, conf )
   local cmd = assert( conf.cmd )
   local target = assert( conf.target )
   conf.pool = ProcessPool{ cmd=cmd, target=target, name=name }
+  if conf.wait_secs then sleep( conf.wait_secs ) end
   return cleanup( function() conf.pool:stop() end )
 end
 
