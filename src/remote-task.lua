@@ -17,6 +17,7 @@ local set_blob_from_string = assert( farm.set_blob_from_string )
 local is_fast_node = assert( farm.is_fast_node )
 
 local info = assert( logger.info )
+local debug = assert( logger.debug )
 
 local socket_select = assert( socket.select )
 
@@ -104,6 +105,8 @@ local function set_result( cxn, _, _, task, result )
     -- The compilation was successful, so record its compile time
     -- in the leader board for more efficient distribution.
     local input_file_path = assert( task.input_file_path )
+    debug( 'recording compile time %sus for %s', time_micros,
+           input_file_path )
     cxn:zadd( keys.compiletimes(), time_micros, input_file_path )
   end
 end
