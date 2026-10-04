@@ -264,6 +264,14 @@ function M.log_level( node )
   return make( key, elems )
 end
 
+function M.compiletimes()
+  local key = '%s:compiletimes'
+  local elems = {
+    M.ns(), --
+  }
+  return make( key, elems )
+end
+
 -----------------------------------------------------------------
 -- Module..
 -----------------------------------------------------------------

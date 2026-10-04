@@ -71,7 +71,8 @@ local function find( cxn, hash )
   return cxn:hgetall( key )
 end
 
-local function set_result( cxn, _, _, hash, result )
+local function set_result( cxn, _, _, task, result )
+  local hash = assert( task.hash )
   local out_key = keys.task_output( hash )
   local function blobify( content )
     local blob = set_blob_from_string( cxn, content )
@@ -84,14 +85,22 @@ local function set_result( cxn, _, _, hash, result )
     output = blobify( result.output )
   end
   local stderr = result.stderr:trim()
+  local time_micros = assert( result.time_micros )
+  local status = assert( tonumber( result.status ) )
   set_hash( cxn, out_key, {
-    status=assert( result.status ),
+    status=status,
     output=output,
     stdout=blobify( result.stdout ),
     stderr=blobify( stderr ),
     has_stderr=(#stderr > 0),
-    time_micros=assert( result.time_micros ),
+    time_micros=time_micros,
   } )
+  if status == 0 then
+    -- The compilation was successful, so record its compile time
+    -- in the leader board for more efficient distribution.
+    local input_file_path = assert( task.input_file_path )
+    cxn:zadd( keys.compiletimes(), time_micros, input_file_path )
+  end
 end
 
 local function publish_event( cxn, task_hash, event )

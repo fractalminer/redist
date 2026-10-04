@@ -207,6 +207,7 @@ local function create_remote_compile_task( analyzed, ii )
     compiler_type=compiler_type,
     compiler_version=compiler_version,
     compiler_flags=compiler_flags,
+    input_file_path=decoded.input_c_cpp_file,
     description=description,
     input=input,
     input_type=input_type,

@@ -131,7 +131,8 @@ local function register_preprocessed( cxn, lc, task_hash, ii_file )
   return { type='delta', hash=assert( delta.manifest.hash ) }
 end
 
-local function set_result( cxn, l_cxn, lc, hash, task_output )
+local function set_result( cxn, l_cxn, lc, task, task_output )
+  local hash = assert( task.hash )
   local out_key = keys.task_output( hash )
   local function blobify( content )
     local blob = set_blob_from_string( l_cxn, content,
