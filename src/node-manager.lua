@@ -95,6 +95,14 @@ end
 -- Process Pools.
 -----------------------------------------------------------------
 local POOLS = {
+  redis_local={
+    enabled=true,
+    target=1,
+    worker_type=nil,
+    cmd={ 'redis-server', '../conf/redis-local.conf' },
+    pool=nil,
+    last_logged_count=0,
+  },
   workers_both={
     enabled=true,
     target=0,

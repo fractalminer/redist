@@ -135,7 +135,8 @@ end
 local function set_result( cxn, l_cxn, lc, hash, task_output )
   local out_key = keys.task_output( hash )
   local function blobify( content )
-    local blob = set_blob_from_string( l_cxn, content )
+    local blob = set_blob_from_string( l_cxn, content,
+                                       config.expire.TASKS )
     assert( type( blob ) == 'table' )
     assert( type( blob.hash ) == 'string' )
     return blob.hash
@@ -159,7 +160,7 @@ local function set_result( cxn, l_cxn, lc, hash, task_output )
     time_micros=assert( task_output.time_micros ),
     ii_type=ii_type,
     ii_hash=ii_hash,
-  } )
+  }, config.expire.TASKS )
 end
 
 local function publish_event( cxn, task_hash, event )

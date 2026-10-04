@@ -72,8 +72,9 @@ return harden{
     -- needs to be read by a remote worker, to reduce latency.
     -- Note that it is a different port so that it doesn't con-
     -- flict with a remote redis that is forwarded on
-    -- 127.0.0.1:6379.
-    ENABLE_LOCAL_REDIS=false,
+    -- 127.0.0.1:6379. This should always be true because the
+    -- node manager will run a local redis on 6380 on each node.
+    ENABLE_LOCAL=true,
     PORT_LOCAL=6380,
     -- When we are waiting for the redis DB to be available, how
     -- long should we wait before retrying. This should not be

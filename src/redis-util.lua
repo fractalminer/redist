@@ -106,7 +106,7 @@ local function connect()
 end
 
 local function connect_local()
-  if config.redis.ENABLE_LOCAL_REDIS then
+  if config.redis.ENABLE_LOCAL then
     local host = assert( '127.0.0.1' )
     local port = assert( config.redis.PORT_LOCAL )
     return connect_impl( host, port )

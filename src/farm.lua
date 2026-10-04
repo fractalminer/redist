@@ -119,6 +119,7 @@ end
 local function upload_blob( cxn, blob, opts )
   opts = opts or {}
   local force = opts.force
+  local ex = opts.ex
   assert( type( blob ) == 'table', 'invalid blob' )
   local data = assert( blob.data )
   local key = keys.blob( assert( blob.hash ) )
@@ -128,6 +129,7 @@ local function upload_blob( cxn, blob, opts )
       set_hash( cxn, key, blob )
     end )
     debug( 'upload time: %d us', time_taken )
+    if ex then cxn:expire( key, ex ) end
   end
   return blob
 end
@@ -144,8 +146,9 @@ local function upload_delta( cxn, delta )
   upload_delta_manifest( cxn, delta.manifest )
 end
 
-local function set_blob_from_string( cxn, body )
-  return upload_blob( cxn, assert( create_blob( body ) ) )
+local function set_blob_from_string( cxn, body, ex )
+  return upload_blob( cxn, assert( create_blob( body ) ),
+                      { ex=ex } )
 end
 
 local function create_blob_from_file( fname )
@@ -156,9 +159,9 @@ local function create_blob_from_file( fname )
   return create_blob( body )
 end
 
-local function set_blob_from_file( cxn, fname )
+local function set_blob_from_file( cxn, fname, ex )
   local blob = assert( create_blob_from_file( fname ) )
-  return upload_blob( cxn, blob )
+  return upload_blob( cxn, blob, { ex=ex } )
 end
 
 -- Reports errors via return value.
