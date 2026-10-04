@@ -45,7 +45,7 @@ local abs = assert( math.abs )
 -----------------------------------------------------------------
 -- Constants.
 -----------------------------------------------------------------
-local NUM_COMPACT_LEVELS = 6
+local NUM_COMPACT_LEVELS = 7
 
 -----------------------------------------------------------------
 -- Globals.
@@ -311,8 +311,10 @@ local function recompute_compact_level( rows )
     g_compact_view = 3
   elseif rows >= 20 then
     g_compact_view = 4
-  elseif rows >= 15 then
+  elseif rows >= 14 then
     g_compact_view = 5
+  elseif rows >= 10 then
+    g_compact_view = 6
   else
     g_compact_view = NUM_COMPACT_LEVELS - 1
   end
@@ -784,7 +786,8 @@ local function redraw( out )
   end
 
   -- Cluster.
-  if has_nodes and (compact() < 4 or compact() == 5) then
+  if has_nodes and
+      (compact() < 4 or compact() == 5 or compact() == 6) then
     start_box( 'CLUSTER' )
     advance()
     move{ x=3 }
@@ -797,20 +800,22 @@ local function redraw( out )
     advance()
     if compact() < 3 then advance() end
     move{ x=3 }
-    worker_progress_bar( COLS - 6,
-                         g_data.stats.remote_worker_utilization )
-    out:fg( terminal.gruvbox.blue )
-    center( '(r-worker utilization)' )
-    out:reset()
-    advance()
-    if compact() < 3 then advance() end
-    move{ x=3 }
-    worker_progress_bar( COLS - 6,
-                         g_data.stats.local_worker_utilization )
-    out:fg( terminal.gruvbox.blue )
-    center( '(l-worker utilization)' )
-    out:reset()
-    advance()
+    if compact() < 6 then
+      worker_progress_bar( COLS - 6, g_data.stats
+                               .remote_worker_utilization )
+      out:fg( terminal.gruvbox.blue )
+      center( '(r-worker utilization)' )
+      out:reset()
+      advance()
+      if compact() < 3 then advance() end
+      move{ x=3 }
+      worker_progress_bar( COLS - 6,
+                           g_data.stats.local_worker_utilization )
+      out:fg( terminal.gruvbox.blue )
+      center( '(l-worker utilization)' )
+      out:reset()
+      advance()
+    end
     out:clear_line()
 
     advance()
@@ -845,7 +850,7 @@ local function redraw( out )
     out:reset()
     advance()
     advance()
-    if compact() == 5 then
+    if compact() == 5 or compact() == 6 then
       finish_box{ t_top=true, t_bottom=false }
     else
       finish_box{ t_top=true, t_bottom=true }
