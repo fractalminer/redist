@@ -8,13 +8,11 @@ local decode = require( 'decode' )
 local farm = require( 'farm' )
 local keys = require( 'keys' )
 local lcache = require( 'lcache' )
--- TODO: consolidate these two modules.
 local ltask, rtask = require( 'local-task' ),
                      require( 'remote-task' )
 local network = require( 'network' )
 local os_stat = require( 'os-stat' )
 local ru = require( 'redis-util' )
-local subprocess = require( 'subprocess' )
 local workarea = require( 'workarea' )
 
 local mcleanup = require( 'moon.cleanup' )
@@ -24,6 +22,7 @@ local logger = require( 'moon.logger' )
 local merr = require( 'moon.err' )
 local printer = require( 'moon.printer' )
 local str = require( 'moon.str' )
+local subprocess = require( 'moon.subprocess' )
 local time = require( 'moon.time' )
 
 local argparse = require( 'argparse' )

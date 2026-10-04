@@ -8,7 +8,6 @@ local compilers = require( 'compilers' )
 local decode = require( 'decode' )
 local farm = require( 'farm' )
 local mhash = require( 'hash' )
--- TODO: consolidate these two modules.
 local ltask, rtask = require( 'local-task' ),
                      require( 'remote-task' )
 local network = require( 'network' )
