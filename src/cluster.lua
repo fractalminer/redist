@@ -97,22 +97,26 @@ local function query_cluster_state( cxn, opts )
     return assert( num, format( 'invalid number: "%s"', from ) )
   end
   for name, node in pairs( nodes ) do
-    local node_stats = cxn:hgetall( (keys.node_stats( name )) )
-    node_stats = node_stats or {}
-    node_stats.cores_total = node_stats.cores_total or 1
-    node_stats.cores_percent_used =
-        node_stats.cores_percent_used or 0
-    node.mem_total_gb = number( node_stats.mem_total_gb or 0 )
+    local node_telemetry = cxn:hgetall(
+                               (keys.node_telemetry( name )) )
+    node_telemetry = node_telemetry or {}
+    node_telemetry.cores_total = node_telemetry.cores_total or 1
+    node_telemetry.cores_percent_used =
+        node_telemetry.cores_percent_used or 0
+    node.mem_total_gb =
+        number( node_telemetry.mem_total_gb or 0 )
     node.mem_percent_used = number(
-                                node_stats.mem_percent_used or 0 )
+                                node_telemetry.mem_percent_used or
+                                    0 )
     node.mem_used_gb = node.mem_total_gb * node.mem_percent_used
-    node.core_count = number( node_stats.cores_total )
+    node.core_count = number( node_telemetry.cores_total )
     node.cores_percent_used = number(
-                                  node_stats.cores_percent_used or
+                                  node_telemetry.cores_percent_used or
                                       0 )
     node.active_core_count = node.core_count *
                                  node.cores_percent_used
-    state.core_count = state.core_count + node_stats.cores_total
+    state.core_count = state.core_count +
+                           node_telemetry.cores_total
     state.active_core_count = state.active_core_count +
                                   node.core_count *
                                   node.cores_percent_used
@@ -215,8 +219,9 @@ local function distributor_info( cxn )
     return assert( num, format( 'invalid number: "%s"', from ) )
   end
   for name, node in pairs( nodes ) do
-    local node_stats = cxn:hgetall( (keys.node_stats( name )) )
-    node_stats = node_stats or {}
+    local node_telemetry = cxn:hgetall(
+                               (keys.node_telemetry( name )) )
+    node_telemetry = node_telemetry or {}
     local function get_count( label )
       local key = keys.worker_presence_set( name, label )
       return number( cxn:scard( key ) or 0 )
