@@ -110,15 +110,6 @@ local POOLS = {
     last_logged_count=0,
     wait_secs=2, -- wait a bit so workers can connect.
   },
-  workers_both={
-    enabled=true,
-    target=0,
-    worker_type='both',
-    cmd={ 'bash', 'run-worker.sh' },
-    pool=nil,
-    last_logged_count=0,
-    wait_secs=nil,
-  },
   workers_remote={
     enabled=true,
     target=0,

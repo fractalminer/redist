@@ -144,12 +144,9 @@ local function query_cluster_state( cxn, opts )
         WorkerCount( cxn, name, 'remote' ):get()
     local local_target_count =
         WorkerCount( cxn, name, 'local' ):get()
-    local both_target_count =
-        WorkerCount( cxn, name, 'both' ):get()
     node.target_count = {}
     node.target_count.remote = remote_target_count
     node.target_count['local'] = local_target_count
-    node.target_count.both = both_target_count
 
     node.local_queue_size =
         cxn:llen( (keys.local_queue( name )) )

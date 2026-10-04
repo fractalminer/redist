@@ -6,7 +6,7 @@ cd "$this_dir"
 
 source waiter.sh
 
-listen="${1:-both}"
+listen="${1:-remote}"
 
 workarea=/tmp/farm/workarea
 mkdir -p "$workarea"

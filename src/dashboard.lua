@@ -197,7 +197,7 @@ end
 
 local function target_label_up()
   if INPUT_STATE.counter_type == 'local' then
-    INPUT_STATE.counter_type = 'both'
+    INPUT_STATE.counter_type = 'remote'
   else
     INPUT_STATE.counter_type = 'local'
     INPUT_STATE.node_label = node_up( INPUT_STATE.node_label )
@@ -207,7 +207,7 @@ end
 local function target_label_down()
   if INPUT_STATE.counter_type == 'local' or
       INPUT_STATE.node_label == nil then
-    INPUT_STATE.counter_type = 'both'
+    INPUT_STATE.counter_type = 'remote'
     INPUT_STATE.node_label = node_down( INPUT_STATE.node_label )
   else
     INPUT_STATE.counter_type = 'local'
@@ -268,7 +268,7 @@ end
 local function clear_all_target_counts( cxn )
   for _, node in pairs( g_data.nodes ) do
     local worker_count = WorkerCount( cxn, node.node_label,
-                                      'both' )
+                                      'remote' )
     worker_count:set( 0 )
     worker_count = WorkerCount( cxn, node.node_label, 'local' )
     worker_count:set( 0 )
@@ -1040,7 +1040,7 @@ local function redraw( out )
         out:text( terminal.symbol.left_round )
         out:bg( terminal.gruvbox.yellow ):fg(
             terminal.gruvbox.dark0 )
-        local txt = format( '%s %5s target: %2d', caret,
+        local txt = format( '%s %6s target: %2d', caret,
                             counter_type,
                             node.target_count[counter_type] )
         out:bold()
@@ -1049,7 +1049,7 @@ local function redraw( out )
       else
         out:text( ' ' )
         out:fg( DARK_LABEL ):text(
-            format( '  %5s target: ', counter_type ) )
+            format( '  %6s target: ', counter_type ) )
         out:reset()
         out:text( format( '%2d', value ) )
       end
@@ -1070,8 +1070,8 @@ local function redraw( out )
       out:reset()
       textwmove( 20, '%.1fs/%s (%3.1f%%)', node.active_cores,
                  node.cores, node.core_utilization * 100 )
-      text_widget( 18, counter_widget( 'both' ) )
-      textwmove( 3, '' )
+      text_widget( 18, counter_widget( 'remote' ) )
+      textwmove( 2, '' )
       out:fg( DARK_LABEL )
       textwmove( 13, ' host queue: ' )
       out:reset()
@@ -1085,7 +1085,7 @@ local function redraw( out )
                  node.remote_active_workers, node.remote_workers,
                  node.remote_worker_utilization * 100 )
       text_widget( 18, counter_widget( 'local' ) )
-      textwmove( 3, '' )
+      textwmove( 2, '' )
       out:fg( DARK_LABEL )
       textwmove( 13, 'local queue: ' )
       out:reset()

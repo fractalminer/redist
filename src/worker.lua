@@ -139,28 +139,25 @@ local function next_task( cxn, l_cxn )
   end
   local o
   if not args.wait then
-    -- Local queue must come first.
-    if args.listen == 'local' or args.listen == 'both' then
+    if args.listen == 'local' then
       o = l_cxn:lpop( q_local )
       if o then return result( q_local, o ) end
     end
-    if args.listen == 'remote' or args.listen == 'both' then
+    if args.listen == 'remote' then
       o = cxn:lpop( q_remote_host )
-      if o then return result( q_remote_global, o ) end
+      if o then return result( q_remote_host, o ) end
       o = cxn:lpop( q_remote_global )
       if o then return result( q_remote_global, o ) end
     end
   else
     if args.listen == 'local' then
       o = l_cxn:blpop( q_local, timeout )
-    elseif args.listen == 'remote' then
-      o = cxn:blpop( q_remote_host, q_remote_global, timeout )
-    else
-      -- Local queue must come first.
-      o = cxn:blpop( q_local, q_remote_host, q_remote_global,
-                     timeout )
+      if o then return result( q_local, o ) end
     end
-    return o and result( o[1], o[2] )
+    if args.listen == 'remote' then
+      o = cxn:blpop( q_remote_host, q_remote_global, timeout )
+      if o then return result( q_remote_host, o ) end
+    end
   end
 end
 
@@ -495,8 +492,8 @@ local function main()
         :description( 'how many tasks to process' )
 
   parser:option( '--listen' )
-        :choices{ 'local', 'remote', 'both' }
-        :default( 'both' )
+        :choices{ 'local', 'remote' }
+        :default( 'remote' )
         :description( 'whether to listen for local or remote tasks' )
 
   parser:flag( '-w --wait' )
