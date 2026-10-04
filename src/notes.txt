@@ -2,7 +2,6 @@
 TODO:
 -----------------------------------------------------------------
   * Need to switch to Fios. 5Gig plan.  $100/mo.
-  * Move the subprocess code into moon.
 
 LOW PRIORITY:
 -----------------------------------------------------------------
