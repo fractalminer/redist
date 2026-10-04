@@ -2,6 +2,7 @@
 -----------------------------------------------------------------
 -- Imports.
 -----------------------------------------------------------------
+local config = require( 'config' )
 local ru = require( 'redis-util' )
 local farm = require( 'farm' )
 local keys = require( 'keys' )
@@ -172,6 +173,10 @@ local function query_cluster_state( cxn, opts )
     state.mem_percent_used = state.mem_used_gb /
                                  state.mem_total_gb
   end
+  state.large_compile_times = cxn:zrevrange(
+                                  (keys.compiletimes()), 0,
+                                  config.distributor
+                                      .TOP_COMPILE_TIME_COUNT )
   return state
 end
 
@@ -231,6 +236,10 @@ local function distributor_info( cxn )
     node.remote_queue_size = cxn:llen(
                                  (keys.remote_host_queue( name )) )
   end
+  state.large_compile_times = cxn:zrevrange(
+                                  (keys.compiletimes()), 0,
+                                  config.distributor
+                                      .TOP_COMPILE_TIME_COUNT )
   return state
 end
 

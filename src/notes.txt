@@ -65,16 +65,3 @@ LOW PRIORITY:
     processed output, perhaps we want to adapt the compression
     level according to the upload bandwidth they have to the
     redis server, if that can be measured reliably.
-  * Distributor:
-    - Each time a compile finishes (maybe on one reference plat-
-      form) a sorted set with the compile time can be maintained.
-      Then, the distributor can look at that to determine if the
-      file is in the top N of heavy TUs and assign it to a desig-
-      nated box's host-specific queue. Moreover, it can put it in
-      the front of that host's queue so that it gets run ASAP.
-      That way we ensure that a slow box never gets stuck han-
-      dling a heavy TU.
-      - This seems like it might be a bit wonky and also it would
-        require the distributor to subscribe to task output
-        events which would complicate it. Seems like it might not
-        be worth it.

@@ -380,11 +380,12 @@ local function reset_task_input_and_output( cxn )
   return true
 end
 
-local function is_fast_node()
-  local total_nodes = #config.nodes.node_rank
-  for i = 1, min( config.nodes.fast_nodes, total_nodes ) do
-    local node = config.nodes.node_rank[i]
-    if node == machine_label() then return true end
+local function is_fast_node( label )
+  label = label or machine_label()
+  local total_nodes = #config.nodes.NODE_RANK
+  for i = 1, min( config.nodes.FAST_NODES, total_nodes ) do
+    local node = config.nodes.NODE_RANK[i]
+    if node == label then return true end
   end
   return false
 end

@@ -33,7 +33,7 @@ return harden{
     -- compile task gets distributed and there are multiple nodes
     -- available that could process it. Basically we want the
     -- faster nodes at the top.
-    node_rank={
+    NODE_RANK={
       'thelio-a684a28cee8cfbd37c895a6266564755',
       'geekom1-c2e35a1b5afe33bd6aa9c1d26a977589',
       'geekom2-55de77073bc7647725ce62096a978bf1',
@@ -43,7 +43,7 @@ return harden{
       'darter2-b0db31b5853309832ffb1a156766e000',
     },
     -- The top N are considered "fast" nodes.
-    fast_nodes=4,
+    FAST_NODES=4,
   },
 
   redis={
@@ -160,7 +160,7 @@ return harden{
   distributor={
     DEFAULT_STGY='smart',
     QUEUE_POLL_TIMEOUT_SECS=5,
-    STGY_SMART_OVERFILL=0,
+    TOP_COMPILE_TIME_COUNT=10,
   },
 
   dashboard={

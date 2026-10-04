@@ -135,6 +135,8 @@ local function queue_and_wait( cxn, task, fn )
   -- caller.
 
   cxn:pipeline( function( p )
+    -- It's important that we post the task object before
+    -- queueing it to avoid race conditions in the distributor.
     post_task( p, task )
     queue_task( p, task_hash )
   end )
