@@ -151,11 +151,11 @@ local function next_task( cxn, l_cxn )
   else
     if args.listen == 'local' then
       o = l_cxn:blpop( q_local, timeout )
-      if o then return result( q_local, o ) end
+      if o then return result( o[1], o[2] ) end
     end
     if args.listen == 'remote' then
       o = cxn:blpop( q_remote_host, q_remote_global, timeout )
-      if o then return result( q_remote_host, o ) end
+      if o then return result( o[1], o[2] ) end
     end
   end
 end
