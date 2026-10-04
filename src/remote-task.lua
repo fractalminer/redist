@@ -72,6 +72,11 @@ local function find( cxn, hash )
 end
 
 local function set_result( cxn, _, _, task, result )
+  -- NOTE: `task` will not be the real input task object in the
+  -- case where the command failed to run at all; in that case it
+  -- will just be a table with the hash so that the line below
+  -- works. Otherwise, assuming the command ran (with exit code 0
+  -- or not) then `task` will be the input task object.
   local hash = assert( task.hash )
   local out_key = keys.task_output( hash )
   local function blobify( content )

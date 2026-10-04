@@ -298,6 +298,7 @@ local function compile(cxn, task_info, compiler, compiler_type,
     ran.stderr = stderr
   end
   return {
+    input_task=assert( task_info ),
     status=ran.status,
     stdout=ran.stdout,
     stderr=ran.stderr,
@@ -381,6 +382,7 @@ local function run_local_task( cxn, task_hash )
           'could not obtain output file for preprocess task' )
   output_file = format( '%s/%s', cwd, output_file )
   return {
+    input_task=assert( task_info ),
     status=ran.status,
     stdout=ran.stdout,
     stderr=ran.stderr,
@@ -404,7 +406,8 @@ local function process_task(cxn_main, cxn_task, lc, task,
                              task_hash )
   advertise( cxn_main )
   if ok then
-    set_result( cxn_main, cxn_task, lc, task, result )
+    local input_task = assert( result.input_task )
+    set_result( cxn_main, cxn_task, lc, input_task, result )
     if result.status == 0 then
       publish( cxn_task, task_hash, 'finished:success' )
     else
@@ -426,7 +429,8 @@ local function process_task(cxn_main, cxn_task, lc, task,
       stderr=reason,
       time_micros='',
     }
-    set_result( cxn_main, cxn_task, lc, task, task_result )
+    set_result( cxn_main, cxn_task, lc, { hash=task_hash },
+                task_result )
     publish( cxn_task, task_hash, 'finished:failed-to-run' )
     if args.fail_on_meta_error then
       error( 'fail-on-meta-error: exiting' )
