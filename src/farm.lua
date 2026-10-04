@@ -35,6 +35,7 @@ local now_seconds = assert( time.now_seconds )
 local unwords = assert( str.unwords )
 
 local format = assert( string.format )
+local min = assert( math.min )
 
 -----------------------------------------------------------------
 -- Globals.
@@ -379,6 +380,15 @@ local function reset_task_input_and_output( cxn )
   return true
 end
 
+local function is_fast_node()
+  local total_nodes = #config.nodes.node_rank
+  for i = 1, min( config.nodes.fast_nodes, total_nodes ) do
+    local node = config.nodes.node_rank[i]
+    if node == machine_label() then return true end
+  end
+  return false
+end
+
 -----------------------------------------------------------------
 -- Module.
 -----------------------------------------------------------------
@@ -400,4 +410,5 @@ return {
   WorkerCount=WorkerCount.new,
   check_log_level=check_log_level,
   reset_task_input_and_output=reset_task_input_and_output,
+  is_fast_node=is_fast_node,
 }

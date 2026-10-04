@@ -95,7 +95,7 @@ function Stgy.smart( cxn, hash )
       timeit_micros( distributor_info, cxn )
   debug( 'queried cluster state: %.1f ms', query_time / 1000 )
   assert( state )
-  for _, node_label in ipairs( config.node_rank ) do
+  for _, node_label in ipairs( config.nodes.node_rank ) do
     -- This can happen if there are nodes in the ranking but
     -- which are not online now.
     if not state.nodes[node_label] then goto continue end

@@ -368,7 +368,7 @@ local function percent( n, d )
 end
 
 local function get_node_ordering( nodes )
-  local node_rank = config.node_rank
+  local node_rank = config.nodes.node_rank
   local all = {}
   for label, _ in pairs( nodes ) do all[label] = true end
   for _, label in ipairs( node_rank ) do all[label] = true end

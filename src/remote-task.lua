@@ -1,7 +1,6 @@
 -----------------------------------------------------------------
 -- Imports.
 -----------------------------------------------------------------
-local config = require( 'config' )
 local farm = require( 'farm' )
 local keys = require( 'keys' )
 local ru = require( 'redis-util' )
@@ -15,6 +14,7 @@ local socket = require( 'socket' )
 -----------------------------------------------------------------
 local set_hash = assert( ru.set_hash )
 local set_blob_from_string = assert( farm.set_blob_from_string )
+local is_fast_node = assert( farm.is_fast_node )
 
 local info = assert( logger.info )
 
@@ -100,7 +100,7 @@ local function set_result( cxn, _, _, task, result )
     has_stderr=(#stderr > 0),
     time_micros=time_micros,
   } )
-  if status == 0 then
+  if status == 0 and is_fast_node() then
     -- The compilation was successful, so record its compile time
     -- in the leader board for more efficient distribution.
     local input_file_path = assert( task.input_file_path )

@@ -28,18 +28,22 @@ end
 -- Config.
 -----------------------------------------------------------------
 return harden{
-  -- The nodes will be given preference in this order when a com-
-  -- pile task gets distributed and there are multiple nodes
-  -- available that could process it. Basically we want the
-  -- faster nodes at the top.
-  node_rank={
-    'thelio-a684a28cee8cfbd37c895a6266564755',
-    'geekom1-c2e35a1b5afe33bd6aa9c1d26a977589',
-    'geekom2-55de77073bc7647725ce62096a978bf1',
-    'geekom3-e322c033f3841b7c9dbd9c9a6a9870c1',
-    'meerkat-794558ad67d03a155ed635a464b2b5e4',
-    'bonobo-a3a2da568ef6838c1ed2ed9463e5507b',
-    'darter2-b0db31b5853309832ffb1a156766e000',
+  nodes={
+    -- The nodes will be given preference in this order when a
+    -- compile task gets distributed and there are multiple nodes
+    -- available that could process it. Basically we want the
+    -- faster nodes at the top.
+    node_rank={
+      'thelio-a684a28cee8cfbd37c895a6266564755',
+      'geekom1-c2e35a1b5afe33bd6aa9c1d26a977589',
+      'geekom2-55de77073bc7647725ce62096a978bf1',
+      'geekom3-e322c033f3841b7c9dbd9c9a6a9870c1',
+      'meerkat-794558ad67d03a155ed635a464b2b5e4',
+      'bonobo-a3a2da568ef6838c1ed2ed9463e5507b',
+      'darter2-b0db31b5853309832ffb1a156766e000',
+    },
+    -- The top N are considered "fast" nodes.
+    fast_nodes=4,
   },
 
   redis={
