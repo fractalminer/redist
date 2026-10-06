@@ -27,7 +27,7 @@ output_key="${input_key//:input/:output}"
 echo "output key: $output_key"
 
 worker_key="${input_key//:input/:worker}"
-echo "output key: $worker_key"
+echo "worker key: $worker_key"
 
 get_output() {
   out="$(./redis-cli.sh hget "$output_key" "$1")"
