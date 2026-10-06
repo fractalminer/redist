@@ -23,7 +23,6 @@ local posix = require( 'posix' )
 -----------------------------------------------------------------
 -- Aliases.
 -----------------------------------------------------------------
-local blob_exists = assert( farm.blob_exists )
 local cencode = assert( decode.cencode )
 local cround_trip = assert( decode.cround_trip )
 local download_blob = assert( farm.download_blob )
@@ -239,7 +238,8 @@ local function run_preprocess( l_cxn, analyzed )
     description=assert( task.description ),
   } )
   info( 'queueing for task %s...', task.hash )
-  local task_output = ltask.queue_and_wait( l_cxn, task.hash )
+  local task_output = assert( ltask.queue_and_wait( l_cxn,
+                                                    task.hash ) )
   -- Whatever happens we need to forward the stderr of the pre-
   -- processor so that it can appear in the console.
   local task_stderr_hash = assert( task_output.stderr )

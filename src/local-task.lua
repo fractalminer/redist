@@ -180,7 +180,7 @@ local function queue_and_wait( cxn, task_hash, fn )
   assert( task_hash )
   fn = fn or function() end
 
-  local pubsub_cxn<close> = assert( ru.connect() )
+  local pubsub_cxn<close> = assert( ru.connect_local() )
   local sock = assert( pubsub_cxn.network.socket )
   local messages = pubsub_cxn:pubsub{
     subscribe=keys.task_events(),
@@ -197,12 +197,10 @@ local function queue_and_wait( cxn, task_hash, fn )
   -- ccache hit or we have genuinely new inputs.
   delete_output( cxn, task_hash )
 
-  local output
-
   queue_task( cxn, task_hash )
 
   local target = format( '%s:finished', task_hash )
-  while not output do
+  while true do
     info( 'waiting for local task...' )
     fn()
     if socket_select( { sock }, {}, 1 )[sock] then
@@ -213,9 +211,8 @@ local function queue_and_wait( cxn, task_hash, fn )
         abort() --
       end
     end
-    output = output_of( cxn, task_hash )
   end
-  return output or output_of( cxn, task_hash )
+  return output_of( cxn, task_hash )
 end
 
 -----------------------------------------------------------------
