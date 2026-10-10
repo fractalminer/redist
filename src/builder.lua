@@ -118,7 +118,7 @@ local function create_local_preprocess_task( analyzed )
   decoded.special_flags.o = output_file
   decoded.special_flags.x = assert( pp_style.x_pp )
   local command = unwords( cencode( decoded ) )
-  log_command( debug, 'command: %s', command )
+  log_command( debug, '%s', command )
   local cwd = getcwd()
 
   -- This doesn't have to be perfect because the preprocessing

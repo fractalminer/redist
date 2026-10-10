@@ -186,6 +186,18 @@ local function queue_and_wait( cxn, task_hash, fn )
     subscribe=keys.task_events(),
   }
 
+  -- This block is required as a synchronization mechanism to en-
+  -- sure that the subscribe takes effect before the task is
+  -- queued in order to avoid race conditions. This is because
+  -- even though we subscribe before queuing, they are on sepa-
+  -- rate connections and so redis does not guarantee the or-
+  -- dering of those relative to each other.
+  do
+    local message, _ = messages()
+    assert( message and message.kind == 'subscribe' )
+    assert( message.channel == keys.task_events() )
+  end
+
   -- NOTE: unlike with the remote task, we don't first check if
   -- the task output is already cached because for our pre-
   -- processor tasks the input task hash does not include the

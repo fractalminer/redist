@@ -6,18 +6,19 @@ xunit=$1
 [[ -n "$xunit" ]]
 xunit="${xunit//\//.}"
 xunit="${xunit//\.cpp/}"
+xunit="${xunit//\.c/}"
 echo "searching for translation unit pattern: $xunit"
 
 keys=$(./redis-cli.sh keys 'farm:task:*:input')
 
 find_it() {
   for key in $keys; do
-    input="$(./redis-cli.sh hget $key description)"
+    input="$(./redis-cli.sh hget $key input_file_path)"
     echo "key:$key|input:$input"
-  done | grep "\/$xunit.cpp" | sort
+  done | grep "\/$xunit\.c" | sort
 }
 
-input_key=$(find_it | sed -rn 's/^key:(.*)\|.*/\1/p')
+input_key=$(find_it | sed -rn 's/^key:(.*)\|input:.*/\1/p')
 [[ -n "$input_key" ]]
 
 # input_key=farm:task:c6e9959a78c3ce0f83c1c98b55546973:input

@@ -148,7 +148,7 @@ return harden{
 
   node_manager={
     MAX_WORKERS_PER_TYPE=48, --
-    ADVERTISE_INTERVAL_SECS=10,
+    ADVERTISE_INTERVAL_SECS=1,
     EVICT_CACHE_INTERVAL_SECS=43200, -- 12 hours
   },
 
