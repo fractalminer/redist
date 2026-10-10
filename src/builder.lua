@@ -7,11 +7,11 @@ local color = require( 'moon.colors' )
 local compilers = require( 'compilers' )
 local decode = require( 'decode' )
 local farm = require( 'farm' )
+local ltask = require( 'local-task' )
 local mhash = require( 'hash' )
-local ltask, rtask = require( 'local-task' ),
-                     require( 'remote-task' )
 local network = require( 'network' )
 local os_stat = require( 'os-stat' )
+local rtask = require( 'remote-task' )
 local ru = require( 'redis-util' )
 
 local logger = require( 'moon.logger' )

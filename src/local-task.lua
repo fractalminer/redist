@@ -2,6 +2,7 @@
 -- Imports.
 -----------------------------------------------------------------
 local config = require( 'config' )
+local ctask = require( 'common-task' )
 local farm = require( 'farm' )
 local keys = require( 'keys' )
 local network = require( 'network' )
@@ -31,6 +32,14 @@ local socket_select = assert( socket.select )
 local format = assert( string.format )
 
 -----------------------------------------------------------------
+-- Common task methods.
+-----------------------------------------------------------------
+local output_of = assert( ctask.output_of )
+local delete_output = assert( ctask.delete_output )
+local find = assert( ctask.find )
+local publish_event = assert( ctask.publish_event )
+
+-----------------------------------------------------------------
 -- Implementation.
 -----------------------------------------------------------------
 local function post_task( cxn, hash, params )
@@ -53,35 +62,6 @@ local function queue_task( cxn, hash )
   -- server. Ideally it'd be config.expire.TASKS.
 end
 
-local function output_of( cxn, hash )
-  assert( cxn )
-  assert( hash )
-  local key = keys.task_output( hash )
-  local output = cxn:hgetall( key )
-  -- For a key that doesn't exist it will return an empty table.
-  -- We can use this to save a separate ping to the server just
-  -- to first test if the key exists.
-  assert( type( output ) == 'table' )
-  if not next( output ) then return end
-  assert( output.has_stderr == 'true' or output.has_stderr ==
-              'false' )
-  output.has_stderr = (output.has_stderr == 'true')
-  return output
-end
-
-local function delete_output( cxn, hash )
-  assert( cxn )
-  assert( hash )
-  local key = keys.task_output( hash )
-  if not cxn:exists( key ) then return end
-  assert( cxn:del( key ) )
-end
-
-local function find( cxn, hash )
-  local key = keys.task_input( hash )
-  return cxn:hgetall( key )
-end
-
 local function register_preprocessed( cxn, lc, task_hash, ii_file )
   assert( cxn )
   assert( lc )
@@ -96,7 +76,6 @@ local function register_preprocessed( cxn, lc, task_hash, ii_file )
     return { type='blob', hash=new_hash }
   end
 
-  -- TODO: need to improve this.
   local tu_key = task_hash
 
   local base_hash = lc:preprocessed_get( tu_key )
@@ -166,14 +145,6 @@ local function set_result( cxn, l_cxn, lc, task, task_output )
     ii_type=ii_type,
     ii_hash=ii_hash,
   }, config.expire.TASKS )
-end
-
-local function publish_event( cxn, task_hash, event )
-  assert( task_hash )
-  assert( event )
-  local key = keys.task_events()
-  event = format( '%s:%s', task_hash, event )
-  cxn:publish( key, event )
 end
 
 local function queue_and_wait( cxn, task_hash, fn )
