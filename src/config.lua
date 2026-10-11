@@ -150,6 +150,22 @@ return harden{
     MAX_WORKERS_PER_TYPE=48, --
     ADVERTISE_INTERVAL_SECS=1,
     EVICT_CACHE_INTERVAL_SECS=43200, -- 12 hours
+    ENABLE_LOCAL_AUTO_SCALE=true,
+    -- The interval on which to check that we need to up-scale
+    -- the local worker pool. This should be short so that we can
+    -- react quickly when a compilation is initiated.
+    CHECK_LOCAL_AUTO_SCALE_INTERVAL_SECS=1,
+    -- Time interval on which we check for downscaling the local
+    -- worker pool. NOTE: this is not the inactivity timeout it-
+    -- self, it's just the interval on which we check whether we
+    -- need to downscale; the timeout is the next parameter.
+    CHECK_LOCAL_AUTO_UNSCALE_INTERVAL_SECS=120,
+    -- If the local workers remain inactive for this amount of
+    -- time then their pool will be drained until they are needed
+    -- again. This should be long because once activity is de-
+    -- tected that means that compile work is being done and so
+    -- it is likely there will be more compilations soon.
+    LOCAL_WORKER_INACTIVITY_TIMEOUT_SECS=3600,
   },
 
   node_telemetry={

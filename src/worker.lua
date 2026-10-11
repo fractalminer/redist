@@ -99,6 +99,7 @@ local PID = assert( posix.getpid().pid )
 local STATE = {
   status='idle', --
   last_advertise=0, --
+  last_active=0, --
   task=nil, --
 }
 
@@ -187,6 +188,7 @@ local function advertise( cxn )
     status=STATE.status,
     from=format( '%s:%s', ip, port ),
     last_advertise=STATE.last_advertise,
+    last_active=STATE.last_active,
     listen=assert( args.listen ),
     task=STATE.task or 'none',
   }
@@ -401,6 +403,7 @@ local function process_task(cxn_main, cxn_task, lc, task,
   local task_hash = assert( task.hash )
   debug( 'found task hash: %s', task_hash )
   STATE.status = 'active'
+  STATE.last_active = now_seconds()
   STATE.task = task_hash
   advertise( cxn_main )
   -- Publish after we increment the active count.

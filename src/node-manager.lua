@@ -39,8 +39,9 @@ local chain = assert( mcleanup.chain )
 local clamp = assert( mmath.clamp )
 local cleanup = assert( mcleanup.cleanup )
 local execute = assert( subprocess.execute )
-local info = assert( logger.info )
+local debug = assert( logger.debug )
 local err = assert( logger.err )
+local info = assert( logger.info )
 local warn = assert( logger.warn )
 local machine_label = assert( network.machine_label )
 local now_seconds = assert( time.now_seconds )
@@ -52,6 +53,7 @@ local section = assert( printer.section )
 local concat = assert( table.concat )
 local format = assert( string.format )
 local insert = assert( table.insert )
+local min = assert( math.min )
 local rep = assert( string.rep )
 
 -----------------------------------------------------------------
@@ -71,6 +73,8 @@ str.enable_string_injections()
 local STOP = false
 
 local LAST_EVICT = 0
+local LAST_AUTO_SCALE = 0
+local LAST_AUTO_UNSCALE = 0
 
 -----------------------------------------------------------------
 -- Signals.
@@ -110,7 +114,6 @@ local POOLS = {
     cmd={ 'redis-server', '../conf/redis-local.conf' },
     pool=nil,
     last_logged_count=0,
-    wait_secs=2, -- wait a bit so workers can connect.
   },
   workers_remote={
     enabled=true,
@@ -119,7 +122,6 @@ local POOLS = {
     cmd={ 'bash', 'run-remote-worker.sh' },
     pool=nil,
     last_logged_count=0,
-    wait_secs=nil,
   },
   workers_local={
     enabled=true,
@@ -128,7 +130,6 @@ local POOLS = {
     cmd={ 'bash', 'run-local-worker.sh' },
     pool=nil,
     last_logged_count=0,
-    wait_secs=nil,
   },
   node_telemetry={
     enabled=true,
@@ -137,7 +138,6 @@ local POOLS = {
     cmd={ 'bash', 'run-node-telemetry.sh' },
     pool=nil,
     last_logged_count=0,
-    wait_secs=nil,
   },
   distributor={
     -- This one will be enabled only when we are running this
@@ -148,7 +148,6 @@ local POOLS = {
     cmd={ 'bash', 'run-distributor.sh' },
     pool=nil,
     last_logged_count=0,
-    wait_secs=nil,
   },
 }
 
@@ -157,7 +156,6 @@ local function add_pool( name, conf )
   local cmd = assert( conf.cmd )
   local target = assert( conf.target )
   conf.pool = ProcessPool{ cmd=cmd, target=target, name=name }
-  if conf.wait_secs then sleep( conf.wait_secs ) end
   return cleanup( function() conf.pool:stop() end )
 end
 
@@ -234,6 +232,73 @@ local function evict_cache_throttled( lc )
       config.node_manager.EVICT_CACHE_INTERVAL_SECS then return end
   LAST_EVICT = now
   tcall( info, 'sqlite evict', function() lc:evict() end )
+end
+
+local function auto_scale_local_workers( cxn, l_cxn )
+  local q_local = keys.local_queue( machine_label() )
+  local size = assert( tonumber( l_cxn:llen( q_local ) ) )
+  assert( size >= 0 )
+  if size == 0 then return end
+  -- Need to scale up.
+  local key = assert( keys.node_telemetry( machine_label() ) )
+  local cores = tonumber( cxn:hget( key, 'cores_total' ) )
+  if not cores then err( 'failed to get total cores for host' ) end
+  local local_workers = cores + 2
+  local_workers = min( local_workers,
+                       config.node_manager.MAX_WORKERS_PER_TYPE )
+  info( 'auto-scaling local worker count to %d', local_workers )
+  WorkerCount( cxn, machine_label(), 'local' ):set( local_workers )
+end
+
+local function auto_scale_local_workers_throttled( cxn, l_cxn )
+  assert( cxn )
+  assert( l_cxn )
+  if not config.node_manager.ENABLE_LOCAL_AUTO_SCALE then return end
+  local now = now_seconds()
+  if now < LAST_AUTO_SCALE +
+      config.node_manager.CHECK_LOCAL_AUTO_SCALE_INTERVAL_SECS then
+    return
+  end
+  LAST_AUTO_SCALE = now
+  auto_scale_local_workers( cxn, l_cxn )
+end
+
+local function auto_unscale_local_workers( cxn )
+  debug( 'checking local worker activity...' )
+  local workers_glob = keys.worker_advertisement(
+                           machine_label(), '*' )
+  local worker_keys = cxn:keys( workers_glob )
+  assert( type( worker_keys ) == 'table' )
+  if #worker_keys == 0 then return end
+  local now = now_seconds()
+
+  local timeout = config.node_manager
+                      .LOCAL_WORKER_INACTIVITY_TIMEOUT_SECS
+  for _, worker_key in ipairs( worker_keys ) do
+    local advert = cxn:hgetall( worker_key )
+    assert( type( advert ) == 'table' )
+    if next( advert ) then
+      local last_active =
+          assert( tonumber( advert.last_active ) )
+      if last_active + timeout > now then return end
+    end
+  end
+  -- All local workers have timed out, meaning that they've gone
+  -- a period of time with no activity.
+  info( 'stopping local workers due to inactivity.' )
+  WorkerCount( cxn, machine_label(), 'local' ):set( 0 )
+end
+
+local function auto_unscale_local_workers_throttled( cxn )
+  assert( cxn )
+  if not config.node_manager.ENABLE_LOCAL_AUTO_SCALE then return end
+  local now = now_seconds()
+  if now < LAST_AUTO_UNSCALE +
+      config.node_manager.CHECK_LOCAL_AUTO_UNSCALE_INTERVAL_SECS then
+    return
+  end
+  LAST_AUTO_UNSCALE = now
+  auto_unscale_local_workers( cxn )
 end
 
 local function should_stop() return STOP == true end
@@ -333,6 +398,11 @@ local function run()
   -- take a few seconds before we can connect.
   wait_local_redis_available( should_stop )
 
+  -- This should auto close before we clean up the pools, which
+  -- matters because the local redis server is among the jobs in
+  -- the pool.
+  local l_cxn<close> = assert( ru.connect_local() )
+
   local lc<close> = LocalCache()
 
   while not should_stop() do
@@ -341,6 +411,8 @@ local function run()
     evict_cache_throttled( lc )
     check_update( cxn )
     update_pool_counts()
+    auto_scale_local_workers_throttled( cxn, l_cxn )
+    auto_unscale_local_workers_throttled( cxn )
     advance_pools( cxn )
     sleep( config.node_manager.ADVERTISE_INTERVAL_SECS )
   end
