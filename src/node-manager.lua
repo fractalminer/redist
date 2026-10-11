@@ -247,7 +247,9 @@ local function auto_scale_local_workers( cxn, l_cxn )
   local_workers = min( local_workers,
                        config.node_manager.MAX_WORKERS_PER_TYPE )
   info( 'auto-scaling local worker count to %d', local_workers )
-  WorkerCount( cxn, machine_label(), 'local' ):set( local_workers )
+  local wc = WorkerCount( cxn, machine_label(), 'local' )
+  if wc:get() > 0 then return end
+  wc:set( local_workers )
 end
 
 local function auto_scale_local_workers_throttled( cxn, l_cxn )
@@ -278,9 +280,11 @@ local function auto_unscale_local_workers( cxn )
     local advert = cxn:hgetall( worker_key )
     assert( type( advert ) == 'table' )
     if next( advert ) then
-      local last_active =
-          assert( tonumber( advert.last_active ) )
-      if last_active + timeout > now then return end
+      if assert( advert.listen ) == 'local' then
+        local last_active = assert(
+                                tonumber( advert.last_active ) )
+        if last_active + timeout > now then return end
+      end
     end
   end
   -- All local workers have timed out, meaning that they've gone
