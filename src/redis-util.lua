@@ -127,10 +127,8 @@ local function connect_local()
   end
 end
 
-local function wait_redis_available( stop_fn )
+local function wait_redis_available_impl( host, port, stop_fn )
   stop_fn = stop_fn or function() return false end
-  local host = assert( resolve_host() )
-  local port = assert( config.redis.PORT )
   local delay_secs = config.redis.INITIAL_CONNECT_WAIT_SECS
   while true do
     if stop_fn() then return end
@@ -144,6 +142,19 @@ local function wait_redis_available( stop_fn )
          tostring( res ) )
     sleep( delay_secs )
   end
+end
+
+local function wait_local_redis_available( stop_fn )
+  if not config.redis.ENABLE_LOCAL then return end
+  local host = assert( '127.0.0.1' )
+  local port = assert( config.redis.PORT_LOCAL )
+  return wait_redis_available_impl( host, port, stop_fn )
+end
+
+local function wait_redis_available( stop_fn )
+  local host = assert( resolve_host() )
+  local port = assert( config.redis.PORT )
+  return wait_redis_available_impl( host, port, stop_fn )
 end
 
 local function set_hash( cxn, key, tbl, expiry )
@@ -208,6 +219,7 @@ return {
   connect=connect,
   connect_local=connect_local,
   wait_redis_available=wait_redis_available,
+  wait_local_redis_available=wait_local_redis_available,
   set_hash=set_hash,
   redis_script=redis_script,
   run_redis_script=run_redis_script,

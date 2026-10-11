@@ -31,6 +31,8 @@ local remove_worker_presence = assert(
                                    farm.remove_worker_presence )
 local set_hash = assert( ru.set_hash )
 local wait_redis_available = assert( ru.wait_redis_available )
+local wait_local_redis_available = assert(
+                                       ru.wait_local_redis_available )
 local WorkerCount = assert( farm.WorkerCount )
 
 local chain = assert( mcleanup.chain )
@@ -295,6 +297,17 @@ local function update_unexpected_deaths( cxn, pool )
   remove_stale_worker_pids( cxn )
 end
 
+local function advance_pools( cxn )
+  on_ordered_kv( POOLS, function( _, conf )
+    if not conf.enabled then return end
+    local pool = assert( conf.pool )
+    pool:log_pids()
+    adjust_pool_count( cxn, pool, conf )
+    pool:advance()
+    update_unexpected_deaths( cxn, pool )
+  end )
+end
+
 -----------------------------------------------------------------
 -- Implementation.
 -----------------------------------------------------------------
@@ -313,6 +326,12 @@ local function run()
                        function() unadvertise_node( cxn ) end )
 
   local pools<close> = add_pools()
+  -- Kick it once to start things up.
+  advance_pools( cxn )
+
+  -- We've just started up the local redis server, and it might
+  -- take a few seconds before we can connect.
+  wait_local_redis_available( should_stop )
 
   local lc<close> = LocalCache()
 
@@ -322,14 +341,7 @@ local function run()
     evict_cache_throttled( lc )
     check_update( cxn )
     update_pool_counts()
-    on_ordered_kv( POOLS, function( _, conf )
-      if not conf.enabled then return end
-      local pool = assert( conf.pool )
-      pool:log_pids()
-      adjust_pool_count( cxn, pool, conf )
-      pool:advance()
-      update_unexpected_deaths( cxn, pool )
-    end )
+    advance_pools( cxn )
     sleep( config.node_manager.ADVERTISE_INTERVAL_SECS )
   end
   return 0

@@ -62,6 +62,9 @@ local remove_when_done = assert( workarea.remove_when_done )
 local set_hash = assert( ru.set_hash )
 local timeit = assert( time.timeit_micros )
 local trace = assert( logger.trace )
+local wait_redis_available = assert( ru.wait_redis_available )
+local wait_local_redis_available = assert(
+                                       ru.wait_local_redis_available )
 local write_file = assert( file.write_file )
 
 local format = assert( string.format )
@@ -472,6 +475,8 @@ local function process_next_task( cxn, l_cxn, lc )
   return true
 end
 
+local function should_stop() return STOP == true end
+
 -----------------------------------------------------------------
 -- Main.
 -----------------------------------------------------------------
@@ -521,6 +526,9 @@ local function main()
 
   -- Let's do this here to fail fast if we can't determine it.
   assert( os_version(), 'cannot determine os version tag' )
+
+  wait_redis_available( should_stop )
+  wait_local_redis_available( should_stop )
 
   local cxn<close> = assert( ru.connect() )
   local l_cxn<close> = assert( ru.connect_local() )
