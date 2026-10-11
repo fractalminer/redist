@@ -176,7 +176,7 @@ return harden{
   distributor={
     DEFAULT_STGY='smart',
     QUEUE_POLL_TIMEOUT_SECS=5,
-    TOP_COMPILE_TIME_COUNT=10,
+    TOP_COMPILE_TIME_COUNT=15,
   },
 
   dashboard={
