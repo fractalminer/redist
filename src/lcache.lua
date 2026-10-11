@@ -105,7 +105,7 @@ function LocalCache:blob_get( hash )
   stmt:reset()
   return {
     hash=hash, --
-    compressed=true, -- FIXME: shouldn't assume this.
+    compressed=true,
     data=data, --
   }
 end
