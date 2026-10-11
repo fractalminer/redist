@@ -105,7 +105,7 @@ get_nodes() {
   # array element before they get fed into fzf.
   get_input_multi "CHOOSE NODE" "${options[@]}"
   [[ -z "$selected" ]] && exit 1
-  if [[ "$selected" == ALL ]]; then
+  if [[ "${selected,,}" == all ]]; then
     nodes=("${nodes_all[@]}")
   else
     # Read multiline string into an array named 'nodes'.
@@ -286,6 +286,9 @@ main() {
   declare -a nodes
   if (( $# == 0 )); then
     get_nodes
+  elif [[ "$#" == 1 && "${1,,}" == "all" ]]; then
+    interactive=0
+    nodes=("${nodes_all[@]}")
   else
     interactive=0
     nodes=("$@")
