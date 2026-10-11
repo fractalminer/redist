@@ -26,9 +26,9 @@ nodes_all=(
 )
 
 categories=(
-  "Node Manager SYSTEMCTL"
-  "Node Manager REDIS CMD"
-  "Node Host"
+  "systemctl"
+  "redis-cmd"
+  "power"
 )
 
 # ---------------------------------------------------------------
@@ -126,7 +126,7 @@ get_action() {
   declare -a actions
   local title="CHOOSE ACTION"
   case "$category" in
-    "Node Manager SYSTEMCTL")
+    "systemctl")
       actions=(
         "logs"
         "start"
@@ -138,10 +138,10 @@ get_action() {
       [[ -z "$selected" ]] && exit 1
       action="$selected"
       ;;
-    "Node Manager REDIS CMD")
+    "redis-cmd")
       actions=(
         "update"
-        "log level"
+        "log-level"
       )
       get_input_single "$title" "${actions[@]}"
       [[ -z "$selected" ]] && exit 1
@@ -149,21 +149,21 @@ get_action() {
       case "$action" in
         update)
           ;;
-        "log level")
+        "log-level")
           levels=(OFF ERROR WARNING INFO DEBUG TRACE)
           get_input_single "CHOOSE LEVEL" "${levels[@]}"
           [[ -z "$selected" ]] && exit 1
-          extra="$selected"
+          action="$action=$selected"
           ;;
         *)
           die "unrecognized action: $action"
           ;;
       esac
       ;;
-    "Node Host")
+    "power")
       actions=(
-        "Power ON"
-        "Power OFF"
+        "on"
+        "off"
       )
       get_input_single "$title" "${actions[@]}"
       [[ -z "$selected" ]] && exit 1
@@ -233,31 +233,31 @@ execute() {
   local extra="$4"
 
   case "$cmd" in
-    "Node Manager SYSTEMCTL>logs")
+    "systemctl>logs")
       node_manager_service_logs
       ;;
-    "Node Manager SYSTEMCTL>start")
+    "systemctl>start")
       node_manager_service_start
       ;;
-    "Node Manager SYSTEMCTL>stop")
+    "systemctl>stop")
       node_manager_service_stop
       ;;
-    "Node Manager SYSTEMCTL>restart")
+    "systemctl>restart")
       node_manager_service_restart
       ;;
-    "Node Manager SYSTEMCTL>status")
+    "systemctl>status")
       node_manager_service_status
       ;;
-    "Node Manager REDIS CMD>update")
+    "redis-cmd>update")
       node_manager_command_update
       ;;
-    "Node Manager REDIS CMD>log level")
+    "redis-cmd>log-level")
       node_manager_command_level "$extra"
       ;;
-    "Node Host>Power ON")
+    "power>on")
       node_host_power_on
       ;;
-    "Node Host>Power OFF")
+    "power>off")
       node_host_power_off
       ;;
   esac
@@ -268,9 +268,28 @@ execute() {
 # ---------------------------------------------------------------
 main() {
   clear
-  get_category
-  get_action "$category"
-  get_nodes
+
+  interactive=1
+
+  category="$1"; shift || true
+  if [[ -z "$category" ]]; then get_category; fi
+
+  action="$1"; shift || true
+  if [[ -z "$action" ]]; then get_action "$category"; fi
+
+  extra=
+  if [[ "$action" =~ ([^=])+=(.*) ]]; then
+    action="${BASH_REMATCH[1]}"
+    extra="${BASH_REMATCH[2]}"
+  fi
+
+  declare -a nodes
+  if (( $# == 0 )); then
+    get_nodes
+  else
+    interactive=0
+    nodes=("$@")
+  fi
 
   echo "CATEGORY:"
   echo "- $category"
@@ -289,9 +308,11 @@ main() {
   done
 
   echo
-  echo -n 'OK? [y/n] '
-  read -a yesno
-  [[ "$yesno" != "y" ]] && exit 1
+  if (( interactive == 1 )); then
+    echo -n 'OK? [y/n] '
+    read -a yesno
+    [[ "$yesno" != "y" ]] && exit 1
+  fi
 
   for node in "${nodes[@]}"; do
     print_title "$node"
@@ -309,4 +330,4 @@ main() {
 # ---------------------------------------------------------------
 # Launch.
 # ---------------------------------------------------------------
-main
+main "$@"
