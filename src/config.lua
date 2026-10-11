@@ -104,7 +104,7 @@ return harden{
 
   expire={
     WORKER_ADVERTISE_SECS=15,
-    NODE_MANAGER_ADVERTISE_SECS=50, --
+    NODE_MANAGER_ADVERTISE_SECS=5, --
     -- For things associated with task processing, e.g. task in-
     -- put, task queues, etc. But not task output; those are
     -- cached.
