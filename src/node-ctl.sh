@@ -278,7 +278,7 @@ main() {
   if [[ -z "$action" ]]; then get_action "$category"; fi
 
   extra=
-  if [[ "$action" =~ ([^=])+=(.*) ]]; then
+  if [[ "$action" =~ ([^=]+)=(.*) ]]; then
     action="${BASH_REMATCH[1]}"
     extra="${BASH_REMATCH[2]}"
   fi
