@@ -12,8 +12,6 @@ local debug = assert( logger.debug )
 
 local dns = assert( socket.dns )
 
-local format = assert( string.format )
-
 -----------------------------------------------------------------
 -- Global state.
 -----------------------------------------------------------------
@@ -54,7 +52,7 @@ end
 -- hosts have the same hostname.
 local function machine_label()
   if MACHINE_LABEL then return MACHINE_LABEL end
-  MACHINE_LABEL = format( '%s-%s', hostname(), machine_id() )
+  MACHINE_LABEL = hostname()
   return MACHINE_LABEL
 end
 

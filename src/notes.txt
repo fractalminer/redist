@@ -1,7 +1,6 @@
 # vim: syntax=yaml
 TODO:
 -----------------------------------------------------------------
-  * Remove machine label suffixes, just use hostnames.
   * Multiplexing:
     - There will be multiple channels to the redis server.
     - Workers should have an id and we should multiplex based

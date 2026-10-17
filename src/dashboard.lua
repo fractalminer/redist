@@ -439,9 +439,9 @@ local function update_data( cxn, opts )
   g_data.nodes = {}
   local nodes = g_data.nodes
   on_ordered_kv( state.nodes, function( node_label, v )
-    local name, machine_id = node_label:tsplit( '-' )
+    local name = node_label
     local node = {}
-    node.id = machine_id
+    node.id = name
     node.name = name
     node.node_label = node_label
     node.from_host = (v.host and v.host.ip) or 'unknown'

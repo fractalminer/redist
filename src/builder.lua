@@ -32,7 +32,7 @@ local filter_final_compile_flags = assert(
                                        compilers.filter_final_compile_flags )
 local hash = assert( mhash.hash )
 local log_command = assert( ccache.log_command )
-local machine_id = assert( network.machine_id )
+local machine_label = assert( network.machine_label )
 local match_compiler = assert( compilers.match_compiler )
 local os_version = assert( os_stat.os_version )
 
@@ -130,7 +130,7 @@ local function create_local_preprocess_task( analyzed )
     os_version(), --
     command, --
     cwd, --
-    machine_id(), --
+    machine_label(), --
   }
 
   local description = format( 'preprocess %s',
