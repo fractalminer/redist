@@ -957,8 +957,12 @@ local function redraw( out )
         text( out, 'UPDATING', node.from_host )
         out:fg( DARK_GREY )
         text( out, ']' )
+      else
+        -- Erase it if it was there before, that way we don't
+        -- have to do a clera_to_eol which causes flicker on the
+        -- right border of the screen.
+        text( out, '           ' )
       end
-      out:clear_to_eol()
       out:reset()
       if compact() < 3 then advance( 3 ) end
 
