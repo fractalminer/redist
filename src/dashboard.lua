@@ -820,7 +820,7 @@ local function redraw( out )
 
     advance()
     out:clear_line()
-    move{ x=COLS // 2 - 34 }
+    move{ x=COLS // 2 - 35 }
     out:fg( DARK_LABEL )
     text( out, 'cores: ' )
     out:reset()
