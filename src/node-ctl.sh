@@ -60,11 +60,7 @@ get_input_multi() {
 get_hostname_and_id() {
   local node="$1"
   [[ -n "$node" ]] || die 'empty node'
-  [[ "$node" =~ ([^-]+)-(.*) ]]
-  hostname="${BASH_REMATCH[1]}"
-  id="${BASH_REMATCH[2]}"
-  [[ -n "$hostname" ]] || die 'empty hostname'
-  [[ -n "$id" ]] || die 'empty id'
+  hostname="$node"
   hostname="$hostname.local"
 }
 
