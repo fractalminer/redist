@@ -11,6 +11,12 @@ KEY="bandwidth-test-$$"
 
 BYTES=$((SIZE_MIB * 1024 * 1024))
 
+DEFAULT_PORT=$(redist_port)
+
+redis-cli() {
+  command redis-cli -h $(redist_host) -p ${PORT:-$DEFAULT_PORT} "$@"
+}
+
 cleanup() {
   redis-cli DEL "$KEY" >/dev/null 2>&1 || true
 }

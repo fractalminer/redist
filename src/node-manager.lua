@@ -74,7 +74,7 @@ local STOP = false
 
 local LAST_EVICT = 0
 local LAST_AUTO_SCALE = 0
-local LAST_AUTO_UNSCALE = 0
+local LAST_AUTO_UNSCALE = now_seconds()
 
 -----------------------------------------------------------------
 -- Signals.
