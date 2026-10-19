@@ -96,7 +96,7 @@ return harden{
     -- bandwidth to the redis server: lower bandwidths want
     -- higher compression levels, and vice versa, for optimal
     -- overall build times.
-    LEVEL=1,
+    LEVEL=8,
   },
 
   expire={
