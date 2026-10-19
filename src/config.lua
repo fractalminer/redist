@@ -85,16 +85,18 @@ return harden{
   },
 
   general={
-    COMPRESSION_METHOD='zstd',
-    -- The ideal value of this compression level depends on up-
-    -- load bandwidth to the redis server: lower bandwidths want
-    -- higher compression levels, and vice versa, for optimal
-    -- overall build times.
-    COMPRESSION_LEVEL=1,
     USE_F_REWRITE_INCLUDES=false,
     -- Every n secs we'll check redis for a command to update the
     -- log level.
     UPDATE_LOG_LEVEL_INTERVAL_SECS=30,
+  },
+
+  compression={
+    -- The ideal value of the compression level depends on upload
+    -- bandwidth to the redis server: lower bandwidths want
+    -- higher compression levels, and vice versa, for optimal
+    -- overall build times.
+    LEVEL=1,
   },
 
   expire={
