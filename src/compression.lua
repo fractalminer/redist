@@ -26,9 +26,8 @@ local timeit = assert( time.timeit_micros )
 -----------------------------------------------------------------
 -- Implementation.
 -----------------------------------------------------------------
-local function compress( what, type )
+local function compress( what )
   assert( what )
-  assert( type, 'must specify compression type' )
   local level = config.compression.LEVEL
   local time_taken, compressed =
       timeit( function() return zstd.compress( what, level ) end )
