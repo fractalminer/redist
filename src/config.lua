@@ -90,8 +90,8 @@ return harden{
     -- 40 Mbps is the upper limit for upload bandwidth of a cable
     -- internet connection, though we might get less than that
     -- when on a shared wifi network).
-    EXTERNAL_DOWNLOAD_BANDWIDTH=200, -- Mbps
     EXTERNAL_UPLOAD_BANDWIDTH=40, -- Mbps
+    EXTERNAL_DOWNLOAD_BANDWIDTH=200, -- Mbps
   },
 
   general={
