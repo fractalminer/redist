@@ -98,7 +98,7 @@ local function decide_pp_compression_level()
   local o_level = search_levels_for( config.redis
                                          .EXTERNAL_DOWNLOAD_BANDWIDTH,
                                      config.compression
-                                         .O_LEVELS_FOR_SLOW_UPLOAD_BANDWIDTH )
+                                         .O_LEVELS_FOR_SLOW_DOWNLOAD_BANDWIDTH )
   return ret( p_level, o_level )
 end
 
