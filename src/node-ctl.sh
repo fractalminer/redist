@@ -189,16 +189,15 @@ node_manager_service_status() {
 
 node_manager_command_update() {
   [[ -n "$hostname" ]] || die 'hostname not set'
-  [[ -n "$id" ]] || die 'id not set'
   local name="${hostname//.local}"
-  ./redis-cli.sh set "farm:nodectl:$name-$id:update" 1
+  ./redis-cli.sh set "farm:nodectl:$name:update" 1
 }
 
 node_manager_command_level() {
   local level="$1"
   [[ -n "$level" ]] || die 'level not set'
   local name="${hostname//.local}"
-  ./redis-cli.sh set "farm:nodectl:$name-$id:loglevel" "$level"
+  ./redis-cli.sh set "farm:nodectl:$name:loglevel" "$level"
 }
 
 node_host_power_on() {
@@ -216,9 +215,8 @@ node_host_power_off() {
 # ---------------------------------------------------------------
 execute() {
   local hostname="$1"
-  local id="$2"
-  local cmd="$3"
-  local extra="$4"
+  local cmd="$2"
+  local extra="$3"
 
   case "$cmd" in
     "systemctl>logs")
@@ -295,7 +293,6 @@ main() {
     get_hostname_and_id "$node"
     echo "- $node"
     echo "  - hostname: $hostname"
-    echo "  - id:       $id"
   done
 
   echo
@@ -310,7 +307,6 @@ main() {
     get_hostname_and_id "$node"
     execute                   \
       "$hostname"             \
-      "$id"                   \
       "${category}>${action}" \
       "$extra"
   done

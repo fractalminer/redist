@@ -27,7 +27,7 @@ local set_hash = assert( ru.set_hash )
 
 local debug = assert( logger.debug )
 local err = assert( logger.err )
-local warn = assert( logger.warn )
+local warning = assert( logger.warning )
 local trace = assert( logger.trace )
 local printfln = assert( printer.printfln )
 local timeit = assert( time.timeit_micros )
@@ -46,10 +46,12 @@ local PID<const> = assert( posix.getpid().pid )
 -- Implementation.
 -----------------------------------------------------------------
 -- data is uncompressed here.
-local function create_blob( data )
+local function create_blob( data, compression_level )
   assert( type( data ) == 'string', 'invalid data' )
+  assert( compression_level, 'missing compression level' )
   -- NOTE: this will log its own compression time.
-  local compressed = assert( compress( data ) )
+  local compressed =
+      assert( compress( data, compression_level ) )
   local hash = assert( hasher( compressed ) )
   return {
     hash=hash, --
@@ -67,7 +69,8 @@ local function blob_data( blob )
   end
 end
 
-local function create_delta( base_blob, new_blob )
+local function create_delta(base_blob, new_blob,
+                            compression_level )
   assert( type( base_blob ) == 'table', 'invalid base_blob' )
   assert( type( new_blob ) == 'table', 'invalid new_blob' )
   -- This will decompress.
@@ -76,8 +79,8 @@ local function create_delta( base_blob, new_blob )
   assert( type( base ) == 'string', 'invalid base' )
   assert( type( new ) == 'string', 'invalid new' )
   local diff = assert( xdelta.encode( base, new ) )
-  local blob_base = create_blob( base )
-  local blob_diff = create_blob( diff )
+  local blob_base = create_blob( base, compression_level )
+  local blob_diff = create_blob( diff, compression_level )
   local hash_base = assert( blob_base.hash )
   local hash_diff = assert( blob_diff.hash )
   local hash_manifest = assert( hasher{ hash_base, hash_diff } )
@@ -146,22 +149,21 @@ local function upload_delta( cxn, delta )
   upload_delta_manifest( cxn, delta.manifest )
 end
 
-local function set_blob_from_string( cxn, body, ex )
-  return upload_blob( cxn, assert( create_blob( body ) ),
+local function set_blob_from_string(cxn, body, compression_level,
+                                    ex )
+  assert( compression_level )
+  return upload_blob( cxn, assert(
+                          create_blob( body, compression_level ) ),
                       { ex=ex } )
 end
 
-local function create_blob_from_file( fname )
+local function create_blob_from_file( fname, compression_level )
+  assert( compression_level )
   assert( fname, 'invalid filename' )
   local f<close> = assert( io.open( fname, 'r' ) )
   debug( 'reading file %s', fname )
   local body = f:read( 'a' )
-  return create_blob( body )
-end
-
-local function set_blob_from_file( cxn, fname, ex )
-  local blob = assert( create_blob_from_file( fname ) )
-  return upload_blob( cxn, blob, { ex=ex } )
+  return create_blob( body, compression_level )
 end
 
 -- Reports errors via return value.
@@ -353,7 +355,7 @@ local function reset_task_input_and_output( cxn )
   local function del( pattern )
     assert( pattern )
     assert( pattern:find( '*' ) )
-    warn( 'deleting keys: %s', pattern )
+    warning( 'deleting keys: %s', pattern )
     -- Delete in groups otherwise too slow.
     while true do
       local all = cxn:keys( pattern )
@@ -370,7 +372,8 @@ local function reset_task_input_and_output( cxn )
       cxn:raw_cmd( format( 'del %s', unwords( some ) ) )
     end
   end
-  del( keys.node_ctl( '*' ) )
+  -- Don't do nodectl otherwise we lose log level.
+  -- del( keys.node_ctl( '*' ) )
   del( keys.blob( '*' ) )
   del( keys.delta( '*' ) )
   del( keys.task( '*' ) )
@@ -401,7 +404,6 @@ return {
   upload_blob=upload_blob,
   download_blob=download_blob,
   set_blob_from_string=set_blob_from_string,
-  set_blob_from_file=set_blob_from_file,
   download_blob_to_file=download_blob_to_file,
   create_delta=create_delta,
   upload_delta=upload_delta,

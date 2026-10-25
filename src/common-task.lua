@@ -37,7 +37,12 @@ end
 
 local function find( cxn, hash )
   local key = keys.task_input( hash )
-  return cxn:hgetall( key )
+  local task = cxn:hgetall( key )
+  -- Convert any individual fields.
+  assert( task.compression_level )
+  task.compression_level = assert( tonumber(
+                                       task.compression_level ) )
+  return task
 end
 
 local function publish_event( cxn, task_hash, event )

@@ -3,6 +3,7 @@
 -- Imports.
 -----------------------------------------------------------------
 local ccache = require( 'ccache-helper' )
+local config = require( 'config' )
 local color = require( 'moon.colors' )
 local compilers = require( 'compilers' )
 local decode = require( 'decode' )
@@ -15,6 +16,7 @@ local rtask = require( 'remote-task' )
 local ru = require( 'redis-util' )
 
 local logger = require( 'moon.logger' )
+local printer = require( 'moon.printer' )
 local str = require( 'moon.str' )
 local tbl = require( 'moon.tbl' )
 
@@ -40,6 +42,8 @@ local deep_copy = assert( tbl.deep_copy )
 local err = assert( logger.err )
 local info = assert( logger.info )
 local debug = assert( logger.debug )
+local trace = assert( logger.trace )
+local format_table = assert( printer.format_table )
 local unwords = assert( str.unwords )
 
 local getcwd = assert( posix.unistd.getcwd )
@@ -63,6 +67,41 @@ logger.level = assert( logger.levels.WARNING )
 -----------------------------------------------------------------
 -- Implementation.
 -----------------------------------------------------------------
+local function decide_pp_compression_level()
+  local function ret( p, o )
+    return { p=assert( p ), o=assert( o ) }
+  end
+  if config.redis.host.NAME ~= 'tunnel' then
+    -- Here assume we are on the home network where we basically
+    -- have infinite upload bandwidth.
+    return ret( config.compression.P_LEVEL_FOR_FAST_UPLOAD,
+                config.compression.O_LEVEL_FOR_FAST_DOWNLOAD )
+  end
+  -- This is where we are in "tunnel" mode to the redis server
+  -- where we assume that we have a relatively slow upload band-
+  -- width.
+  local function search_levels_for( bandwidth, tiers )
+    for _, tier in ipairs( tiers ) do
+      if bandwidth >= tier.min_bandwidth then
+        return tier.level
+      end
+    end
+    -- We have a very low bandwidth, so just use the lowest
+    -- bandwidth's tier.
+    local lowest_tier = assert( tiers[#tiers] )
+    return lowest_tier.level
+  end
+  local p_level = search_levels_for( config.redis
+                                         .EXTERNAL_UPLOAD_BANDWIDTH,
+                                     config.compression
+                                         .P_LEVELS_FOR_SLOW_UPLOAD_BANDWIDTH )
+  local o_level = search_levels_for( config.redis
+                                         .EXTERNAL_DOWNLOAD_BANDWIDTH,
+                                     config.compression
+                                         .O_LEVELS_FOR_SLOW_UPLOAD_BANDWIDTH )
+  return ret( p_level, o_level )
+end
+
 local function analyze_command( command )
   assert( type( command ) == 'table' ) -- list
   local decoded = assert( cround_trip( command ) )
@@ -135,12 +174,20 @@ local function create_local_preprocess_task( analyzed )
 
   local description = format( 'preprocess %s',
                               decoded.input_c_cpp_file )
+  -- How much to compress the preprocessed file before uploading
+  -- it to the blob store. Note that this doesn't need to go into
+  -- the task hash since it only affects output, and affects it
+  -- in a way that the decompressor can detect, so doesn't need
+  -- to be known in advance by the consumer.
+  local compression_level = assert(
+                                decide_pp_compression_level().p )
   return {
     hash=task_hash,
     command=command,
     cwd=cwd,
     description=description,
     output_file=output_file,
+    compression_level=compression_level,
   }
 end
 
@@ -199,6 +246,14 @@ local function create_remote_compile_task( analyzed, ii )
     input, --
   }
 
+  -- How much to compress the object file before uploading it to
+  -- the blob store. Note that this doesn't need to go into the
+  -- task hash since it only affects output, and affects it in a
+  -- way that the decompressor can detect, so doesn't need to be
+  -- known in advance by the consumer.
+  local compression_level = assert(
+                                decide_pp_compression_level().o )
+
   -- Create a task.
   return {
     hash=task_hash,
@@ -210,6 +265,7 @@ local function create_remote_compile_task( analyzed, ii )
     description=description,
     input=input,
     input_type=input_type,
+    compression_level=compression_level,
   }
 end
 
@@ -232,11 +288,7 @@ local function run_preprocess( l_cxn, analyzed )
   -- ceived, so we won't be checking for a pre-existing cached
   -- output (since we don't know if the contents of the various
   -- input files have changed).
-  ltask.post_task( l_cxn, task.hash, {
-    command=assert( task.command ),
-    cwd=assert( task.cwd ),
-    description=assert( task.description ),
-  } )
+  ltask.post_task( l_cxn, task.hash, task )
   info( 'queueing for task %s...', task.hash )
   local task_output = assert( ltask.queue_and_wait( l_cxn,
                                                     task.hash ) )
@@ -372,6 +424,9 @@ end
 local function main()
   -- Let's do this here to fail fast if we can't determine it.
   assert( os_version(), 'cannot determine os version tag' )
+
+  trace( 'upload bandwidth: %s',
+         format_table( decide_pp_compression_level() ) )
 
   local cxn<close> = assert( ru.connect() )
   local l_cxn<close> = assert( ru.connect_local() )

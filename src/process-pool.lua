@@ -17,7 +17,7 @@ local _debug = assert( logger.debug )
 local _err = assert( logger.err )
 local _info = assert( logger.info )
 local _trace = assert( logger.trace )
-local _warn = assert( logger.warn )
+local _warning = assert( logger.warning )
 
 local execp = assert( posix.execp )
 local fork = assert( posix.fork )
@@ -74,7 +74,7 @@ function ProcessPool:log_impl( log, ... )
 end
 
 function ProcessPool:err( ... ) self:log_impl( _err, ... ) end
-function ProcessPool:warn( ... ) self:log_impl( _warn, ... ) end
+function ProcessPool:warning( ... ) self:log_impl( _warning, ... ) end
 function ProcessPool:info( ... ) self:log_impl( _info, ... ) end
 function ProcessPool:debug( ... ) self:log_impl( _debug, ... ) end
 function ProcessPool:trace( ... ) self:log_impl( _trace, ... ) end
@@ -169,7 +169,7 @@ function ProcessPool:stop( sig )
   self._target = 0
   sig = sig or signal.SIGTERM
   for pid in self._running_pids do
-    self:warn( 'stopping child pid %d', pid )
+    self:warning( 'stopping child pid %d', pid )
     killpg( pid, signal.SIGTERM )
     self._pending_term_pids:add( pid )
   end

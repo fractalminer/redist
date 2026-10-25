@@ -47,6 +47,7 @@ local function post_task( cxn, hash, params )
   assert( params )
   assert( params.command )
   assert( params.description )
+  assert( params.compression_level )
   if params.cwd then assert( #params.cwd > 0 ) end
   local key, ex = keys.task_input( hash )
   set_hash( cxn, key, params, ex )
@@ -62,13 +63,16 @@ local function queue_task( cxn, hash )
   -- server. Ideally it'd be config.expire.TASKS.
 end
 
-local function register_preprocessed( cxn, lc, task_hash, ii_file )
+local function register_preprocessed(cxn, lc, task_hash, ii_file,
+                                     compression_level )
   assert( cxn )
   assert( lc )
   assert( task_hash )
   assert( ii_file )
+  assert( compression_level )
 
-  local new_blob = assert( create_blob_from_file( ii_file ) )
+  local new_blob = assert( create_blob_from_file( ii_file,
+                                                  compression_level ) )
   local new_hash = assert( new_blob.hash )
 
   if not config.worker.SEND_PREPROCESSED_DELTAS then
@@ -103,7 +107,8 @@ local function register_preprocessed( cxn, lc, task_hash, ii_file )
   end
 
   -- The base blob exists in sqlite and is in redis.
-  local delta = assert( create_delta( base_blob, new_blob ) )
+  local delta = assert( create_delta( base_blob, new_blob,
+                                      compression_level ) )
   -- Do not update the local sqlite cache.
   upload_delta( cxn, delta )
 
@@ -117,9 +122,11 @@ local function set_result( cxn, l_cxn, lc, task, task_output )
   -- works. Otherwise, assuming the command ran (with exit code 0
   -- or not) then `task` will be the input task object.
   local hash = assert( task.hash )
+  local compression_level = assert( task.compression_level )
   local out_key = keys.task_output( hash )
   local function blobify( content )
     local blob = set_blob_from_string( l_cxn, content,
+                                       compression_level,
                                        config.expire.TASKS )
     assert( type( blob ) == 'table' )
     assert( type( blob.hash ) == 'string' )
@@ -131,7 +138,8 @@ local function set_result( cxn, l_cxn, lc, task, task_output )
   if file.exists( output_file ) then
     local registered = assert( register_preprocessed( cxn, lc,
                                                       hash,
-                                                      output_file ) )
+                                                      output_file,
+                                                      compression_level ) )
     assert( type( registered ) == 'table' )
     ii_type = assert( registered.type )
     ii_hash = assert( registered.hash )

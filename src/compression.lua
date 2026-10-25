@@ -7,39 +7,32 @@
 -----------------------------------------------------------------
 -- Imports.
 -----------------------------------------------------------------
-local config = require( 'config' )
-
-local freeze = require( 'moon.freeze' )
 local logger = require( 'moon.logger' )
 local time = require( 'moon.time' )
 local zstd = require( 'moon.zstd' )
 
-local zlib = require( 'zlib' )
-
 -----------------------------------------------------------------
 -- Aliases.
 -----------------------------------------------------------------
-local harden = assert( freeze.harden )
 local debug = assert( logger.debug )
-local timeit = assert( time.timeit_micros )
+local tcall = assert( time.tcall )
+
+local format = assert( string.format )
 
 -----------------------------------------------------------------
 -- Implementation.
 -----------------------------------------------------------------
-local function compress( what )
+local function compress( what, level )
   assert( what )
-  local level = config.compression.LEVEL
-  local time_taken, compressed =
-      timeit( function() return zstd.compress( what, level ) end )
-  debug( 'compression time: %d us', time_taken )
-  return compressed
+  assert( level, 'missing compression level' )
+  assert( type( level ) == 'number' )
+  local label = format( 'compression|%d', level )
+  return tcall( debug, label, zstd.compress, what, level )
 end
 
 local function decompress( what )
-  local time_taken, decompressed =
-      timeit( function() return zstd.decompress( what ) end )
-  debug( 'decompression time: %d us', time_taken )
-  return decompressed
+  assert( what )
+  return tcall( debug, 'decompression', zstd.decompress, what )
 end
 
 -----------------------------------------------------------------

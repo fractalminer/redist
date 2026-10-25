@@ -25,6 +25,7 @@ local distributor_info = assert( cluster.distributor_info )
 
 local debug = assert( logger.debug )
 local info = assert( logger.info )
+local warning = assert( logger.warning )
 local sleep = assert( time.sleep )
 local timeit_micros = assert( time.timeit_micros )
 
@@ -162,7 +163,7 @@ local function distribute( cxn, task_info )
           format( 'unrecognized distribution strategy: %s',
                   tostring( stgy ) ) )
   local function fallback()
-    warn( 'falling back to global strategy for task %s', hash )
+    warning( 'falling back to global strategy for task %s', hash )
     if stgy == 'global' then
       error( 'global strategy failed first attempt for hash %s',
              hash )
@@ -186,7 +187,7 @@ local function run( cxn )
     if not hash then goto continue end
     local task_info = assert( rtask.find( cxn, hash ) )
     if not distribute( cxn, task_info ) then
-      warn( 'could not distribute task %s, will retry...' )
+      warning( 'could not distribute task %s, will retry...' )
       cxn:lpush( keys.remote_distributor_queue(), hash )
       sleep( 1 )
     end

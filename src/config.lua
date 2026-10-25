@@ -82,6 +82,16 @@ return harden{
     -- nect to redis, so we don't want it to be doing too much
     -- spinning in that case.
     INITIAL_CONNECT_WAIT_SECS=10,
+    -- These estimate the upload and download bandwidth in Mbps
+    -- that we get to the redis server when we are tunneling from
+    -- an external network. This is not relevant on the home net-
+    -- work where our bandwidths are effectively infinite, but
+    -- could be arbitrarily low when on an external network (and
+    -- 40 Mbps is the upper limit for upload bandwidth of a cable
+    -- internet connection, though we might get less than that
+    -- when on a shared wifi network).
+    EXTERNAL_DOWNLOAD_BANDWIDTH=200, -- Mbps
+    EXTERNAL_UPLOAD_BANDWIDTH=40, -- Mbps
   },
 
   general={
@@ -92,11 +102,52 @@ return harden{
   },
 
   compression={
-    -- The ideal value of the compression level depends on upload
-    -- bandwidth to the redis server: lower bandwidths want
-    -- higher compression levels, and vice versa, for optimal
-    -- overall build times.
-    LEVEL=1,
+    -- In general, the ideal values of the compression levels de-
+    -- pend on bandwidth: lower bandwidths want higher compres-
+    -- sion levels, and vice versa, for optimal overall build
+    -- times.
+    --
+    -- On the home network where we have practically infinite up-
+    -- load bandwidth, we just use a level of one because it's a
+    -- huge win and basically free.
+    --
+    -- But when we are on an external network the bottlenecks
+    -- will be the external connection (i.e. upload from build
+    -- host to redis and download from redis to build host) since
+    -- we assume that connections between redis and other build
+    -- nodes will be fast since they are all on the same network.
+    --
+    -- So for external connections we need to increase the com-
+    -- pression levels to get optimal build times. zstd can go up
+    -- to 19, but that is very slow and typically not optimal, so
+    -- below yields optimal measured values for each bucket of
+    -- bandwidths.
+    P_LEVEL_FOR_FAST_UPLOAD=1,
+    O_LEVEL_FOR_FAST_DOWNLOAD=1,
+    -- Preprocessed file compression levels for external connec-
+    -- tions.
+    P_LEVELS_FOR_SLOW_UPLOAD_BANDWIDTH={
+      -- We don't expect to go much higher than 40 Mbps on an ex-
+      -- ternal connection. But if some day we do then we need to
+      -- measure the optimal level there and add a tier. Note
+      -- that these need to go in decreasing order of bandwidth.
+      { min_bandwidth=40, level=8 },
+      { min_bandwidth=30, level=9 }, -- TODO: measure.
+      { min_bandwidth=20, level=11 }, -- TODO: measure.
+      { min_bandwidth=10, level=13 }, -- TODO: measure.
+      { min_bandwidth=5, level=15 }, -- TODO: measure.
+    },
+    -- Object file compression levels for external connections.
+    O_LEVELS_FOR_SLOW_DOWNLOAD_BANDWIDTH={
+      -- Here is it possible to get arbitrarily high numbers
+      -- since there aren't the same limits on download bandwidth
+      -- for cable internet connections.
+      { min_bandwidth=40, level=1 }, -- TODO: measure.
+      { min_bandwidth=30, level=3 }, -- TODO: measure.
+      { min_bandwidth=20, level=5 }, -- TODO: measure.
+      { min_bandwidth=10, level=7 }, -- TODO: measure.
+      { min_bandwidth=5, level=9 }, -- TODO: measure.
+    },
   },
 
   expire={

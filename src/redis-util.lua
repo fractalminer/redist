@@ -17,7 +17,7 @@ local socket = require( 'socket' )
 local hostname = assert( network.hostname )
 
 local debug = assert( logger.debug )
-local warn = assert( logger.warn )
+local warning = assert( logger.warning )
 local trace = assert( logger.trace )
 local sleep = assert( time.sleep )
 
@@ -138,7 +138,7 @@ local function wait_redis_available_impl( host, port, stop_fn )
       debug( 'redis connection available' )
       return
     end
-    warn( 'cannot connect to redis: %s:%s', host, port )
+    warning( 'cannot connect to redis: %s:%s', host, port )
     sleep( delay_secs )
   end
 end

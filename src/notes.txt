@@ -5,8 +5,6 @@ TODO:
     - There will be multiple channels to the redis server.
     - Workers should have an id and we should multiplex based
       on bandwidth in each channel.
-  * Find a way to increase the compression level when we are ex-
-    ternal (only necessary for local workers).
 
 LOW PRIORITY:
 -----------------------------------------------------------------

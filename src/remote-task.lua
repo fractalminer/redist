@@ -40,6 +40,7 @@ local function post_task( cxn, params )
   assert( params )
   assert( type( params ) == 'table' )
   assert( params.os )
+  assert( params.compression_level )
   local key, ex = keys.task_input( hash )
   set_hash( cxn, key, params, ex )
 end
@@ -59,9 +60,11 @@ local function set_result( cxn, _, _, task, result )
   -- works. Otherwise, assuming the command ran (with exit code 0
   -- or not) then `task` will be the input task object.
   local hash = assert( task.hash )
+  local compression_level = assert( task.compression_level )
   local out_key = keys.task_output( hash )
   local function blobify( content )
-    local blob = set_blob_from_string( cxn, content )
+    local blob = set_blob_from_string( cxn, content,
+                                       compression_level )
     assert( type( blob ) == 'table' )
     assert( type( blob.hash ) == 'string' )
     return blob.hash

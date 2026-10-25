@@ -42,7 +42,7 @@ local execute = assert( subprocess.execute )
 local debug = assert( logger.debug )
 local err = assert( logger.err )
 local info = assert( logger.info )
-local warn = assert( logger.warn )
+local warning = assert( logger.warning )
 local machine_label = assert( network.machine_label )
 local now_seconds = assert( time.now_seconds )
 local on_ordered_kv = assert( tbl.on_ordered_kv )
@@ -329,8 +329,8 @@ local function remove_stale_worker_pids( cxn )
     local key = keys.worker_presence_set( machine_label(), ps )
     for _, pid in ipairs( cxn:smembers( key ) ) do
       if not pid_exists( tonumber( pid ) ) then
-        warn( 'removing stale pid %s from %s presence set', pid,
-              ps )
+        warning( 'removing stale pid %s from %s presence set',
+                 pid, ps )
         remove_worker_presence( cxn, ps, tonumber( pid ) )
       end
     end
