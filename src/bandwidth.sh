@@ -6,15 +6,16 @@ cd "$this_dir"
 
 source cxn.sh
 
-SIZE_MIB="${SIZE_MIB:-50}"
+SIZE_MIB="${SIZE_MIB:-1}"
 KEY="bandwidth-test-$$"
 
 BYTES=$((SIZE_MIB * 1024 * 1024))
 
 DEFAULT_PORT=$(redist_port)
+PORT=${PORT:-$DEFAULT_PORT}
 
 redis-cli() {
-  command redis-cli -h $(redist_host) -p ${PORT:-$DEFAULT_PORT} "$@"
+  command redis-cli -h $(redist_host) -p "$PORT" "$@"
 }
 
 cleanup() {
@@ -43,10 +44,23 @@ report() {
     }'
 }
 
+report_json() {
+  local seconds="$1"
+  awk \
+    -v bytes="$BYTES" \
+    -v seconds="$seconds" \
+    'BEGIN {
+      mibps = bytes / 1024 / 1024 / seconds
+      mbps  = bytes * 8 / 1000000 / seconds
+
+      printf "{ \"bandwidth_mbps\": %.2f, \"bandwidth_mibs\": %.2f, \"time_secs\": %.3f }", mbps, mibps, seconds
+    }'
+}
+
 echo "Size:  ${SIZE_MIB} MiB"
 echo
 
-echo "Testing upload (SET)..."
+echo "Testing upload [$PORT] (SET)..."
 start=$(date +%s.%N)
 
 head -c "$BYTES" /dev/zero |
@@ -55,7 +69,7 @@ head -c "$BYTES" /dev/zero |
 end=$(date +%s.%N)
 upload_seconds=$(elapsed "$start" "$end")
 
-echo "Testing download (GET)..."
+echo "Testing download [$PORT] (GET)..."
 start=$(date +%s.%N)
 
 redis-cli --raw GET "$KEY" >/dev/null
@@ -66,3 +80,15 @@ download_seconds=$(elapsed "$start" "$end")
 echo
 report "Upload:   " "$upload_seconds"
 report "Download: " "$download_seconds"
+
+up_json=/tmp/redis-up-bandwidth.$PORT.json
+dn_json=/tmp/redis-dn-bandwidth.$PORT.json
+
+report_json "$upload_seconds"   >"$up_json"
+report_json "$download_seconds" >"$dn_json"
+
+# echo
+# echo "Upload ($PORT):"
+# cat "$up_json" | jq
+# echo "Download ($PORT):"
+# cat "$dn_json" | jq
