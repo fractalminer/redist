@@ -6,7 +6,7 @@ cd "$this_dir"
 
 source cxn.sh
 
-SIZE_MIB="${SIZE_MIB:-1}"
+SIZE_MIB="${SIZE_MIB:-10}"
 KEY="bandwidth-test-$$"
 
 BYTES=$((SIZE_MIB * 1024 * 1024))

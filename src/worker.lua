@@ -413,6 +413,7 @@ local function process_task(cxn_main, cxn_task, lc, task,
   advertise( cxn_main )
   if ok then
     local input_task = assert( result.input_task )
+    assert( input_task.compression_level )
     set_result( cxn_main, cxn_task, lc, input_task, result )
     if result.status == 0 then
       publish( cxn_task, task_hash, 'finished:success' )
