@@ -1,26 +1,7 @@
 # vim: syntax=yaml
 TODO:
 -----------------------------------------------------------------
-  * Multiplexing:
-    - There will be multiple channels to the redis server.
-    - How to choose connection:
-        1. Select randomly.
-        2. Select randomly weighted with connection strength.
-        3. Round-robin using local redis.
-        4. Round-robin weighted with connections strength, using
-           local redis.
-        5. Workers could have an id we assign a given worker to a
-           given target.
-      It's mostly upload bandwidth that matters, and the local
-      builders are the ones that do the uploading of the pre-
-      processed text. So they should use local redis to keep a
-      count of the number of connections (or data size) currently
-      in flight to a given target, that way new builders can
-      choose in order to keep that ratio at a target level.
-
-      This is only relevant for the local builders, so when the
-      connection is slow we should disable all remote workers on
-      the local host.
+  * TBD
 
 LOW PRIORITY:
 -----------------------------------------------------------------

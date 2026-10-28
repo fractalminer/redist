@@ -3,9 +3,11 @@
 -----------------------------------------------------------------
 local config = require( 'config' )
 local network = require( 'network' )
+local keys = require( 'keys' )
 
 local logger = require( 'moon.logger' )
 local file = require( 'moon.file' )
+local tbl = require( 'moon.tbl' )
 local time = require( 'moon.time' )
 
 local redis = require( 'redis' )
@@ -20,6 +22,7 @@ local debug = assert( logger.debug )
 local warning = assert( logger.warning )
 local trace = assert( logger.trace )
 local sleep = assert( time.sleep )
+local on_ordered_kv = assert( tbl.on_ordered_kv )
 
 local insert = assert( table.insert )
 local unpack = assert( table.unpack )
@@ -114,6 +117,47 @@ end
 local function connect()
   local host = assert( resolve_host() )
   local port = assert( config.redis.PORT )
+  return connect_impl( host, port )
+end
+
+local function choose_integer_weighted( items, counter )
+  local total_weight = 0
+  on_ordered_kv( items, function( _, weight )
+    assert( weight >= 0 )
+    assert( type( weight ) == 'number' )
+    assert( math.floor( weight ) == weight )
+    total_weight = total_weight + weight
+  end )
+  assert( total_weight > 0 )
+  local target = (counter % total_weight) + 1
+  local running = 0
+  local result = nil
+  on_ordered_kv( items, function( k, weight )
+    if result then return end
+    running = running + weight
+    if target <= running then
+      result = k
+      return
+    end
+  end )
+  assert( result, format(
+              'failed to find value: total_weight=%s, target=%s, running=%s',
+              total_weight, target, running ) )
+  return result
+end
+
+local function connect_multiplex( l_cxn )
+  assert( l_cxn )
+  if not config.redis.multiroute.ENABLED then return connect() end
+  local host = assert( resolve_host() )
+  local counter = assert( l_cxn:incr( keys.port_multiplex() ) )
+  local port = assert( choose_integer_weighted( config.redis
+                                                    .multiroute
+                                                    .ROUTES,
+                                                counter ) )
+  assert( type( port ) == 'number' )
+  assert( math.floor( port ) == port )
+  debug( 'selected multiplexed port: %d', port )
   return connect_impl( host, port )
 end
 
@@ -215,6 +259,7 @@ end
 -----------------------------------------------------------------
 return {
   resolve_host=resolve_host,
+  connect_multiplex=connect_multiplex,
   connect=connect,
   connect_local=connect_local,
   wait_redis_available=wait_redis_available,

@@ -272,6 +272,14 @@ function M.compiletimes()
   return make( key, elems )
 end
 
+function M.port_multiplex()
+  local key = '%s:multiplex'
+  local elems = {
+    M.ns(), --
+  }
+  return make( key, elems )
+end
+
 -----------------------------------------------------------------
 -- Module..
 -----------------------------------------------------------------

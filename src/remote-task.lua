@@ -94,12 +94,13 @@ local function set_result( cxn, _, _, task, result )
   end
 end
 
-local function queue_and_wait( cxn, task, fn )
+local function queue_and_wait( cxn, l_cxn, task, fn )
   assert( task )
   local task_hash = assert( task.hash )
   fn = fn or function() end
 
-  local pubsub_cxn<close> = assert( ru.connect() )
+  local pubsub_cxn<close> =
+      assert( ru.connect_multiplex( l_cxn ) )
   local sock = assert( pubsub_cxn.network.socket )
   local messages = pubsub_cxn:pubsub{
     subscribe=keys.task_events(),

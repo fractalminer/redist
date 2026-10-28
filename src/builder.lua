@@ -379,7 +379,7 @@ local function fetch_cached_compile(cxn, analyzed, task_hash,
   return status, stderr
 end
 
-local function run_compile( cxn, analyzed, ii )
+local function run_compile( cxn, l_cxn, analyzed, ii )
   assert( analyzed )
   assert( ii )
   local status, stderr
@@ -399,7 +399,8 @@ local function run_compile( cxn, analyzed, ii )
     -- Note that at this point, if the task_object existed then
     -- it has already been deleted.
     info( 'queueing for task %s...', task.hash )
-    task_output = assert( rtask.queue_and_wait( cxn, task ) )
+    task_output = assert(
+                      rtask.queue_and_wait( cxn, l_cxn, task ) )
     status, stderr = fetch_cached_compile( cxn, analyzed,
                                            task.hash, task_output )
   end
@@ -415,7 +416,7 @@ end
 local function run( cxn, l_cxn, analyzed )
   local ii = run_preprocess( l_cxn, analyzed )
   if not ii then return 1 end
-  return run_compile( cxn, analyzed, ii )
+  return run_compile( cxn, l_cxn, analyzed, ii )
 end
 
 -----------------------------------------------------------------
@@ -428,8 +429,8 @@ local function main()
   trace( 'upload bandwidth: %s',
          format_table( decide_pp_compression_level() ) )
 
-  local cxn<close> = assert( ru.connect() )
   local l_cxn<close> = assert( ru.connect_local() )
+  local cxn<close> = assert( ru.connect_multiplex( l_cxn ) )
 
   local command = assert( arg )
   local analyzed = assert( analyze_command( command ) )

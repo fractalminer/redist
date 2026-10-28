@@ -82,16 +82,24 @@ return harden{
     -- nect to redis, so we don't want it to be doing too much
     -- spinning in that case.
     INITIAL_CONNECT_WAIT_SECS=10,
-    -- These estimate the upload and download bandwidth in Mbps
-    -- that we get to the redis server when we are tunneling from
-    -- an external network. This is not relevant on the home net-
-    -- work where our bandwidths are effectively infinite, but
+    multiroute={
+      ENABLED=false,
+      ROUTES={
+        [6379]=4, --
+        [6381]=2, --
+      },
+    },
+    -- These estimate the total upload and download bandwidth in
+    -- Mbps that we get to the redis server when we are tunneling
+    -- from an external network. This is not relevant on the home
+    -- network where our bandwidths are effectively infinite, but
     -- could be arbitrarily low when on an external network (and
     -- 40 Mbps is the upper limit for upload bandwidth of a cable
     -- internet connection, though we might get less than that
-    -- when on a shared wifi network).
-    EXTERNAL_UPLOAD_BANDWIDTH=40, -- Mbps
-    EXTERNAL_DOWNLOAD_BANDWIDTH=200, -- Mbps
+    -- when on a shared wifi network). These will be the sums
+    -- across all routes to the redis server.
+    EXTERNAL_UPLOAD_BANDWIDTH=58.78, -- Mbps
+    EXTERNAL_DOWNLOAD_BANDWIDTH=150.31, -- Mbps
   },
 
   general={
