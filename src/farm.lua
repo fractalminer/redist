@@ -215,7 +215,12 @@ local function download_delta( cxn, delta_hash )
   local hash_base = assert( manifest.hash_base )
   local hash_diff = assert( manifest.hash_diff )
   local hash_new = assert( manifest.hash_new )
-  local base_data = assert( download_blob( cxn, hash_base ) )
+  local base_data, err_msg = download_blob( cxn, hash_base )
+  if not base_data then
+    error( format(
+               'failed to find base blob with hash %s for delta %s: %s',
+               hash_base, delta_hash, err_msg ) )
+  end
   local diff_data = assert( download_blob( cxn, hash_diff ) )
   local new_data =
       assert( xdelta.decode( base_data, diff_data ) )
