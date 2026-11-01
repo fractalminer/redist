@@ -103,7 +103,7 @@ function LocalCache:blob_get( hash )
   local data
   if stmt:step() == sqlite.ROW then data = stmt:get_value( 0 ) end
   stmt:reset()
-  return {
+  return data and {
     hash=hash, --
     compressed=true,
     data=data, --

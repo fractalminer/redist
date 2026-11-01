@@ -79,9 +79,8 @@ local function create_delta(base_blob, new_blob,
   assert( type( base ) == 'string', 'invalid base' )
   assert( type( new ) == 'string', 'invalid new' )
   local diff = assert( xdelta.encode( base, new ) )
-  local blob_base = create_blob( base, compression_level )
   local blob_diff = create_blob( diff, compression_level )
-  local hash_base = assert( blob_base.hash )
+  local hash_base = assert( base_blob.hash )
   local hash_diff = assert( blob_diff.hash )
   local hash_manifest = assert( hasher{ hash_base, hash_diff } )
   -- This hash_new can be optionally used by the remote worker to
@@ -95,7 +94,7 @@ local function create_delta(base_blob, new_blob,
   }
   local delta = {
     manifest=manifest, --
-    blob_base=blob_base, --
+    blob_base=base_blob, --
     blob_diff=blob_diff, --
   }
   return delta
@@ -185,13 +184,7 @@ local function download_blob( cxn, blob_hash )
   assert( type( blob ) == 'table',
           format( 'unexpected blob type: %s for key: %s',
                   type( blob ), key ) )
-  local data = assert( blob.data )
-  if blob.compressed then
-    -- NOTE: this will log its own decompression time.
-    return decompress( data )
-  else
-    return data
-  end
+  return blob_data( blob )
 end
 
 local function download_delta( cxn, delta_hash )
