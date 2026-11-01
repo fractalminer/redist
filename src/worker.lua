@@ -376,7 +376,7 @@ local function run_local_task( cxn, task_hash )
     return popen( command, cmd_args, opts )
   end )
   if ran.status == 0 then
-    info( 'command successful' )
+    debug( 'command successful' )
     if #ran.stdout > 0 then trace( 'stdout:\n%s', ran.stdout ) end
   else
     err( 'command failed [status=%d]:', ran.status )
