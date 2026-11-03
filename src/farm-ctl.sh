@@ -54,6 +54,7 @@ bar() {
   for (( i=0; i < n; i++ )); do
     echo -n '-'
   done
+  echo
 }
 
 print_title() {
@@ -62,51 +63,61 @@ print_title() {
   bar
 }
 
+function maybe_remote() {
+  local cmd="$1"
+  local host=$(redist_host)
+  if [[ ! "$(hostname)" =~ thelio && "$host" == "127.0.0.1" ]]; then
+    ssh -t linode "ssh -t 127.0.0.1 -p 12345 '$cmd'"
+  else
+    $cmd
+  fi
+}
+
 # ---------------------------------------------------------------
 # Commands.
 # ---------------------------------------------------------------
 function command_up() {
   print_title "Starting up build farm"
-  ~/dev/utilities/farm/geekom-on.sh
-  ./node-ctl.sh systemctl start geekom1
-  ./node-ctl.sh systemctl start geekom2
-  ./node-ctl.sh systemctl start geekom3
-  ./node-ctl.sh systemctl start meerkat
-  ./node-ctl.sh systemctl start bonobo
-  ./node-ctl.sh systemctl start thelio
-  if [[ "$(hostname)" =~ darter2 ]]; then
-    ./node-ctl.sh systemctl start darter2
-  fi
+  ./node-manager-systemctl.sh start
+  maybe_remote "
+    fish -c \"
+      cd ~/dev/redist/src
+      ~/dev/utilities/farm/geekom-on.sh
+      ./node-ctl.sh systemctl start geekom1
+      ./node-ctl.sh systemctl start geekom2
+      ./node-ctl.sh systemctl start geekom3
+      ./node-ctl.sh systemctl start meerkat
+      ./node-ctl.sh systemctl start bonobo
+      ./node-ctl.sh systemctl start thelio
+    \"
+  "
 }
 
 function command_down() {
   print_title "Shutting down build farm"
-  ./node-ctl.sh systemctl stop geekom1
-  ./node-ctl.sh systemctl stop geekom2
-  ./node-ctl.sh systemctl stop geekom3
-  ./node-ctl.sh systemctl stop meerkat
-  ./node-ctl.sh systemctl stop bonobo
-  ./node-ctl.sh systemctl stop thelio
-  if [[ "$(hostname)" =~ darter2 ]]; then
-    ./node-ctl.sh systemctl stop darter2
-  fi
-  ~/dev/utilities/farm/geekom-off.sh
+  ./node-manager-systemctl.sh stop
+  maybe_remote "
+    fish -c \"
+      cd ~/dev/redist/src
+      ./node-ctl.sh systemctl stop geekom1
+      ./node-ctl.sh systemctl stop geekom2
+      ./node-ctl.sh systemctl stop geekom3
+      ./node-ctl.sh systemctl stop meerkat
+      ./node-ctl.sh systemctl stop bonobo
+      ./node-ctl.sh systemctl stop thelio
+      ~/dev/utilities/farm/geekom-off.sh
+    \"
+  "
 }
 
 function command_dash() {
   print_title "Starting dashboard"
-  local host=$(redist_host)
-  local inner='
+  maybe_remote '
     fish -c "
       cd /home/dsicilia/dev/redist/src
       lua dashboard.lua
     "
   '
-  if [[ "$host" == tunnel ]]; then
-    ssh -t linode "ssh -t 127.0.0.1 -p 12345 '$inner'"
-  else
-    ssh -t thelio.local "$inner"
-  fi
 }
 
 function command_up_dash_down() {
