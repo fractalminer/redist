@@ -64,18 +64,8 @@ get_hostname_and_id() {
   hostname="$hostname.local"
 }
 
-bar() {
-  [[ -z "$COLUMNS" ]] && COLUMNS=65
-  local n="$COLUMNS"
-  for (( i=0; i < n; i++ )); do
-    echo -n '-'
-  done
-}
-
 print_title() {
-  bar
-  echo -e " ${c_yellow}${s_bold}$*$c_norm "
-  bar
+  echo -e "> ${c_yellow}${s_bold}$*$c_norm "
 }
 
 # ---------------------------------------------------------------
@@ -253,8 +243,6 @@ execute() {
 # Main.
 # ---------------------------------------------------------------
 main() {
-  clear
-
   interactive=1
 
   category="$1"; shift || true
@@ -280,23 +268,23 @@ main() {
     nodes=("$@")
   fi
 
-  echo "CATEGORY:"
-  echo "- $category"
-  echo "ACTION:"
-  echo "- $action"
-  if [[ -n "$extra" ]]; then
-    echo "PARAM:"
-    echo "- $extra"
-  fi
-  echo "NODES:"
-  for node in "${nodes[@]}"; do
-    get_hostname_and_id "$node"
-    echo "- $node"
-    echo "  - hostname: $hostname"
-  done
-
-  echo
   if (( interactive == 1 )); then
+    echo "CATEGORY:"
+    echo "- $category"
+    echo "ACTION:"
+    echo "- $action"
+    if [[ -n "$extra" ]]; then
+      echo "PARAM:"
+      echo "- $extra"
+    fi
+    echo "NODES:"
+    for node in "${nodes[@]}"; do
+      get_hostname_and_id "$node"
+      echo "- $node"
+      echo "  - hostname: $hostname"
+    done
+
+    echo
     echo -n 'OK? [y/n] '
     read -a yesno
     [[ "$yesno" != "y" ]] && exit 1
