@@ -64,12 +64,13 @@ print_title() {
 }
 
 function maybe_remote() {
-  local cmd="$1"
   local host=$(redist_host)
+  local cmd="fish -c '$1'"
   if [[ ! "$(hostname)" =~ thelio && "$host" == "127.0.0.1" ]]; then
+    echo 'redirecting through linode...'
     ssh -t linode "ssh -t 127.0.0.1 -p 12345 '$cmd'"
   else
-    $cmd
+    fish -c "$cmd"
   fi
 }
 
@@ -79,45 +80,36 @@ function maybe_remote() {
 function command_up() {
   print_title "Starting up build farm"
   ./node-manager-systemctl.sh start
-  maybe_remote "
-    fish -c \"
-      cd ~/dev/redist/src
-      ~/dev/utilities/farm/geekom-on.sh
-      ./node-ctl.sh systemctl start geekom1
-      ./node-ctl.sh systemctl start geekom2
-      ./node-ctl.sh systemctl start geekom3
-      ./node-ctl.sh systemctl start meerkat
-      ./node-ctl.sh systemctl start bonobo
-      ./node-ctl.sh systemctl start thelio
-    \"
-  "
+  maybe_remote '
+    cd ~/dev/redist/src;
+    ~/dev/utilities/farm/geekom-on.sh
+    ./node-ctl.sh systemctl start geekom1
+    ./node-ctl.sh systemctl start geekom2
+    ./node-ctl.sh systemctl start geekom3
+    ./node-ctl.sh systemctl start meerkat
+    ./node-ctl.sh systemctl start bonobo
+    ./node-ctl.sh systemctl start thelio
+  '
 }
 
 function command_down() {
   print_title "Shutting down build farm"
   ./node-manager-systemctl.sh stop
-  maybe_remote "
-    fish -c \"
-      cd ~/dev/redist/src
-      ./node-ctl.sh systemctl stop geekom1
-      ./node-ctl.sh systemctl stop geekom2
-      ./node-ctl.sh systemctl stop geekom3
-      ./node-ctl.sh systemctl stop meerkat
-      ./node-ctl.sh systemctl stop bonobo
-      ./node-ctl.sh systemctl stop thelio
-      ~/dev/utilities/farm/geekom-off.sh
-    \"
-  "
+  maybe_remote '
+    cd ~/dev/redist/src
+    ./node-ctl.sh systemctl stop geekom1
+    ./node-ctl.sh systemctl stop geekom2
+    ./node-ctl.sh systemctl stop geekom3
+    ./node-ctl.sh systemctl stop meerkat
+    ./node-ctl.sh systemctl stop bonobo
+    ./node-ctl.sh systemctl stop thelio
+    ~/dev/utilities/farm/geekom-off.sh
+  '
 }
 
 function command_dash() {
   print_title "Starting dashboard"
-  maybe_remote '
-    fish -c "
-      cd /home/dsicilia/dev/redist/src
-      lua dashboard.lua
-    "
-  '
+  maybe_remote 'cd /home/dsicilia/dev/redist/src; lua dashboard.lua'
 }
 
 function command_up_dash_down() {
