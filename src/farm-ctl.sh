@@ -18,8 +18,8 @@ source cxn.sh
 commands=(
   "up-dash-down"
   "up"
-  "down"
   "dash"
+  "down"
 )
 
 # ---------------------------------------------------------------
