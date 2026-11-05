@@ -63,13 +63,17 @@ print_title() {
   bar
 }
 
-function maybe_remote() {
+function maybe_via_ssh() {
   local host=$(redist_host)
   local cmd="fish -c '$1'"
   if [[ ! "$(hostname)" =~ thelio && "$host" == "127.0.0.1" ]]; then
     echo 'redirecting through linode...'
     ssh -t linode "ssh -t 127.0.0.1 -p 12345 '$cmd'"
+  elif [[ ! "$(hostname)" =~ thelio ]]; then
+    echo 'redirecting through thelio...'
+    ssh -t thelio.local "$cmd"
   else
+    echo 'running local...'
     fish -c "$cmd"
   fi
 }
@@ -80,7 +84,7 @@ function maybe_remote() {
 function command_up() {
   print_title "Starting up build farm"
   ./node-manager-systemctl.sh start
-  maybe_remote '
+  maybe_via_ssh '
     cd ~/dev/redist/src;
     ~/dev/utilities/farm/geekom-on.sh
     ./node-ctl.sh systemctl start geekom1
@@ -95,7 +99,7 @@ function command_up() {
 function command_down() {
   print_title "Shutting down build farm"
   ./node-manager-systemctl.sh stop
-  maybe_remote '
+  maybe_via_ssh '
     cd ~/dev/redist/src
     ./node-ctl.sh systemctl stop geekom1
     ./node-ctl.sh systemctl stop geekom2
@@ -109,7 +113,7 @@ function command_down() {
 
 function command_dash() {
   print_title "Starting dashboard"
-  maybe_remote 'cd /home/dsicilia/dev/redist/src; lua dashboard.lua'
+  maybe_via_ssh 'cd /home/dsicilia/dev/redist/src; lua dashboard.lua'
 }
 
 function command_up_dash_down() {
