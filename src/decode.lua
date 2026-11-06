@@ -37,9 +37,9 @@ local function cdecode( elems )
   local decoded = {
     binary=nil, --
     special_flags={
-      -- NOTE: for -D (define) directives, we may need to pre-
-      -- serve those since our preprocess might be an
-      -- include-only preprocess that leaves the macros in place.
+      -- NOTE: for -D (define) directives, we need to preserve
+      -- those since our preprocess might be an include-only pre-
+      -- process that leaves the macros in place.
       MD=nil, --
       MMD=nil, --
       MT=nil, --
@@ -48,6 +48,13 @@ local function cdecode( elems )
       c=nil, --
       o=nil, --
       x=nil, --
+      fcoverage_mapping=nil, --
+    },
+    -- These are flags that need to be passed with a -Xclang pre-
+    -- fix, which sends them to the frontend.
+    xclang_flags={
+      fcoverage_prefix_map=nil, --
+      other={}, --
     },
     flags={}, -- remaining flags.
     includes={}, -- could be -I or -isystem.
@@ -65,6 +72,20 @@ local function cdecode( elems )
       end
       decoded.special_flags[where] = r
       i = i + 1
+    end
+    local function xclang()
+      if not r then errorf( 'missing argument to -Xclang' ) end
+      i = i + 1
+      if r:match( '^.fcoverage.prefix.map=' ) then
+        if decoded.xclang_flags.fcoverage_prefix_map then
+          error( 'duplicate -fcoverage-prefix-map flag' )
+        end
+        local value = r:match( '[^=]*=(.*)' )
+        assert( value, 'failed to parse -fcoverage-prefix-map' )
+        decoded.xclang_flags.fcoverage_prefix_map = value
+        return
+      end
+      insert( decoded.xclang_flags.other, r )
     end
     local function add_c_cpp()
       if decoded.input_c_cpp_file then
@@ -85,6 +106,8 @@ local function cdecode( elems )
       decoded.special_flags.c = true
     elseif l == '-E' then
       decoded.special_flags.E = true
+    elseif l == '-fcoverage-mapping' then
+      decoded.special_flags.fcoverage_mapping = true
     elseif l == '-MT' then
       key_val( 'MT' )
     elseif l == '-MF' then
@@ -93,6 +116,8 @@ local function cdecode( elems )
       key_val( 'o' )
     elseif l == '-x' then
       key_val( 'x' )
+    elseif l == '-Xclang' then
+      xclang()
     elseif l == '-I' then
       if not r or is_option( r ) then
         errorf( 'missing argument to %s', l )
@@ -140,6 +165,7 @@ end
 local function cvalidate( decoded )
   assert( decoded.binary, 'missing compiler binary' )
   local sf = assert( decoded.special_flags )
+  local xf = assert( decoded.xclang_flags )
   local has_dep_flag = (sf.MD or sf.MMD or sf.MT or sf.MF)
   local has_objects = (#decoded.input_object_files > 0)
   local has_c_cpp = (decoded.input_c_cpp_file ~= nil)
@@ -161,6 +187,11 @@ local function cvalidate( decoded )
   end
   if sf.E and not has_c_cpp then
     error( '-E requires having c/cpp inputs' )
+  end
+  if xf.fcoverage_prefix_map and
+      not xf.fcoverage_prefix_map:match( '=' ) then
+    error(
+        '-fcoverage-prefix-map\'s value must be a key=value pair' )
   end
 end
 
@@ -184,7 +215,19 @@ local function cencode( o )
     add( '-MT' )
     add( o.special_flags.MT )
   end
+  if o.special_flags.fcoverage_mapping then
+    add( '-fcoverage-mapping' )
+  end
   for _, flag in ipairs( o.flags ) do add( flag ) end
+  if o.xclang_flags.fcoverage_prefix_map then
+    add( '-Xclang' )
+    add( format( '-fcoverage-prefix-map=%s',
+                 o.xclang_flags.fcoverage_prefix_map ) )
+  end
+  for _, flag in ipairs( o.xclang_flags.other ) do
+    add( '-Xclang' )
+    add( flag )
+  end
   for _, inc in ipairs( o.includes ) do add( inc ) end
   if o.input_c_cpp_file then add( o.input_c_cpp_file ) end
   if #o.input_object_files > 0 then

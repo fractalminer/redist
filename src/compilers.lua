@@ -186,7 +186,13 @@ local function pp_style( compiler_type )
   local style = {
     includes_only=false,
     pp_flags={},
-    ext='.ii',
+    -- We don't need an .ii extension here because we are already
+    -- using the -x c++-cpp-output flag to tell the compiler that
+    -- we are already dealing with a preprocessed output. Also,
+    -- if we include the .ii extension then it messes up the
+    -- clang code coverage tool in that it can't locate the orig-
+    -- inal sources to produce a report.
+    ext='',
     x_pp='c++',
     x_compile='c++-cpp-output',
   }

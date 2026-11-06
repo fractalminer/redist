@@ -39,32 +39,37 @@ local assertf = assert( merr.assertf )
 local broadcast_worker_presence = assert(
                                       farm.broadcast_worker_presence )
 local cencode = assert( decode.cencode )
-local cleanup = assert( mcleanup.cleanup )
 local check_log_level = assert( farm.check_log_level )
+local cleanup = assert( mcleanup.cleanup )
 local cround_trip = assert( decode.cround_trip )
 local debug = assert( logger.debug )
+local dirname = assert( posix.dirname )
 local download_artifact = assert( farm.download_artifact )
 local err = assert( logger.err )
 local format_table = assert( printer.format_table )
 local info = assert( logger.info )
+local is_path_absolute = assert( file.is_path_absolute )
 local LocalCache = assert( lcache.LocalCache )
 local log_command = assert( ccache.log_command )
 local machine_label = assert( network.machine_label )
 local match_compiler = assert( compilers.match_compiler )
+local mkdir_p = assert( file.mkdir_p )
 local now_seconds = assert( time.now_seconds )
 local os_version = assert( os_stat.os_version )
 local popen = assert( subprocess.popen )
 local printfln = assert( printer.printfln )
 local read_file = assert( file.read_file )
+local rm_file_on_close = assert( workarea.rm_file_on_close )
+local rm_tmp_folders_on_close = assert(
+                                    workarea.rm_tmp_folders_on_close )
 local remove_worker_presence = assert(
                                    farm.remove_worker_presence )
-local remove_when_done = assert( workarea.remove_when_done )
 local set_hash = assert( ru.set_hash )
 local timeit = assert( time.timeit_micros )
 local trace = assert( logger.trace )
-local wait_redis_available = assert( ru.wait_redis_available )
 local wait_local_redis_available = assert(
                                        ru.wait_local_redis_available )
+local wait_redis_available = assert( ru.wait_redis_available )
 local write_file = assert( file.write_file )
 
 local format = assert( string.format )
@@ -247,17 +252,43 @@ local function make_poller( cxn, desc )
   return on_poll
 end
 
+local function workarea_prefix_dir()
+  return format( '%s/%s', config.worker.WORKAREA, PID )
+end
+
+-- The `input` is the path as it would be on the original host
+-- where the source code lives.
+local function create_mirror_file( input, body, ext )
+  assert( input )
+  assert( type( input ) == 'string' )
+  assert( #input > 0 )
+  assert( is_path_absolute( input ) )
+  assert( ext )
+  local prefix = assert( workarea_prefix_dir() )
+  local dn = assert( dirname( input ) )
+  assert( is_path_absolute( dn ) )
+  local mirror_file = format( '%s%s%s', prefix, input, ext )
+  local mirror_dir = format( '%s%s', prefix, dn )
+  mkdir_p( mirror_dir )
+  write_file( mirror_file, body )
+  return mirror_file
+end
+
 local function compile(cxn, task_info, compiler, compiler_type,
                        flags, body )
   local pp_style = compilers.pp_style( compiler_type )
   local ext = assert( pp_style.ext )
   local task_hash = assert( task_info.hash )
-  local tmp_input = format( '%s/farm.task.compiler.%s.cpp%s',
-                            args.workarea, task_hash, ext )
+  local input_file_path = assert( task_info.input_file_path )
+  local prefix = assert( workarea_prefix_dir() )
+  local tmp_input = create_mirror_file( input_file_path, body,
+                                        ext )
   local tmp_output = format( '%s/farm.task.compiler.%s.o',
-                             args.workarea, task_hash )
-  local _<close> = remove_when_done( tmp_input )
-  local _<close> = remove_when_done( tmp_output )
+                             config.worker.WORKAREA, task_hash )
+  local _<close> = rm_tmp_folders_on_close( prefix,
+                                            dirname( tmp_input ) )
+  local _<close> = rm_file_on_close( tmp_input )
+  local _<close> = rm_file_on_close( tmp_output )
   local cmd_elems = { compiler }
   for _, flag in ipairs( flags:words() ) do
     insert( cmd_elems, flag )
@@ -283,7 +314,6 @@ local function compile(cxn, task_info, compiler, compiler_type,
     on_poll=assert( make_poller( cxn, 'compilation' ) ),
     cwd=nil,
   }
-  write_file( tmp_input, body )
   local time_taken, ran = timeit( function()
     return popen( compiler, cmd_args, opts )
   end )
@@ -494,10 +524,6 @@ local function main()
         :default( 'warning' )
         :description( 'log level' )
 
-  parser:option( '--workarea' )
-        :default( '/tmp' )
-        :description( 'where temporary files are stored' )
-
   parser:option( '-m --mode' )
         :choices{ 'one', 'drain' }
         :default( 'drain' )
@@ -530,6 +556,10 @@ local function main()
 
   -- Let's do this here to fail fast if we can't determine it.
   assert( os_version(), 'cannot determine os version tag' )
+
+  mkdir_p( workarea_prefix_dir() )
+  local _<close> = rm_tmp_folders_on_close(
+                       config.worker.WORKAREA, tostring( PID ) )
 
   wait_redis_available( should_stop )
   wait_local_redis_available( should_stop )

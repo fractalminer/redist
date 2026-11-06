@@ -8,10 +8,6 @@ source waiter.sh
 
 listen="${1:-remote}"
 
-workarea=/tmp/farm/workarea
-mkdir -p "$workarea"
-
 waiter lua worker.lua \
-  --workarea="$workarea" \
   --verbosity=info \
   --listen="$listen"

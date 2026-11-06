@@ -173,6 +173,7 @@ return harden{
   },
 
   worker={
+    WORKAREA='/tmp/farm/workarea',
     QUEUE_POLL_TIMEOUT_SECS=5,
     ADVERTISE_INTERVAL_SECS=10,
     POPEN_POLL_TIMEOUT_MILLIS=1000,
