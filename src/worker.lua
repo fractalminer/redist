@@ -286,7 +286,7 @@ local function compile(cxn, task_info, compiler, compiler_type,
   local tmp_output = format( '%s/farm.task.compiler.%s.o',
                              config.worker.WORKAREA, task_hash )
   local _<close> = rm_tmp_folders_on_close( prefix,
-                                            dirname( tmp_input ) )
+                                            input_file_path )
   local _<close> = rm_file_on_close( tmp_input )
   local _<close> = rm_file_on_close( tmp_output )
   local cmd_elems = { compiler }
