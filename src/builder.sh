@@ -5,6 +5,10 @@ redist="$HOME/dev/redist"
 
 export LUA_PATH="$redist/src/?.lua;$LUA_PATH"
 
+if [[ "$@" =~ "$REDIST_FILE_LOCAL" ]]; then
+  exec "$@"
+fi
+
 # NOTE: ccache does not like it when the prefix command writes
 # anything at all to stdout, so we need to redirect everything to
 # stderr. This command tries its best to not write anything to
