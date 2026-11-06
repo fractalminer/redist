@@ -5,7 +5,7 @@ redist="$HOME/dev/redist"
 
 export LUA_PATH="$redist/src/?.lua;$LUA_PATH"
 
-if [[ "$@" =~ "$REDIST_FILE_LOCAL" ]]; then
+if [[ -n "$REDIST_FILE_LOCAL" && "$@" =~ "$REDIST_FILE_LOCAL" ]]; then
   exec "$@"
 fi
 
