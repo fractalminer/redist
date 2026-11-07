@@ -13,7 +13,7 @@ source ~/dev/utilities/bashlib/util.sh
 source cxn.sh
 
 # ---------------------------------------------------------------
-# Commands.
+# Constants.
 # ---------------------------------------------------------------
 commands=(
   "up-dash-down"
@@ -23,8 +23,20 @@ commands=(
 )
 
 # ---------------------------------------------------------------
+# Globals.
+# ---------------------------------------------------------------
+g_is_local=0
+
+# ---------------------------------------------------------------
 # Helpers.
 # ---------------------------------------------------------------
+function on_local_network() {
+  if ping -W.5 -q -c1 thelio &>/dev/null; then
+    return 0
+  fi
+  return 1
+}
+
 # Only allows selecting a single result.
 function get_input_single() {
   local title="$1"
@@ -63,19 +75,39 @@ print_title() {
   bar
 }
 
-function maybe_via_ssh() {
+function on_thelio() {
   local host=$(redist_host)
   local cmd="fish -c '$1'"
-  if [[ ! "$(hostname)" =~ thelio && "$host" == "127.0.0.1" ]]; then
-    echo 'redirecting through linode...'
-    ssh -t linode "ssh -t 127.0.0.1 -p 12345 '$cmd'"
-  elif [[ ! "$(hostname)" =~ thelio ]]; then
-    echo 'redirecting through thelio...'
-    ssh -t thelio.local "$cmd"
-  else
+  # If we're already on thelio then just run local.
+  if [[ "$(hostname)" =~ thelio ]]; then
     echo 'running local...'
     fish -c "$cmd"
+    return
   fi
+  # We're not on thelio so we need to go to thelio. If we're
+  # on the local network then just go there.
+  if (( g_is_local )); then
+    echo 'redirecting through thelio...'
+    ssh -t thelio.local "$cmd"
+    return
+  fi
+  # We're not on the local network thus we need to route through
+  # linode.
+  echo 'redirecting through linode...'
+  ssh -t linode "ssh -t 127.0.0.1 -p 12345 '$cmd'"
+}
+
+function on_home_network() {
+  local host=$(redist_host)
+  local cmd="fish -c '$1'"
+  if (( g_is_local )); then
+    echo 'running local...'
+    fish -c "$cmd"
+    return
+  fi
+  # We're not on the local network thus we need to route through
+  # thelio.
+  on_thelio "$1"
 }
 
 # ---------------------------------------------------------------
@@ -84,7 +116,7 @@ function maybe_via_ssh() {
 function command_up() {
   print_title "Starting up build farm"
   ./node-manager-systemctl.sh start
-  maybe_via_ssh '
+  on_home_network '
     cd ~/dev/redist/src;
     ~/dev/utilities/farm/geekom-on.sh
     ./node-ctl.sh systemctl start geekom1
@@ -99,7 +131,7 @@ function command_up() {
 function command_down() {
   print_title "Shutting down build farm"
   ./node-manager-systemctl.sh stop
-  maybe_via_ssh '
+  on_home_network '
     cd ~/dev/redist/src
     ./node-ctl.sh systemctl stop geekom1
     ./node-ctl.sh systemctl stop geekom2
@@ -113,7 +145,7 @@ function command_down() {
 
 function command_dash() {
   print_title "Starting dashboard"
-  maybe_via_ssh 'cd /home/dsicilia/dev/redist/src; lua dashboard.lua'
+  on_thelio 'cd /home/dsicilia/dev/redist/src; lua dashboard.lua'
 }
 
 function command_up_dash_down() {
@@ -152,6 +184,8 @@ function execute() {
 # ---------------------------------------------------------------
 function main() {
   clear
+
+  on_local_network && g_is_local=1
 
   interactive=1
 
