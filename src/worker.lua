@@ -585,6 +585,12 @@ local function main()
 
   debug( 'listen: %s', args.listen )
 
+  -- This is so that when we first advertise this worker will be
+  -- marked as active at startup time, that way the node manager
+  -- won't quickly bring down local workers that just started up
+  -- thinking that they've been inactive for a long time.
+  STATE.last_active = now_seconds()
+
   local _<close> = cleanup( function() unadvertise( cxn ) end )
 
   local lc<close> = LocalCache()
