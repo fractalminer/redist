@@ -4,8 +4,6 @@ TODO:
   * When a local worker starts up, its last-active in redis needs
     to be made current so that the node manager doesn't quickly
     unscale the local workers.
-  * The node manager seems to log that it is stopping local
-    workers even when there are none.
   * The bandwidth update script needs to compute the ratio and
     edit the config somehow. Since most builds will be incremen-
     tal, it seems that the download might be more important,

@@ -279,17 +279,20 @@ local function auto_unscale_local_workers( cxn )
 
   local timeout = config.node_manager
                       .LOCAL_WORKER_INACTIVITY_TIMEOUT_SECS
+  local has_local_workers = false
   for _, worker_key in ipairs( worker_keys ) do
     local advert = cxn:hgetall( worker_key )
     assert( type( advert ) == 'table' )
     if next( advert ) then
       if assert( advert.listen ) == 'local' then
+        has_local_workers = true
         local last_active = assert(
                                 tonumber( advert.last_active ) )
         if last_active + timeout > now then return end
       end
     end
   end
+  if not has_local_workers then return end
   -- All local workers have timed out, meaning that they've gone
   -- a period of time with no activity.
   info( 'stopping local workers due to inactivity.' )
