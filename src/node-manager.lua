@@ -29,6 +29,9 @@ local LocalCache = assert( lcache.LocalCache )
 local ProcessPool = assert( process_pool.ProcessPool )
 local remove_worker_presence = assert(
                                    farm.remove_worker_presence )
+local remove_global_remote_worker_presence =
+    farm.remove_global_remote_worker_presence
+assert( remove_global_remote_worker_presence )
 local set_hash = assert( ru.set_hash )
 local wait_redis_available = assert( ru.wait_redis_available )
 local wait_local_redis_available = assert(
@@ -332,6 +335,8 @@ local function remove_stale_worker_pids( cxn )
         warning( 'removing stale pid %s from %s presence set',
                  pid, ps )
         remove_worker_presence( cxn, ps, tonumber( pid ) )
+        remove_global_remote_worker_presence( cxn,
+                                              tonumber( pid ) )
       end
     end
   end

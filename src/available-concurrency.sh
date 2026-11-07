@@ -5,9 +5,9 @@ this_dir="$(dirname "$0")"
 cd "$this_dir"
 
 code='
-  require( "cluster" ).print_cluster_state( { exclude_workers=true } )
+  require( "cluster" ).print_concurrency_info()
 '
-workers="$(lua -e "$code" | jq '.worker_count-.local_worker_count')"
+workers="$(lua -e "$code" | jq '.remote_worker_count')"
 
 # It's important not to allow this script to ever return zero be-
 # cause ninja's -j0 means "infinite concurrency".

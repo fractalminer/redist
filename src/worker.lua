@@ -38,6 +38,9 @@ local traceback = assert( require( 'debug' ).traceback )
 local assertf = assert( merr.assertf )
 local broadcast_worker_presence = assert(
                                       farm.broadcast_worker_presence )
+local broadcast_global_remote_worker_presence =
+    farm.broadcast_global_remote_worker_presence
+assert( broadcast_global_remote_worker_presence )
 local cencode = assert( decode.cencode )
 local check_log_level = assert( farm.check_log_level )
 local cleanup = assert( mcleanup.cleanup )
@@ -64,6 +67,9 @@ local rm_tmp_folders_on_close = assert(
                                     workarea.rm_tmp_folders_on_close )
 local remove_worker_presence = assert(
                                    farm.remove_worker_presence )
+local remove_global_remote_worker_presence =
+    farm.remove_global_remote_worker_presence
+assert( remove_global_remote_worker_presence )
 local set_hash = assert( ru.set_hash )
 local timeit = assert( time.timeit_micros )
 local trace = assert( logger.trace )
@@ -175,15 +181,21 @@ local function advertise( cxn )
   broadcast_worker_presence( cxn, 'workers_count' )
   if is_local then
     broadcast_worker_presence( cxn, 'workers_local' )
+  else
+    broadcast_worker_presence( cxn, 'workers_remote' )
+    broadcast_global_remote_worker_presence( cxn )
   end
   if STATE.status ~= 'idle' then
     broadcast_worker_presence( cxn, 'workers_active' )
     if is_local then
       broadcast_worker_presence( cxn, 'workers_active_local' )
+    else
+      broadcast_worker_presence( cxn, 'workers_active_remote' )
     end
   else
     remove_worker_presence( cxn, 'workers_active' )
     remove_worker_presence( cxn, 'workers_active_local' )
+    remove_worker_presence( cxn, 'workers_active_remote' )
   end
   local key, ex =
       keys.worker_advertisement( machine_label(), PID )
@@ -222,8 +234,11 @@ local function unadvertise( cxn )
   debug( 'unadvertising %s:%s', machine_label(), PID )
   remove_worker_presence( cxn, 'workers_count' )
   remove_worker_presence( cxn, 'workers_local' )
+  remove_worker_presence( cxn, 'workers_remote' )
   remove_worker_presence( cxn, 'workers_active' )
   remove_worker_presence( cxn, 'workers_active_local' )
+  remove_worker_presence( cxn, 'workers_active_remote' )
+  remove_global_remote_worker_presence( cxn )
   local key = keys.worker_advertisement( machine_label(), PID )
   cxn:del( key )
 end

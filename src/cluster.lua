@@ -243,6 +243,29 @@ local function distributor_info( cxn )
   return state
 end
 
+-- Queries the minimum amount needed in order to detect the
+-- number of total workers when initiating a build.
+local function concurrency_info( cxn )
+  assert( cxn )
+  local state = {}
+
+  local function number( from )
+    if not from then return 0 end
+    if from == '' then return 0 end
+    local num = tonumber( from )
+    return assert( num, format( 'invalid number: "%s"', from ) )
+  end
+  local key = keys.global_remote_worker_presence_set()
+  state.remote_worker_count = number( cxn:scard( key ) or 0 )
+  return state
+end
+
+local function print_concurrency_info()
+  local cxn<close> = assert( ru.connect() )
+  local info = assert( concurrency_info( cxn ) )
+  print( json.tostring_pretty( info ) )
+end
+
 -----------------------------------------------------------------
 -- Finished.
 -----------------------------------------------------------------
@@ -250,4 +273,6 @@ return {
   query_cluster_state=query_cluster_state,
   print_cluster_state=print_cluster_state,
   distributor_info=distributor_info,
+  concurrency_info=concurrency_info,
+  print_concurrency_info=print_concurrency_info,
 }

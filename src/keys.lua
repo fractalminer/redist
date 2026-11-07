@@ -219,6 +219,14 @@ function M.worker_presence_set( node, set )
   return make( key, elems ), expire.WORKER_ADVERTISE_SECS
 end
 
+function M.global_remote_worker_presence_set()
+  local key = '%s:remote_presence_global'
+  local elems = {
+    M.ns(), --
+  }
+  return make( key, elems ), expire.WORKER_ADVERTISE_SECS
+end
+
 function M.node_worker_target_count( node, label )
   local key = '%s:target_count:%s'
   local elems = {

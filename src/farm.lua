@@ -269,12 +269,34 @@ local function broadcast_worker_presence( cxn, set )
   trace( 'added presence: %s|%s', key, PID )
 end
 
+local function global_remote_presence_value()
+  return format( '%s-%s', machine_label(), PID )
+end
+
+local function broadcast_global_remote_worker_presence( cxn )
+  local key, ex = keys.global_remote_worker_presence_set()
+  assert( ex )
+  cxn:pipeline( function( p )
+    p:sadd( key, global_remote_presence_value() )
+    p:expire( key, ex )
+  end )
+  trace( 'added global remote presence: %s|%s', key, PID )
+end
+
 local function remove_worker_presence( cxn, set, pid )
   pid = pid or PID
   local key = keys.worker_presence_set( machine_label(), set )
   -- Don't assert here just in case the set no longer exists.
   cxn:srem( key, pid )
   trace( 'removed presence: %s|%s', key, pid )
+end
+
+local function remove_global_remote_worker_presence( cxn, pid )
+  pid = pid or PID
+  local key = keys.global_remote_worker_presence_set()
+  -- Don't assert here just in case the set no longer exists.
+  cxn:srem( key, global_remote_presence_value() )
+  trace( 'removed global remote presence: %s|%s', key, pid )
 end
 
 local function update_log_level( cxn )
@@ -407,7 +429,9 @@ return {
   upload_delta=upload_delta,
   download_artifact=download_artifact,
   broadcast_worker_presence=broadcast_worker_presence,
+  broadcast_global_remote_worker_presence=broadcast_global_remote_worker_presence,
   remove_worker_presence=remove_worker_presence,
+  remove_global_remote_worker_presence=remove_global_remote_worker_presence,
   WorkerCount=WorkerCount.new,
   check_log_level=check_log_level,
   reset_task_input_and_output=reset_task_input_and_output,
