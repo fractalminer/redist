@@ -1,6 +1,14 @@
 # vim: syntax=yaml
 TODO:
 -----------------------------------------------------------------
+  * The farm-ctl script needs to:
+    - Confirm when selecting `down`.
+    - Confirm after up-dash-down is about to bring the cluster
+      down.
+    - The `up` command needs to set all nodes' remote worker
+      count to the max except for darter2.
+    - Provide a down-service that brings down all of the services
+      but doesn't power off the geekoms.
   * The bandwidth update script needs to compute the ratio and
     edit the config somehow. Since most builds will be incremen-
     tal, it seems that the download might be more important,
