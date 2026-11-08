@@ -94,6 +94,8 @@ function on_thelio() {
   # We're not on the local network thus we need to route through
   # linode.
   echo 'redirecting through linode...'
+  local x="'"
+  cmd="${cmd//\'/\\\'}"
   ssh -t linode "ssh -t 127.0.0.1 -p 12345 '$cmd'"
 }
 
@@ -117,7 +119,7 @@ function command_up() {
   print_title "Starting up build farm"
   ./node-manager-systemctl.sh start
   on_home_network '
-    cd ~/dev/redist/src;
+    cd ~/dev/redist/src
     ~/dev/utilities/farm/geekom-on.sh
     ./node-ctl.sh systemctl start geekom1
     ./node-ctl.sh systemctl start geekom2
