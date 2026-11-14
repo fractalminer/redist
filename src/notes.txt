@@ -14,6 +14,7 @@ TODO:
     tal, it seems that the download might be more important,
     though upload can't be ignored, so perhaps we should compute
     the ratio by weighting like so: .25*dl + .75*ul
+  * There are Xs frequently on node startup.
 
 LOW PRIORITY:
 -----------------------------------------------------------------
