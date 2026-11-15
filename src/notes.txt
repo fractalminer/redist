@@ -15,6 +15,12 @@ TODO:
     though upload can't be ignored, so perhaps we should compute
     the ratio by weighting like so: .25*dl + .75*ul
   * There are Xs frequently on node startup.
+  * Consider updating the local sqlite base blob in the sqlite
+    cache when sending a delta so that the deltas don't get pro-
+    gressively larger. That said, I think this happens automati-
+    cally when the redis cache is emptied (causing it to lose the
+    base blob) so we may not need to do this in practice. Though
+    it does in principle seem like the right thing to do.
 
 LOW PRIORITY:
 -----------------------------------------------------------------
