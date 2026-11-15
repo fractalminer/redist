@@ -21,6 +21,8 @@ TODO:
     cally when the redis cache is emptied (causing it to lose the
     base blob) so we may not need to do this in practice. Though
     it does in principle seem like the right thing to do.
+  * Add a step to farm-ctl / node-ctl to change the power profile
+    of bonobo on up/down.
 
 LOW PRIORITY:
 -----------------------------------------------------------------
